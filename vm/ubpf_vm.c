@@ -140,6 +140,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
     }
 
     reg[1] = (uintptr_t)mem;
+    reg[2] = (uint64_t)mem_len;
     reg[10] = (uintptr_t)stack + sizeof(stack);
 
     while (1) {

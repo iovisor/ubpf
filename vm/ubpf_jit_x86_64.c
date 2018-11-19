@@ -93,6 +93,11 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         emit_mov(state, RDI, map_register(1));
     }
 
+    /* Move rsi into register 2 */
+    if (map_register(2) != RSI) {
+        emit_mov(state, RSI, map_register(2));
+    }
+
     /* Copy stack pointer to R10 */
     emit_mov(state, RSP, map_register(10));
 
