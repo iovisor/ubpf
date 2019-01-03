@@ -136,6 +136,9 @@ exit
 
 def serialize(parts):
     s = elftools.elf.structs.ELFStructs(elfclass=64)
+    s.create_basic_structs()
+    ehdr = parts['ehdr']
+    s.create_advanced_structs(ehdr['e_type'], ehdr['e_machine'], ehdr['e_ident']['EI_OSABI'])
     tmp = []
     offset = 0
 
