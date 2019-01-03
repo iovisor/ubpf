@@ -1,4 +1,0 @@
--- asm
-mov32 r0, 0
--- error
-Failed to load code: no exit at end of instructions
