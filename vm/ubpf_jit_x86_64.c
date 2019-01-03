@@ -515,7 +515,7 @@ muldivmod(struct jit_state *state, uint16_t pc, uint8_t opcode, int src, int dst
 }
 
 static void
-resolve_jumps(struct ubpf_vm *vm, struct jit_state *state)
+resolve_jumps(struct jit_state *state)
 {
     int i;
     for (i = 0; i < state->num_jumps; i++) {
@@ -567,7 +567,7 @@ ubpf_compile(struct ubpf_vm *vm, char **errmsg)
         goto out;
     }
 
-    resolve_jumps(vm, &state);
+    resolve_jumps(&state);
 
     jitted_size = state.offset;
     jitted = mmap(0, jitted_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
