@@ -15,6 +15,10 @@
 CFLAGS := -Wall -Werror -Iinc -O2 -g
 LDLIBS := -lm
 
+INSTALL ?= install
+DESTDIR =
+PREFIX ?= /usr/local
+
 ifeq ($(COVERAGE),1)
 CFLAGS += -fprofile-arcs -ftest-coverage
 LDFLAGS += -fprofile-arcs
@@ -33,6 +37,12 @@ libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o
 	ar rc $@ $^
 
 test: test.o libubpf.a
+
+install:
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/lib
+	$(INSTALL) -m 644 libubpf.a $(DESTDIR)$(PREFIX)/lib
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/include
+	$(INSTALL) -m 644 inc/ubpf.h $(DESTDIR)$(PREFIX)/include
 
 clean:
 	rm -f test libubpf.a *.o

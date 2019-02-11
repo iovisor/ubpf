@@ -19,7 +19,9 @@ and JIT compiler for x86-64.
 ## Building
 
 Run `make -C vm` to build the VM. This produces a static library `libubpf.a`
-and a simple executable used by the testsuite.
+and a simple executable used by the testsuite. After building the
+library you can install using `make -C vm install` via either root or
+sudo.
 
 ## Compiling C to eBPF
 
