@@ -134,4 +134,7 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  */
 int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
 
+void ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs);
+uint64_t *ubpf_get_registers(const struct ubpf_vm *vm);
+
 #endif

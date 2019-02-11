@@ -29,6 +29,10 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 endif
 
+ifeq ($(DEBUG),1)
+CFLAGS += -DDEBUG
+endif
+
 all: libubpf.a libubpf.so test
 
 ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
