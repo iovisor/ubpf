@@ -75,4 +75,7 @@ uint64_t ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len);
 
 ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
 
+void ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs);
+uint64_t *ubpf_get_registers(const struct ubpf_vm *vm);
+
 #endif

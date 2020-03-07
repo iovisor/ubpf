@@ -33,6 +33,9 @@ struct ubpf_vm {
     size_t jitted_size;
     ext_func *ext_funcs;
     const char **ext_func_names;
+#ifdef DEBUG
+    uint64_t *regs;
+#endif
 };
 
 char *ubpf_error(const char *fmt, ...);

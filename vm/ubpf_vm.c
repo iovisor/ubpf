@@ -131,13 +131,23 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
 {
     uint16_t pc = 0;
     const struct ebpf_inst *insts = vm->insts;
-    uint64_t reg[16];
+    uint64_t _reg[16];
+    uint64_t *reg;
     uint64_t stack[(STACK_SIZE+7)/8];
 
     if (!insts) {
         /* Code must be loaded before we can execute */
         return UINT64_MAX;
     }
+
+#ifdef DEBUG
+    if (vm->regs)
+        reg = vm->regs;
+    else
+        reg = _reg;
+#else
+    reg = _reg;
+#endif
 
     reg[1] = (uintptr_t)mem;
     reg[10] = (uintptr_t)stack + sizeof(stack);
@@ -759,3 +769,31 @@ ubpf_error(const char *fmt, ...)
     va_end(ap);
     return msg;
 }
+
+#ifdef DEBUG
+void
+ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs)
+{
+    vm->regs = regs;
+}
+
+uint64_t *
+ubpf_get_registers(const struct ubpf_vm *vm)
+{
+    return vm->regs;
+}
+#else
+void
+ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs)
+{
+    fprintf(stderr, "uBPF warning: registers are not exposed in release mode. Please recompile in debug mode\n");
+}
+
+uint64_t *
+ubpf_get_registers(const struct ubpf_vm *vm)
+{
+    fprintf(stderr, "uBPF warning: registers are not exposed in release mode. Please recompile in debug mode\n");
+    return NULL;
+}
+
+#endif
