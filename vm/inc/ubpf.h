@@ -27,6 +27,15 @@ struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
 
 /*
+ * Enable / disable bounds_check
+ *
+ * Bounds check is enabled by default, but it may be too restrictive
+ * Pass true to enable, false to disable
+ * Returns previous state
+ */
+bool toggle_bounds_check(struct ubpf_vm *vm, bool enable);
+
+/*
  * Register an external function
  *
  * The immediate field of a CALL instruction is an index into an array of
