@@ -50,8 +50,28 @@ bounds_check(struct bounds *bounds, uint64_t offset, uint64_t size)
     return bounds->base + offset;
 }
 
-int
+int 
 ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errmsg)
+{
+    return ubpf_load_elf_by_name(vm, elf, elf_size, NULL, errmsg);
+}
+
+static 
+const char *
+ubpf_lookup_string(struct section * string_table, uint64_t offset)
+{
+    const char *strings = string_table->data;
+    if (offset > string_table->size) {
+        return NULL;
+    }
+    else
+    {
+        return strings + offset;
+    }
+}
+
+int
+ubpf_load_elf_by_name(struct ubpf_vm *vm, const void *elf, size_t elf_size, const char * name, char **errmsg)
 {
     struct bounds b = { .base=elf, .size=elf_size };
     void *text_copy = NULL;
@@ -124,14 +144,28 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
         sections[i].size = shdr->sh_size;
     }
 
-    /* Find first text section */
+    /* Find string table index */
+    int str_shndx = 0;
+    for (i = 0; i < ehdr->e_shnum; i++) {
+        const Elf64_Shdr *shdr = sections[i].shdr;
+        if (shdr->sh_type == SHT_STRTAB) {
+            str_shndx = i;
+            break;
+        }
+    }
+
+    /* Find named text section */
     int text_shndx = 0;
     for (i = 0; i < ehdr->e_shnum; i++) {
         const Elf64_Shdr *shdr = sections[i].shdr;
         if (shdr->sh_type == SHT_PROGBITS &&
                 shdr->sh_flags == (SHF_ALLOC|SHF_EXECINSTR)) {
-            text_shndx = i;
-            break;
+            const char * section_name;
+            section_name = ubpf_lookup_string(&sections[str_shndx], shdr->sh_name);
+            if (!name || (section_name && strcmp(section_name, name) == 0)) {
+                text_shndx = i;
+                break;
+            }
         }
     }
 
@@ -175,9 +209,6 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
             goto error;
         }
 
-        struct section *strtab = &sections[symtab->shdr->sh_link];
-        const char *strings = strtab->data;
-
         int j;
         for (j = 0; j < rel->size/sizeof(Elf64_Rel); j++) {
             const Elf64_Rel *r = &rs[j];
@@ -194,13 +225,12 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
             }
 
             const Elf64_Sym *sym = &syms[sym_idx];
+            const char * sym_name = ubpf_lookup_string(&sections[str_shndx], sym->st_name);
 
-            if (sym->st_name >= strtab->size) {
+            if (!sym_name) {
                 *errmsg = ubpf_error("bad symbol name");
                 goto error;
             }
-
-            const char *sym_name = strings + sym->st_name;
 
             if (r->r_offset + 8 > text->size) {
                 *errmsg = ubpf_error("bad relocation offset");

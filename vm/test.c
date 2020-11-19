@@ -34,10 +34,11 @@ static void register_functions(struct ubpf_vm *vm);
 
 static void usage(const char *name)
 {
-    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] BINARY\n", name);
+    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] [-n|--name section] BINARY\n", name);
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
+    fprintf(stderr, "If --name is given, then that text section will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
 }
@@ -49,14 +50,16 @@ int main(int argc, char **argv)
         { .name = "mem", .val = 'm', .has_arg=1 },
         { .name = "jit", .val = 'j' },
         { .name = "register-offset", .val = 'r', .has_arg=1 },
+        { .name = "name", .val = 'n', .has_arg=1 },
         { }
     };
 
     const char *mem_filename = NULL;
     bool jit = false;
+    const char *section_name = NULL;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jnr:", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
@@ -66,6 +69,9 @@ int main(int argc, char **argv)
             break;
         case 'r':
             ubpf_set_register_offset(atoi(optarg));
+            break;
+        case 'n':
+            section_name = optarg;
             break;
         case 'h':
             usage(argv[0]);
@@ -114,7 +120,7 @@ int main(int argc, char **argv)
     char *errmsg;
     int rv;
     if (elf) {
-	rv = ubpf_load_elf(vm, code, code_len, &errmsg);
+	rv = ubpf_load_elf_by_name(vm, code, code_len, section_name, &errmsg);
     } else {
 	rv = ubpf_load(vm, code, code_len, &errmsg);
     }
