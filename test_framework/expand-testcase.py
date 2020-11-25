@@ -29,7 +29,7 @@ def main():
         os.makedirs(args.path)
 
     def writefile(name, contents):
-        file("%s/%s" % (args.path, name), "w").write(contents)
+        open("%s/%s" % (args.path, name), "wb").write(contents)
 
     if 'mem' in data:
         writefile('mem', data['mem'])
@@ -49,7 +49,7 @@ def main():
             + data['mem'])
 
     if 'raw' in data:
-        code = ''.join(struct.pack("=Q", x) for x in data['raw'])
+        code = b''.join(struct.pack("=Q", x) for x in data['raw'])
     elif 'asm' in data:
         code = ubpf.assembler.assemble(data['asm'])
     else:
@@ -59,7 +59,7 @@ def main():
         writefile('code', code)
 
     if 'asm' in data:
-        writefile('asm', data['asm'])
+        writefile('asm', data['asm'].encode())
     elif code:
         writefile('asm', ubpf.disassembler.disassemble(code))
 
