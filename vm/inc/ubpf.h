@@ -84,4 +84,14 @@ uint64_t ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len);
 
 ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
 
+/* 
+ * Translate the eBPF byte code to x64 machine code and store in buffer.
+ * 
+ * This must be called after registering all functions.
+ * 
+ * Returns 0 on success, -1 on error. In case of error a pointer to the error
+ * message will be stored in 'errmsg' and should be freed by the caller.
+ */
+int ubpf_translate(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg);
+
 #endif

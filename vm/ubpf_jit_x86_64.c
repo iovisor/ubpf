@@ -538,12 +538,40 @@ resolve_jumps(struct jit_state *state)
     }
 }
 
+int 
+ubpf_translate(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
+{
+    struct jit_state state;
+    int result = -1;
+
+    state.offset = 0;
+    state.size = *size;
+    state.buf = buffer;
+    state.pc_locs = calloc(MAX_INSTS+1, sizeof(state.pc_locs[0]));
+    state.jumps = calloc(MAX_INSTS, sizeof(state.jumps[0]));
+    state.num_jumps = 0;
+
+    if (translate(vm, &state, errmsg) < 0) {
+        goto out;
+    }
+
+    resolve_jumps(&state);
+    result = 0;
+
+    *size = state.offset;
+
+out:
+    free(state.pc_locs);
+    free(state.jumps);
+    return result;
+}
+
 ubpf_jit_fn
 ubpf_compile(struct ubpf_vm *vm, char **errmsg)
 {
     void *jitted = NULL;
+    uint8_t *buffer = NULL;
     size_t jitted_size;
-    struct jit_state state;
 
     if (vm->jitted) {
         return vm->jitted;
@@ -556,27 +584,20 @@ ubpf_compile(struct ubpf_vm *vm, char **errmsg)
         return NULL;
     }
 
-    state.offset = 0;
-    state.size = 65536;
-    state.buf = calloc(state.size, 1);
-    state.pc_locs = calloc(MAX_INSTS+1, sizeof(state.pc_locs[0]));
-    state.jumps = calloc(MAX_INSTS, sizeof(state.jumps[0]));
-    state.num_jumps = 0;
+    jitted_size = 65536;
+    buffer = calloc(jitted_size, 1);
 
-    if (translate(vm, &state, errmsg) < 0) {
+    if (ubpf_translate(vm, buffer, &jitted_size, errmsg) < 0) {
         goto out;
     }
 
-    resolve_jumps(&state);
-
-    jitted_size = state.offset;
     jitted = mmap(0, jitted_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (jitted == MAP_FAILED) {
         *errmsg = ubpf_error("internal uBPF error: mmap failed: %s\n", strerror(errno));
         goto out;
     }
 
-    memcpy(jitted, state.buf, jitted_size);
+    memcpy(jitted, buffer, jitted_size);
 
     if (mprotect(jitted, jitted_size, PROT_READ | PROT_EXEC) < 0) {
         *errmsg = ubpf_error("internal uBPF error: mprotect failed: %s\n", strerror(errno));
@@ -587,9 +608,7 @@ ubpf_compile(struct ubpf_vm *vm, char **errmsg)
     vm->jitted_size = jitted_size;
 
 out:
-    free(state.buf);
-    free(state.pc_locs);
-    free(state.jumps);
+    free(buffer);
     if (jitted && vm->jitted == NULL) {
         munmap(jitted, jitted_size);
     }
