@@ -23,6 +23,8 @@
 struct ubpf_vm;
 typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
 
+typedef uint64_t (*ubpf_map_resolver_fn)(uint64_t fd);
+
 struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
 
@@ -47,6 +49,16 @@ bool toggle_bounds_check(struct ubpf_vm *vm, bool enable);
  * Returns 0 on success, -1 on error.
  */
 int ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn);
+
+/*
+ * Register a function used to resolve map FD to address.
+ *
+ * When processing a lddw instruction with the map_fd bit set, invoke the
+ * call back to resolve map fd to address.
+ *
+ * Returns 0 on sucess, -1 on error.
+ */
+int ubpf_register_map_resolver(struct ubpf_vm *vm, ubpf_map_resolver_fn resolver_fn);
 
 /*
  * Load code into a VM
