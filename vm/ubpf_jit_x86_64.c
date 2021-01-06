@@ -31,9 +31,6 @@
 #define TARGET_PC_EXIT -1
 #define TARGET_PC_DIV_BY_ZERO -2
 
-/* Special value for register source to indicate load of map */
-#define BPF_PSEUDO_MAP_FD 1
-
 static void muldivmod(struct jit_state *state, uint16_t pc, uint8_t opcode, int src, int dst, int32_t imm);
 
 #define REGISTER_MAP_SIZE 11
@@ -414,15 +411,17 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             struct ebpf_inst inst2 = vm->insts[++i];
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
             if (inst.src == BPF_PSEUDO_MAP_FD) {
+                uint64_t imm2;
                 if (vm->map_resolver == NULL) {
                     *errmsg = ubpf_error("Map resolve function missing");
                     return -1;
                 }
-                imm = vm->map_resolver(imm);
-                if (imm == 0) {
-                    *errmsg = ubpf_error("Can't resolve map %ld", imm);
+                imm2 = vm->map_resolver(vm->map_resolver_context, imm);
+                if (imm2 == 0) {
+                    *errmsg = ubpf_error("Can't resolve map %lx", imm);
                     return -1;
                 }
+                imm = imm2;
             }
             emit_load_imm(state, dst, imm);
             break;

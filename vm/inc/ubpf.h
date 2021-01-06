@@ -23,7 +23,7 @@
 struct ubpf_vm;
 typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
 
-typedef uint64_t (*ubpf_map_resolver_fn)(uint64_t fd);
+typedef uint64_t (*ubpf_map_resolver_fn)(void *context, uint64_t fd);
 
 struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
@@ -58,7 +58,7 @@ int ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *
  *
  * Returns 0 on sucess, -1 on error.
  */
-int ubpf_register_map_resolver(struct ubpf_vm *vm, ubpf_map_resolver_fn resolver_fn);
+int ubpf_register_map_resolver(struct ubpf_vm *vm, void *context, ubpf_map_resolver_fn resolver_fn);
 
 /*
  * Load code into a VM

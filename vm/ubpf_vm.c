@@ -84,13 +84,14 @@ ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn)
     return 0;
 }
 
-int ubpf_register_map_resolver(struct ubpf_vm *vm, ubpf_map_resolver_fn resolver_fn)
+int ubpf_register_map_resolver(struct ubpf_vm *vm, void *context, ubpf_map_resolver_fn resolver_fn)
 {
     if (vm->map_resolver != NULL) {
         return -1;
     }
 
     vm->map_resolver = resolver_fn;
+    vm->map_resolver_context = context;
     return 0;
 }
 
@@ -446,8 +447,24 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
             *(uint64_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = reg[inst.src];
             break;
 
-        case EBPF_OP_LDDW:
-            reg[inst.dst] = (uint32_t)inst.imm | ((uint64_t)insts[pc++].imm << 32);
+        case EBPF_OP_LDDW: {
+                uint64_t imm = (uint32_t)inst.imm | ((uint64_t)insts[pc++].imm << 32);
+                if (inst.src == BPF_PSEUDO_MAP_FD) {
+                    uint64_t imm2;
+                    if (vm->map_resolver == NULL) {
+                        fprintf(stderr, "Map resolve function missing");
+                        return UINT64_MAX;
+                    }
+                    imm2 = vm->map_resolver(vm->map_resolver_context, imm);
+                    if (imm2 == 0) {
+                        fprintf(stderr, "Can't resolve map %lx\n", imm);
+                        return UINT64_MAX;
+                    }
+                    imm = imm2;
+                }
+
+                reg[inst.dst] = imm;
+            }
             break;
 
         case EBPF_OP_JA:

@@ -1,0 +1,10 @@
+-- raw
+0x765432110001018
+0xfedcba9800000000
+0x0000000000000095
+-- result
+0xffffffffffffffff
+-- error
+Can't resolve map fedcba9807654321
+-- no jit
+JIT and interpreter return different error codes

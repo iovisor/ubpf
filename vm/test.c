@@ -31,6 +31,12 @@
 void ubpf_set_register_offset(int x);
 static void *readfile(const char *path, size_t maxlen, size_t *len);
 static void register_functions(struct ubpf_vm *vm);
+static uint64_t map_resolver(void * context, uint64_t fd);
+
+struct fd_map{
+    size_t count;
+    uint64_t fd_to_address[128][2];
+};
 
 static void usage(const char *name)
 {
@@ -50,6 +56,11 @@ int main(int argc, char **argv)
         { .name = "jit", .val = 'j' },
         { .name = "register-offset", .val = 'r', .has_arg=1 },
         { }
+    };
+
+    struct fd_map context = {
+        .count = 1,
+        .fd_to_address[0] = {0xfedcba9876543210, 0x123456789abcdef}
     };
 
     const char *mem_filename = NULL;
@@ -104,6 +115,8 @@ int main(int argc, char **argv)
     }
 
     register_functions(vm);
+
+    ubpf_register_map_resolver(vm, &context, map_resolver);
 
     /* 
      * The ELF magic corresponds to an RSH instruction with an offset,
@@ -233,4 +246,16 @@ register_functions(struct ubpf_vm *vm)
     ubpf_register(vm, 2, "trash_registers", trash_registers);
     ubpf_register(vm, 3, "sqrti", sqrti);
     ubpf_register(vm, 4, "strcmp_ext", strcmp);
+}
+
+static uint64_t map_resolver(void * context, uint64_t fd)
+{
+    struct fd_map * map = context;
+    size_t index = 0;
+    for (index = 0; index < map->count; index ++) {
+        if (map->fd_to_address[index][0] == fd) {
+            return map->fd_to_address[index][1];
+        }
+    }
+    return 0;
 }

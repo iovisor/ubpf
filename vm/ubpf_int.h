@@ -35,6 +35,7 @@ struct ubpf_vm {
     const char **ext_func_names;
     bool bounds_check_enabled;
     ubpf_map_resolver_fn map_resolver;
+    void * map_resolver_context;
 };
 
 char *ubpf_error(const char *fmt, ...);

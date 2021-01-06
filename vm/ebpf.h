@@ -146,4 +146,7 @@ struct ebpf_inst {
 #define EBPF_OP_JSLE_IMM (EBPF_CLS_JMP|EBPF_SRC_IMM|0xd0)
 #define EBPF_OP_JSLE_REG (EBPF_CLS_JMP|EBPF_SRC_REG|0xd0)
 
+/* Special value for register source to indicate load of map */
+#define BPF_PSEUDO_MAP_FD 1
+
 #endif
