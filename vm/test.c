@@ -34,10 +34,11 @@ static void register_functions(struct ubpf_vm *vm);
 
 static void usage(const char *name)
 {
-    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] BINARY\n", name);
+    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-v|--verify] [-m|--mem PATH] BINARY\n", name);
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
+    fprintf(stderr, "If --verify is given then the program must pass verification before loading.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
 }
@@ -49,14 +50,16 @@ int main(int argc, char **argv)
         { .name = "mem", .val = 'm', .has_arg=1 },
         { .name = "jit", .val = 'j' },
         { .name = "register-offset", .val = 'r', .has_arg=1 },
+        { .name = "verify", .val = 'v' },
         { }
     };
 
     const char *mem_filename = NULL;
     bool jit = false;
+    bool verify = false;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jr:v", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
@@ -66,6 +69,9 @@ int main(int argc, char **argv)
             break;
         case 'r':
             ubpf_set_register_offset(atoi(optarg));
+            break;
+        case 'v':
+            verify = true;
             break;
         case 'h':
             usage(argv[0]);
@@ -124,6 +130,12 @@ int main(int argc, char **argv)
     if (rv < 0) {
         fprintf(stderr, "Failed to load code: %s\n", errmsg);
         free(errmsg);
+        ubpf_destroy(vm);
+        return 1;
+    }
+
+    if (verify && ubpf_verify(vm)) {
+        fprintf(stderr, "Failed verification\n");
         ubpf_destroy(vm);
         return 1;
     }

@@ -2,3 +2,5 @@
 -- mem @ pkt-nosack.hex
 -- result
 0x0
+-- verifier error
+Loop detected at offset 40

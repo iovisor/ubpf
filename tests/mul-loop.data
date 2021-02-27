@@ -25,3 +25,5 @@ jne r1, 0x0, -3
 exit
 -- result
 0x75db9c97
+-- verifier error
+Loop detected at offset 8

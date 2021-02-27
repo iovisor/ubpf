@@ -33,8 +33,11 @@ all: libubpf.a test
 
 ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
 
-libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o
+libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_verifier.o
 	ar rc $@ $^
+
+ubpf_verifier.o: ubpf_verifier.c
+	$(CC) -Wall -Werror -Iinc -O2 -g -c -o ubpf_verifier.o ubpf_verifier.c
 
 test: test.o libubpf.a
 

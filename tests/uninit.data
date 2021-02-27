@@ -1,0 +1,4 @@
+-- asm
+mov r0, r2
+-- verifier error
+Uninitialized register r2 accessed at offset 0

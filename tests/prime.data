@@ -32,3 +32,5 @@ jne r4, 0x0, -10
 exit
 -- result
 0x1
+-- verifier error
+Loop detected at offset 14

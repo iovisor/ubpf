@@ -5,3 +5,6 @@ mov r0, 4
 exit
 -- result
 0x3
+-- verifier error
+Dead instruction at offset 2
+Dead instruction at offset 3
