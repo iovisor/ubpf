@@ -82,13 +82,13 @@ ubpf_destroy(struct ubpf_vm *vm)
 }
 
 int
-ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn)
+ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, ubpf_helper_fn fn)
 {
     if (idx >= MAX_EXT_FUNCS) {
         return -1;
     }
 
-    vm->ext_funcs[idx] = (ext_func)fn;
+    vm->ext_funcs[idx] = fn;
     vm->ext_func_names[idx] = name;
     return 0;
 }
@@ -104,6 +104,30 @@ ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name)
         }
     }
     return -1;
+}
+
+int ubpf_register_helper_resolver(struct ubpf_vm *vm, void* context, ubpf_helper_fn (*helper_resolver)(void* context, int32_t helper_identifier))
+{
+    if (vm->helper_resolver) {
+        return -1;
+    }
+
+    vm->helper_resolver = helper_resolver;
+    vm->helper_resolver_context = context;
+    return 0;
+}
+
+ubpf_helper_fn
+ubpf_resolve_helper_function(const struct ubpf_vm *vm, int32_t helper_id)
+{
+    if (vm->helper_resolver) {
+        return vm->helper_resolver(vm->helper_resolver_context, helper_id);
+    }
+    else if (helper_id >= 0 && helper_id <= MAX_EXT_FUNCS) {
+        return vm->ext_funcs[helper_id];
+    } else {
+        return NULL;
+    }
 }
 
 int
@@ -565,7 +589,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
         case EBPF_OP_EXIT:
             return reg[0];
         case EBPF_OP_CALL:
-            reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
+            reg[0] = ubpf_resolve_helper_function(vm, inst.imm)(reg[1], reg[2], reg[3], reg[4], reg[5]);
             break;
         }
     }
@@ -705,17 +729,21 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
             }
             break;
 
-        case EBPF_OP_CALL:
-            if (inst.imm < 0 || inst.imm >= MAX_EXT_FUNCS) {
-                *errmsg = ubpf_error("invalid call immediate at PC %d", i);
-                return false;
-            }
-            if (!vm->ext_funcs[inst.imm]) {
-                *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
+        case EBPF_OP_CALL:{
+            ubpf_helper_fn target = ubpf_resolve_helper_function(vm, inst.imm);
+            if (!target){
+                if (inst.imm < 0 || inst.imm >= MAX_EXT_FUNCS) {
+                    *errmsg = ubpf_error("invalid call immediate at PC %d", i);
+                }
+                else {
+                    *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
+                    return false;
+                }
                 return false;
             }
             break;
-
+        }
+        
         case EBPF_OP_EXIT:
             break;
 

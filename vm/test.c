@@ -31,6 +31,13 @@
 void ubpf_set_register_offset(int x);
 static void *readfile(const char *path, size_t maxlen, size_t *len);
 static void register_functions(struct ubpf_vm *vm);
+static ubpf_helper_fn helper_resolver(void* helper_resolver_context, int32_t helper_id);
+typedef struct {
+    uint32_t helper_function_count;
+    ubpf_helper_fn helper_functions[];
+}helper_function_dispatch_table_t;
+
+static helper_function_dispatch_table_t helper_function_dispatch_table;
 
 static void usage(const char *name)
 {
@@ -104,6 +111,8 @@ int main(int argc, char **argv)
     }
 
     register_functions(vm);
+
+    ubpf_register_helper_resolver(vm, &helper_function_dispatch_table, helper_resolver);
 
     /* 
      * The ELF magic corresponds to an RSH instruction with an offset,
@@ -225,12 +234,34 @@ sqrti(uint32_t x)
     return sqrt(x);
 }
 
+static helper_function_dispatch_table_t helper_function_dispatch_table = {
+    5,
+    {
+        (ubpf_helper_fn)gather_bytes,
+        (ubpf_helper_fn)memfrob,
+        (ubpf_helper_fn)trash_registers,
+        (ubpf_helper_fn)sqrti,
+        (ubpf_helper_fn)strcmp,
+    },
+};
+
+
 static void
 register_functions(struct ubpf_vm *vm)
 {
-    ubpf_register(vm, 0, "gather_bytes", gather_bytes);
-    ubpf_register(vm, 1, "memfrob", memfrob);
-    ubpf_register(vm, 2, "trash_registers", trash_registers);
-    ubpf_register(vm, 3, "sqrti", sqrti);
-    ubpf_register(vm, 4, "strcmp_ext", strcmp);
+    ubpf_register(vm, 0, "gather_bytes", (ubpf_helper_fn)gather_bytes);
+    ubpf_register(vm, 1, "memfrob", (ubpf_helper_fn)memfrob);
+    ubpf_register(vm, 2, "trash_registers", (ubpf_helper_fn)trash_registers);
+    ubpf_register(vm, 3, "sqrti", (ubpf_helper_fn)sqrti);
+    ubpf_register(vm, 4, "strcmp_ext", (ubpf_helper_fn)strcmp);
+}
+
+static ubpf_helper_fn helper_resolver(void* helper_resolver_context, int32_t helper_id)
+{
+    helper_function_dispatch_table_t* helper_functions = (helper_function_dispatch_table_t*)helper_resolver_context;
+    if (helper_id >= 0 && helper_id <= helper_functions->helper_function_count) {
+        return helper_functions->helper_functions[helper_id];
+    } else {
+        return NULL;
+    }
 }

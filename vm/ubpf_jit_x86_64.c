@@ -398,11 +398,17 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x8e, target_pc);
             break;
-        case EBPF_OP_CALL:
+        case EBPF_OP_CALL:{
+            ubpf_helper_fn target = ubpf_resolve_helper_function(vm, inst.imm);
+            if (!target) {
+                *errmsg = ubpf_error("Unknown helper function identifier at PC %d: helper_id %02x", i, inst.imm);
+                return -1;
+            }
             /* We reserve RCX for shifts */
             emit_mov(state, RCX_ALT, RCX);
-            emit_call(state, vm->ext_funcs[inst.imm]);
+            emit_call(state, target);
             break;
+        }
         case EBPF_OP_EXIT:
             if (i != vm->num_insts - 1) {
                 emit_jmp(state, TARGET_PC_EXIT);
