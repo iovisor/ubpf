@@ -40,6 +40,8 @@ static void usage(const char *name)
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
+    fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
+    fprintf(stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
 }
 
 int main(int argc, char **argv)
@@ -49,14 +51,18 @@ int main(int argc, char **argv)
         { .name = "mem", .val = 'm', .has_arg=1 },
         { .name = "jit", .val = 'j' },
         { .name = "register-offset", .val = 'r', .has_arg=1 },
+        { .name = "unload", .val = 'U' }, /* for unit test only */
+        { .name = "reload", .val = 'R' }, /* for unit test only */
         { }
     };
 
     const char *mem_filename = NULL;
     bool jit = false;
+    bool unload = false;
+    bool reload = false;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jr:UR", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
@@ -70,10 +76,21 @@ int main(int argc, char **argv)
         case 'h':
             usage(argv[0]);
             return 0;
+        case 'U':
+            unload = true;
+            break;
+        case 'R':
+            reload = true;
+            break;
         default:
             usage(argv[0]);
             return 1;
         }
+    }
+
+    if (unload && reload) {
+        fprintf(stderr, "-U and -R can not be used together\n");
+        return 1;
     }
 
     if (argc != optind + 1) {
@@ -113,10 +130,20 @@ int main(int argc, char **argv)
 
     char *errmsg;
     int rv;
+load:
     if (elf) {
 	rv = ubpf_load_elf(vm, code, code_len, &errmsg);
     } else {
 	rv = ubpf_load(vm, code, code_len, &errmsg);
+    }
+    if (unload) {
+        ubpf_unload_code(vm);
+        unload = false;
+        goto load;
+    }
+    if (reload) {
+        reload = false;
+        goto load;
     }
 
     free(code);

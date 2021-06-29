@@ -81,6 +81,17 @@ int ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *
 int ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg);
 
 /*
+ * Unload code from a VM
+ *
+ * This must be done before calling ubpf_load or ubpf_load_elf, except for the
+ * first time those functions are called. It clears the VM instructions to
+ * allow for new code to be loaded.
+ *
+ * It does not unregister any external functions.
+ */
+void ubpf_unload_code(struct ubpf_vm *vm);
+
+/*
  * Load code from an ELF file
  *
  * This must be done before calling ubpf_exec or ubpf_compile and after

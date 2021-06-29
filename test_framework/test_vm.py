@@ -34,6 +34,10 @@ def check_datafile(filename):
         memfile.write(data['mem'])
         memfile.flush()
         cmd.extend(['-m', memfile.name])
+    if 'reload' in data:
+        cmd.extend(['-R'])
+    if 'unload' in data:
+        cmd.extend(['-U'])
 
     cmd.append('-')
 

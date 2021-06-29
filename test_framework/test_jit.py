@@ -49,6 +49,10 @@ def check_datafile(filename):
             cmd = [VM]
             if memfile:
                 cmd.extend(['-m', memfile.name])
+            if 'reload' in data:
+                cmd.extend(['-R'])
+            if 'unload' in data:
+                cmd.extend(['-U'])
             cmd.extend(['-j', '-r', str(register_offset), '-'])
 
             vm = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
