@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include <sys/mman.h>
+#include <endian.h>
 #include "ubpf_int.h"
 
 #define MAX_EXT_FUNCS 64
