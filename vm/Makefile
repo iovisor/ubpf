@@ -29,9 +29,7 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 endif
 
-all: libubpf.a test
-
-ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
+all: test
 
 libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o
 	ar rc $@ $^
