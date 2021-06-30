@@ -33,6 +33,8 @@
 struct ubpf_vm;
 typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
 
+typedef uint64_t (*ubpf_helper_fn)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
+
 struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
 
@@ -64,7 +66,21 @@ void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE* stream, 
  *
  * Returns 0 on success, -1 on error.
  */
-int ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn);
+int ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, ubpf_helper_fn fn);
+
+/*
+ * Register a callback function used to resolve external functions.
+ * 
+ * The immediate field of a CALL instruction is an identifier that denotes
+ * which helper function should be invoked. 
+ * 
+ * 'context' A opaque pointer used when invoking the resolver function.
+ * 'helper_resolver' A pointer to a function that resolves helper identifiers
+ * to function addresses.
+ * 
+ * Returns 0 on success, -1 on error.
+ */
+int ubpf_register_helper_resolver(struct ubpf_vm *vm, void* context, ubpf_helper_fn (*helper_resolver)(void* context, int32_t helper_identifier));
 
 /*
  * Load code into a VM

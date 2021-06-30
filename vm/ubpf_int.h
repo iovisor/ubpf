@@ -21,20 +21,22 @@
 #include "ebpf.h"
 
 struct ebpf_inst;
-typedef uint64_t (*ext_func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
 
 struct ubpf_vm {
     struct ebpf_inst *insts;
     uint16_t num_insts;
     ubpf_jit_fn jitted;
     size_t jitted_size;
-    ext_func *ext_funcs;
+    ubpf_helper_fn *ext_funcs;
     const char **ext_func_names;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
+    void* helper_resolver_context;
+    ubpf_helper_fn (*helper_resolver)(void* context, int32_t helper_identifier);
 };
 
 char *ubpf_error(const char *fmt, ...);
 unsigned int ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name);
+ubpf_helper_fn ubpf_resolve_helper_function(const struct ubpf_vm *vm, int32_t helper_id);
 
 #endif
