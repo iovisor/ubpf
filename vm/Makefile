@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CFLAGS := -Wall -Werror -Iinc -O2 -g -Wunused-parameter
+CFLAGS := -Wall -Werror -Iinc -O2 -g -Wunused-parameter -fPIC
 LDLIBS := -lm
 
 INSTALL ?= install
@@ -29,20 +29,24 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 endif
 
-all: libubpf.a test
+all: libubpf.a libubpf.so test
 
 ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
 
 libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o
 	ar rc $@ $^
 
+libubpf.so: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o
+	$(CC) -shared -o $@ $^ $(LDLIBS)
+
 test: test.o libubpf.a
 
 install:
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL) -m 644 libubpf.a $(DESTDIR)$(PREFIX)/lib
+	$(INSTALL) -m 644 libubpf.so $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/include
 	$(INSTALL) -m 644 inc/ubpf.h $(DESTDIR)$(PREFIX)/include
 
 clean:
-	rm -f test libubpf.a *.o
+	rm -f test libubpf.a libubpf.so *.o
