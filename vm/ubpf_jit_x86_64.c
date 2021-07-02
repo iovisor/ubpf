@@ -129,6 +129,7 @@ static int
 translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 {
     int i;
+    const struct ebpf_inst* insts = ubpf_encode_decode_pointer(vm->insts);
 
     /* Save platform non-volatile registers */
     for (i = 0; i < _countof(platform_nonvolatile_registers); i++)
@@ -148,7 +149,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
     emit_alu64_imm32(state, 0x81, 5, RSP, UBPF_STACK_SIZE);
 
     for (i = 0; i < vm->num_insts; i++) {
-        struct ebpf_inst inst = vm->insts[i];
+        struct ebpf_inst inst = insts[i];
         state->pc_locs[i] = state->offset;
 
         int dst = map_register(inst.dst);
@@ -459,7 +460,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             break;
 
         case EBPF_OP_LDDW: {
-            struct ebpf_inst inst2 = vm->insts[++i];
+            struct ebpf_inst inst2 = insts[++i];
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
             emit_load_imm(state, dst, imm);
             break;

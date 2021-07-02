@@ -22,7 +22,9 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <endian.h>
+#include <sys/random.h>
 #include "ubpf_int.h"
 
 #define MAX_EXT_FUNCS 64
@@ -33,6 +35,19 @@ const char* ubpf_string_table[1] = {
 
 static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
 static bool bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
+
+uintptr_t ubpf_pointer_secret = 0;
+
+static int ubpf_init_pointer_secret()
+{
+    if (ubpf_pointer_secret)
+        return 0;
+
+    if (getrandom(&ubpf_pointer_secret, sizeof(ubpf_pointer_secret), 0) < 0)
+        return -1;
+    else
+        return 0;
+}
 
 bool ubpf_toggle_bounds_check(struct ubpf_vm *vm, bool enable)
 {
@@ -54,6 +69,11 @@ ubpf_create(void)
 {
     struct ubpf_vm *vm = calloc(1, sizeof(*vm));
     if (vm == NULL) {
+        return NULL;
+    }
+
+    if (ubpf_init_pointer_secret() < 0) {
+        ubpf_destroy(vm);
         return NULL;
     }
 
@@ -147,13 +167,13 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
         return -1;
     }
 
-    vm->insts = malloc(code_len);
+    vm->insts = ubpf_encode_decode_pointer(malloc(code_len));
     if (vm->insts == NULL) {
         *errmsg = ubpf_error("out of memory");
         return -1;
     }
 
-    memcpy(vm->insts, code, code_len);
+    memcpy(ubpf_encode_decode_pointer(vm->insts), code, code_len);
     vm->num_insts = code_len/sizeof(vm->insts[0]);
 
     return 0;
@@ -168,7 +188,7 @@ ubpf_unload_code(struct ubpf_vm *vm)
         vm->jitted_size = 0;
     }
     if (vm->insts) {
-        free(vm->insts);
+        free(ubpf_encode_decode_pointer(vm->insts));
         vm->insts = NULL;
         vm->num_insts = 0;
     }
@@ -184,7 +204,7 @@ int
 ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value)
 {
     uint16_t pc = 0;
-    const struct ebpf_inst *insts = vm->insts;
+    const struct ebpf_inst *insts = (const struct ebpf_inst *)ubpf_encode_decode_pointer(vm->insts);
     uint64_t *reg;
     uint64_t _reg[16];
     uint64_t stack[(UBPF_STACK_SIZE+7)/8];
