@@ -37,4 +37,14 @@ struct ubpf_vm {
 char *ubpf_error(const char *fmt, ...);
 unsigned int ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name);
 
+extern uintptr_t ubpf_pointer_mask;
+
+inline  void* ubpf_encode_decode_pointer(void* pointer_to_encode) 
+{
+    if (!pointer_to_encode)
+        return NULL;
+    else 
+        return (void*)((uintptr_t)pointer_to_encode ^ ubpf_pointer_mask);
+}
+
 #endif
