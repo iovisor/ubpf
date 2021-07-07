@@ -142,6 +142,11 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
 
     struct section *text = &sections[text_shndx];
 
+    if (!text->size) {
+         *errmsg = ubpf_error("text section empty");
+        goto error;
+    }
+
     /* May need to modify text for relocations, so make a copy */
     text_copy = malloc(text->size);
     if (!text_copy) {
