@@ -18,6 +18,9 @@ LDLIBS := -lm
 INSTALL ?= install
 DESTDIR =
 PREFIX ?= /usr/local
+BENCH ?= ../bench
+BPFCC ?= clang
+BPFCFLAGS := -target bpf -O2 -Wall -Werror
 
 ifeq ($(COVERAGE),1)
 CFLAGS += -fprofile-arcs -ftest-coverage
@@ -29,7 +32,7 @@ CFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address
 endif
 
-all: libubpf.a test
+all: libubpf.a bench test
 
 ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
 
@@ -37,6 +40,11 @@ libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_inst_cnt.o
 	ar rc $@ $^
 
 test: test.o libubpf.a
+
+%.bpf.o: $(BENCH)/%.c
+	$(BPFCC) $(BPFCFLAGS) -c $^ -o $@
+
+bench: $(patsubst $(BENCH)/%.c, %.bpf.o, $(wildcard $(BENCH)/*.c))
 
 install:
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/lib
