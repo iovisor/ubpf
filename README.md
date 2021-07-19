@@ -55,6 +55,33 @@ You'll need [Clang 3.7](http://llvm.org/releases/download.html#3.7.0).
 You can then pass the contents of `prog.o` to `ubpf_load_elf`, or to the stdin of
 the `vm/test` binary.
 
+## Benchmarking and Instruction Counts
+
+Using the `-i` option instructs the test program to count the
+number of eBPF and native instructions executed when implementing the
+program. In the case of a JITed progam the native instructions only
+are recorded but a record of the number of instructions needed to
+generated the JITed code is added. Note that this requires appropriate
+privileges in order to be used.
+
+A number of simple benchmark programs are included in the bench
+folder. Compile them to eBPF in the usual way and include a memory
+file to provide the input data. Note the memory files are not included
+in the repo but an example of how to generate one and apply it to a
+benchmark is given below.
+```
+$ dd if=/dev/urandom of=./bench/crc32.mem bs=4k count=2
+$ clang -O2 -target bpf -c ./bench/crc32.c -o crc32.bpf.o
+$ sudo ./vm/test -i -m ./bench/crc32.mem crc32.bpf.o
+0x2b9a4d6c
+
+Instruction counts (cmpl/vm/bm): 0 / 401420 / 10199397
+
+```
+So for this example 401420 eBPF instructions were executed by the VM
+and 10199397 underlying instructions were run on the bare-metal CPU
+running the underlying ISA.
+
 ## Contributing
 
 Please fork the project on GitHub and open a pull request. You can run all the
