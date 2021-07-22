@@ -130,18 +130,7 @@ int main(int argc, char **argv)
 
     uint64_t ret;
 
-    if (jit) {
-        ubpf_jit_fn fn = ubpf_compile(vm, &errmsg);
-        if (fn == NULL) {
-            fprintf(stderr, "Failed to compile: %s\n", errmsg);
-            free(errmsg);
-            return 1;
-        }
-        ret = fn(mem, mem_len);
-    } else {
-        if (ubpf_exec(vm, mem, mem_len, &ret) < 0)
-            ret = UINT64_MAX;
-    }
+    ret = ubpf_run(vm, mem, mem_len, jit);
 
     printf("0x%"PRIx64"\n", ret);
 

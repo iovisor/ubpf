@@ -573,6 +573,27 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
     }
 }
 
+uint64_t
+ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit)
+{
+    uint64_t ret;
+    char *errmsg;
+
+    if (jit) {
+	ubpf_jit_fn fn = ubpf_compile(vm, &errmsg);
+	if (fn == NULL) {
+	    fprintf(stderr, "Failed to compile: %s\n", errmsg);
+	    free(errmsg);
+	    return 1;
+	}
+	ret = fn(mem, mem_len);
+    } else {
+	if (ubpf_exec(vm, mem, mem_len, &ret) < 0)
+	    ret = UINT64_MAX;
+    }
+    return ret;
+}
+
 static bool
 validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg)
 {

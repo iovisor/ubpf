@@ -103,6 +103,13 @@ int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf
 ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
 
 /*
+ * A wrapper around some of the compile, load and run commands to
+ * enable instruction counting. Returns the return value of the eBPF
+ * program being executed.
+ */
+uint64_t ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit);
+
+/*
  * Translate the eBPF byte code to x64 machine code, store in buffer, and 
  * write the resulting count of bytes to size.
  *
