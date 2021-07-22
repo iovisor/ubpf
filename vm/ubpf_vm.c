@@ -591,6 +591,24 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
     }
 }
 
+int
+ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit,
+    uint64_t *bpf_return_value, char **errmsg)
+{
+    if (jit) {
+        ubpf_jit_fn fn = ubpf_compile(vm, errmsg);
+        if (fn == NULL) {
+            return -1;
+        }
+        *bpf_return_value = fn(mem, mem_len);
+    } else {
+        if (ubpf_exec(vm, mem, mem_len, bpf_return_value) < 0) {
+            *bpf_return_value = UINT64_MAX;
+        }
+    }
+    return 0;
+}
+
 static bool
 validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg)
 {

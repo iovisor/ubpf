@@ -103,6 +103,16 @@ int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf
 ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
 
 /*
+ * A wrapper around the compile, load and run commands. Returns the
+ * return value of the eBPF program being executed.
+ *
+ * Returns 0 on success, -1 on error. In case of error a pointer to the error
+ * message will be stored in 'errmsg' and should be freed by the caller.
+ */
+int ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit, uint64_t *bpf_return_value,
+    char **errmsg);
+
+/*
  * Translate the eBPF byte code to x64 machine code, store in buffer, and 
  * write the resulting count of bytes to size.
  *
