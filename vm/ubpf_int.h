@@ -32,9 +32,15 @@ struct ubpf_vm {
     const char **ext_func_names;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
+    struct ubpf_inst_cnt inst_cnt;
 };
 
 char *ubpf_error(const char *fmt, ...);
 unsigned int ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name);
+
+void enable_instruction_count(int fd);
+void disable_instruction_count(int fd);
+int setup_instruction_counter(void);
+long long get_instruction_count(int fd);
 
 #endif
