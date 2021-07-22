@@ -32,6 +32,7 @@ struct ubpf_vm {
     const char **ext_func_names;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
+    struct ubpf_inst_cnt inst_cnt;
 };
 
 char *ubpf_error(const char *fmt, ...);

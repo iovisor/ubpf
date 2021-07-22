@@ -36,6 +36,14 @@ typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
 struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
 
+struct ubpf_inst_cnt
+{
+    bool enable;
+    size_t inst;
+    size_t inst_cmpl;
+    size_t inst_vm;
+};
+
 /*
  * Enable / disable bounds_check
  *
@@ -119,4 +127,14 @@ uint64_t ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit);
  * message will be stored in 'errmsg' and should be freed by the caller.
  */
 int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg);
+
+/*
+ * Functions related to the instruction counting feature:
+ *  ubpf_enable_inst_cnt(struct ubpf_vm *vm): Enables instruction counting.
+ *  ubpf_get_inst_cnt(): Gets the instruction count struct.
+ */
+
+void ubpf_enable_inst_cnt(struct ubpf_vm *vm);
+struct ubpf_inst_cnt ubpf_get_inst_cnt(const struct ubpf_vm *vm);
+
 #endif

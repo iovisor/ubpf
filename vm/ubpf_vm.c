@@ -594,6 +594,21 @@ ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit)
     return ret;
 }
 
+void
+ubpf_enable_inst_cnt(struct ubpf_vm *vm)
+{
+    vm->inst_cnt.enable = true;
+    vm->inst_cnt.inst = 0;
+    vm->inst_cnt.inst_vm = 0;
+    vm->inst_cnt.inst_cmpl = 0;
+}
+
+struct ubpf_inst_cnt
+ubpf_get_inst_cnt(const struct ubpf_vm *vm)
+{
+    return vm->inst_cnt;
+}
+
 static bool
 validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg)
 {
