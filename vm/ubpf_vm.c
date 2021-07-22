@@ -144,7 +144,7 @@ u32(uint64_t x)
 }
 
 int 
-ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value)
+ubpf_exec(struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value)
 {
     uint16_t pc = 0;
     const struct ebpf_inst *insts = vm->insts;
@@ -163,6 +163,9 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
     while (1) {
         const uint16_t cur_pc = pc;
         struct ebpf_inst inst = insts[pc++];
+
+	if (ubpf_get_inst_cnt_enable(vm))
+	    vm->inst_cnt.inst_vm++;
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
@@ -578,29 +581,68 @@ ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit)
 {
     uint64_t ret;
     char *errmsg;
+    int cntrfd = 0;
+    ubpf_jit_fn fn;
+
+    if (ubpf_get_inst_cnt_enable(vm)){
+        cntrfd = setup_instruction_counter();
+        if (cntrfd == -1) {
+            fprintf(stderr, "Unable to setup instruction counter\n");
+            return 1;
+        }
+    }
 
     if (jit) {
-	ubpf_jit_fn fn = ubpf_compile(vm, &errmsg);
-	if (fn == NULL) {
-	    fprintf(stderr, "Failed to compile: %s\n", errmsg);
-	    free(errmsg);
-	    return 1;
-	}
+        if (ubpf_get_inst_cnt_enable(vm))
+            enable_instruction_count(cntrfd);
+        fn = ubpf_compile(vm, &errmsg);
+        if (ubpf_get_inst_cnt_enable(vm)){
+            disable_instruction_count(cntrfd);
+            vm->inst_cnt.inst_cmpl = get_instruction_count(cntrfd);
+            if (vm->inst_cnt.inst < 0) {
+                fprintf(stderr, "Unable to get instruction count\n");
+                return 1;
+            }
+        }
+        if (fn == NULL) {
+            fprintf(stderr, "Failed to compile: %s\n", errmsg);
+            free(errmsg);
+            return 1;
+        }
+    }
+
+    if (ubpf_get_inst_cnt_enable(vm))
+            enable_instruction_count(cntrfd);
+    if (jit) {
 	ret = fn(mem, mem_len);
     } else {
 	if (ubpf_exec(vm, mem, mem_len, &ret) < 0)
 	    ret = UINT64_MAX;
     }
+    if (ubpf_get_inst_cnt_enable(vm)){
+        disable_instruction_count(cntrfd);
+        vm->inst_cnt.inst = get_instruction_count(cntrfd);
+        if (vm->inst_cnt.inst < 0) {
+            fprintf(stderr, "Unable to get instruction count\n");
+            return 1;
+        }
+    }
     return ret;
 }
 
 void
-ubpf_enable_inst_cnt(struct ubpf_vm *vm)
+ubpf_set_inst_cnt_enable(struct ubpf_vm *vm, bool enable)
 {
-    vm->inst_cnt.enable = true;
+    vm->inst_cnt.enable = enable;
     vm->inst_cnt.inst = 0;
     vm->inst_cnt.inst_vm = 0;
     vm->inst_cnt.inst_cmpl = 0;
+}
+
+bool
+ubpf_get_inst_cnt_enable(struct ubpf_vm *vm)
+{
+    return vm->inst_cnt.enable;
 }
 
 struct ubpf_inst_cnt

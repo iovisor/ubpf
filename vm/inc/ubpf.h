@@ -106,7 +106,7 @@ int ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **er
  */
 int ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_len, char **errmsg);
 
-int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value);
+int ubpf_exec(struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value);
 
 ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
 
@@ -134,7 +134,8 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  *  ubpf_get_inst_cnt(): Gets the instruction count struct.
  */
 
-void ubpf_enable_inst_cnt(struct ubpf_vm *vm);
+void ubpf_set_inst_cnt_enable(struct ubpf_vm *vm, bool enable);
+bool ubpf_get_inst_cnt_enable(struct ubpf_vm *vm);
 struct ubpf_inst_cnt ubpf_get_inst_cnt(const struct ubpf_vm *vm);
 
 #endif
