@@ -34,12 +34,13 @@ static void register_functions(struct ubpf_vm *vm);
 
 static void usage(const char *name)
 {
-    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] BINARY\n", name);
+    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-i|--inst] [-m|--mem PATH] BINARY\n", name);
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
+    fprintf(stderr, "  -i, --inst: Count both the VM (if applicable) and bare-metal instructions\n");
 }
 
 int main(int argc, char **argv)
@@ -48,18 +49,23 @@ int main(int argc, char **argv)
         { .name = "help", .val = 'h', },
         { .name = "mem", .val = 'm', .has_arg=1 },
         { .name = "jit", .val = 'j' },
+        { .name = "inst", .val = 'i' },
         { .name = "register-offset", .val = 'r', .has_arg=1 },
         { }
     };
 
     const char *mem_filename = NULL;
-    bool jit = false;
+    bool jit = false, inst_cnt_flag = false;
+    struct ubpf_inst_cnt inst_cnt = {};
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:ijr:", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
+            break;
+        case 'i':
+            inst_cnt_flag = true;
             break;
         case 'j':
             jit = true;
@@ -105,6 +111,9 @@ int main(int argc, char **argv)
 
     register_functions(vm);
 
+    if (inst_cnt_flag)
+        ubpf_set_inst_cnt(vm, &inst_cnt);
+
     /* 
      * The ELF magic corresponds to an RSH instruction with an offset,
      * which is invalid.
@@ -140,7 +149,10 @@ int main(int argc, char **argv)
     }
 
     printf("0x%"PRIx64"\n", bpf_return_value);
-
+    if (inst_cnt_flag) {
+        printf("\nInstruction counts (cmpl/vm/bm): %zd / %zd / %zd\n",
+            inst_cnt.inst_cmpl, inst_cnt.inst_vm, inst_cnt.inst);
+    }
     ubpf_destroy(vm);
 
     return 0;
