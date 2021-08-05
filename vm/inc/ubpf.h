@@ -17,6 +17,7 @@
 #ifndef UBPF_H
 #define UBPF_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -35,6 +36,13 @@ typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
 
 struct ubpf_vm *ubpf_create(void);
 void ubpf_destroy(struct ubpf_vm *vm);
+
+struct ubpf_inst_cnt
+{
+    size_t inst;
+    size_t inst_cmpl;
+    size_t inst_vm;
+};
 
 /*
  * Enable / disable bounds_check
@@ -131,5 +139,11 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  * Returns 0 on success, -1 on if there is already an unwind helper set.
  */
 int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
+
+/*
+ * Populate the struct ubpf_inst_cnt * field in struct vm so we can
+ * enable instruction counting.
+ */
+void ubpf_set_inst_cnt(struct ubpf_vm *vm, struct ubpf_inst_cnt *inst_cnt);
 
 #endif

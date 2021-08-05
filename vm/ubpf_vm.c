@@ -177,6 +177,10 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
         const uint16_t cur_pc = pc;
         struct ebpf_inst inst = insts[pc++];
 
+        if (vm->inst_cnt) {
+            vm->inst_cnt->inst_vm++;
+        }
+
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
             reg[inst.dst] += inst.imm;
@@ -595,18 +599,59 @@ int
 ubpf_run(struct ubpf_vm *vm, void *mem, size_t mem_len, bool jit,
     uint64_t *bpf_return_value, char **errmsg)
 {
+    int cntrfd = 0;
+    ubpf_jit_fn fn;
+
+    if (vm->inst_cnt) {
+        cntrfd = setup_instruction_counter();
+        if (cntrfd == -1) {
+            vm->error_printf(stderr, "uBPF warning: unable to setup instruction counter\n");
+        }
+    }
+
     if (jit) {
-        ubpf_jit_fn fn = ubpf_compile(vm, errmsg);
+        if (vm->inst_cnt) {
+            enable_instruction_count(cntrfd);
+        }
+        fn = ubpf_compile(vm, errmsg);
+        if (vm->inst_cnt) {
+            disable_instruction_count(cntrfd);
+            vm->inst_cnt->inst_cmpl = get_instruction_count(cntrfd);
+            if (vm->inst_cnt->inst_cmpl < 0) {
+                *errmsg = ubpf_error("Unable to get instruction count");
+                return -1;
+            }
+        }
         if (fn == NULL) {
             return -1;
         }
+    }
+
+    if (vm->inst_cnt) {
+        enable_instruction_count(cntrfd);
+    }
+    if (jit) {
         *bpf_return_value = fn(mem, mem_len);
     } else {
         if (ubpf_exec(vm, mem, mem_len, bpf_return_value) < 0) {
             *bpf_return_value = UINT64_MAX;
         }
     }
+    if (vm->inst_cnt) {
+        disable_instruction_count(cntrfd);
+        vm->inst_cnt->inst = get_instruction_count(cntrfd);
+        if (vm->inst_cnt->inst < 0) {
+            *errmsg = ubpf_error("Unable to get instruction count");
+            return -1;
+        }
+    }
     return 0;
+}
+
+void
+ubpf_set_inst_cnt(struct ubpf_vm *vm, struct ubpf_inst_cnt *inst_cnt)
+{
+    vm->inst_cnt = inst_cnt;
 }
 
 static bool
