@@ -12,7 +12,7 @@ try:
 except NameError:
     xrange = range
 
-def check_datafile(filename):
+def check_datafile(filename, mode):
     """
     Given assembly source code and an expected result, run the eBPF program and
     verify that the result matches. Uses the JIT compiler.
@@ -53,6 +53,8 @@ def check_datafile(filename):
                 cmd.extend(['-R'])
             if 'unload' in data:
                 cmd.extend(['-U'])
+            if 'MITIGATIONS' in mode:
+                cmd.extend(['-d'])
             cmd.extend(['-j', '-r', str(register_offset), '-'])
 
             vm = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
@@ -90,4 +92,5 @@ def test_datafiles():
     # Nose test generator
     # Creates a testcase for each datafile
     for filename in testdata.list_files():
-        yield check_datafile, filename
+        yield check_datafile, filename, 'JIT'
+        yield check_datafile, filename, 'JIT_WITH_MITIGATIONS'

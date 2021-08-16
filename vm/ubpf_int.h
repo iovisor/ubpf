@@ -31,6 +31,7 @@ struct ubpf_vm {
     ext_func *ext_funcs;
     const char **ext_func_names;
     bool bounds_check_enabled;
+    bool constant_blinding_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
     int unwind_stack_extension_index;
 };

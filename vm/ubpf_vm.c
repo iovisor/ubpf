@@ -44,6 +44,11 @@ void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE* stream, 
         vm->error_printf = fprintf;
 }
 
+void ubpf_enable_mitigations(struct ubpf_vm *vm)
+{
+    vm->constant_blinding_enabled = true;
+}
+
 struct ubpf_vm *
 ubpf_create(void)
 {
@@ -66,8 +71,8 @@ ubpf_create(void)
 
     vm->bounds_check_enabled = true;
     vm->error_printf = fprintf;
-
     vm->unwind_stack_extension_index = -1;
+    vm->constant_blinding_enabled = false;
     return vm;
 }
 

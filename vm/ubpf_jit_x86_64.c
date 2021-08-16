@@ -125,10 +125,27 @@ ubpf_set_register_offset(int x)
     }
 }
 
+#define BLIND_IMM32_AND_FALL_THROUGH(original) if (!state->blinding_required) { \
+    original; \
+    break; \
+} else { \
+    emit_alu32_blind_load_imm_to_rcx(state, inst.imm);\
+    src = RCX;\
+} // Fall through
+
+#define BLIND_IMM64_AND_FALL_THROUGH(original) if (!state->blinding_required) { \
+    original; \
+    break; \
+} else { \
+    emit_alu64_blind_load_imm_to_rcx(state, inst.imm);\
+    src = RCX;\
+} // Fall through
+
 static int
 translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 {
     int i;
+    state->blinding_required = vm->constant_blinding_enabled;
 
     /* Save platform non-volatile registers */
     for (i = 0; i < _countof(platform_nonvolatile_registers); i++)
@@ -157,14 +174,12 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
-            emit_alu32_imm32(state, 0x81, 0, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0x81, 0, dst, inst.imm));
         case EBPF_OP_ADD_REG:
             emit_alu32(state, 0x01, src, dst);
             break;
         case EBPF_OP_SUB_IMM:
-            emit_alu32_imm32(state, 0x81, 5, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0x81, 5, dst, inst.imm));
         case EBPF_OP_SUB_REG:
             emit_alu32(state, 0x29, src, dst);
             break;
@@ -174,30 +189,27 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_DIV_REG:
         case EBPF_OP_MOD_IMM:
         case EBPF_OP_MOD_REG:
+            // Note: muldivmod implements blinding
             muldivmod(state, i, inst.opcode, src, dst, inst.imm);
             break;
         case EBPF_OP_OR_IMM:
-            emit_alu32_imm32(state, 0x81, 1, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0x81, 1, dst, inst.imm));
         case EBPF_OP_OR_REG:
             emit_alu32(state, 0x09, src, dst);
             break;
         case EBPF_OP_AND_IMM:
-            emit_alu32_imm32(state, 0x81, 4, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0x81, 4, dst, inst.imm));
         case EBPF_OP_AND_REG:
             emit_alu32(state, 0x21, src, dst);
             break;
         case EBPF_OP_LSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 4, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm8(state, 0xc1, 4, dst, inst.imm));
         case EBPF_OP_LSH_REG:
             emit_mov(state, src, RCX);
             emit_alu32(state, 0xd3, 4, dst);
             break;
         case EBPF_OP_RSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 5, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm8(state, 0xc1, 5, dst, inst.imm));
         case EBPF_OP_RSH_REG:
             emit_mov(state, src, RCX);
             emit_alu32(state, 0xd3, 5, dst);
@@ -206,20 +218,17 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             emit_alu32(state, 0xf7, 3, dst);
             break;
         case EBPF_OP_XOR_IMM:
-            emit_alu32_imm32(state, 0x81, 6, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0x81, 6, dst, inst.imm));
         case EBPF_OP_XOR_REG:
             emit_alu32(state, 0x31, src, dst);
             break;
         case EBPF_OP_MOV_IMM:
-            emit_alu32_imm32(state, 0xc7, 0, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm32(state, 0xc7, 0, dst, inst.imm));
         case EBPF_OP_MOV_REG:
             emit_mov(state, src, dst);
             break;
         case EBPF_OP_ARSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 7, dst, inst.imm);
-            break;
+            BLIND_IMM32_AND_FALL_THROUGH(emit_alu32_imm8(state, 0xc1, 7, dst, inst.imm));
         case EBPF_OP_ARSH_REG:
             emit_mov(state, src, RCX);
             emit_alu32(state, 0xd3, 7, dst);
@@ -240,18 +249,19 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
                 emit_basic_rex(state, inst.imm == 64, 0, dst);
                 emit1(state, 0x0f);
                 emit1(state, 0xc8 | (dst & 7));
+            } else {
+                *errmsg = ubpf_error("Unknown instruction at PC %d: opcode %02x", i, inst.opcode);
+                return -1;                
             }
             break;
 
         case EBPF_OP_ADD64_IMM:
-            emit_alu64_imm32(state, 0x81, 0, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0x81, 0, dst, inst.imm));
         case EBPF_OP_ADD64_REG:
             emit_alu64(state, 0x01, src, dst);
             break;
         case EBPF_OP_SUB64_IMM:
-            emit_alu64_imm32(state, 0x81, 5, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0x81, 5, dst, inst.imm));
         case EBPF_OP_SUB64_REG:
             emit_alu64(state, 0x29, src, dst);
             break;
@@ -261,30 +271,27 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_IMM:
         case EBPF_OP_MOD64_REG:
+            // Note: muldivmod implements blinding
             muldivmod(state, i, inst.opcode, src, dst, inst.imm);
             break;
         case EBPF_OP_OR64_IMM:
-            emit_alu64_imm32(state, 0x81, 1, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0x81, 1, dst, inst.imm));
         case EBPF_OP_OR64_REG:
             emit_alu64(state, 0x09, src, dst);
             break;
         case EBPF_OP_AND64_IMM:
-            emit_alu64_imm32(state, 0x81, 4, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0x81, 4, dst, inst.imm));
         case EBPF_OP_AND64_REG:
             emit_alu64(state, 0x21, src, dst);
             break;
         case EBPF_OP_LSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 4, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm8(state, 0xc1, 4, dst, inst.imm));
         case EBPF_OP_LSH64_REG:
             emit_mov(state, src, RCX);
             emit_alu64(state, 0xd3, 4, dst);
             break;
         case EBPF_OP_RSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 5, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm8(state, 0xc1, 5, dst, inst.imm));
         case EBPF_OP_RSH64_REG:
             emit_mov(state, src, RCX);
             emit_alu64(state, 0xd3, 5, dst);
@@ -293,20 +300,17 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             emit_alu64(state, 0xf7, 3, dst);
             break;
         case EBPF_OP_XOR64_IMM:
-            emit_alu64_imm32(state, 0x81, 6, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0x81, 6, dst, inst.imm));
         case EBPF_OP_XOR64_REG:
             emit_alu64(state, 0x31, src, dst);
             break;
         case EBPF_OP_MOV64_IMM:
-            emit_load_imm(state, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_load_imm(state, dst, inst.imm));
         case EBPF_OP_MOV64_REG:
             emit_mov(state, src, dst);
             break;
         case EBPF_OP_ARSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 7, dst, inst.imm);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm8(state, 0xc1, 7, dst, inst.imm));
         case EBPF_OP_ARSH64_REG:
             emit_mov(state, src, RCX);
             emit_alu64(state, 0xd3, 7, dst);
@@ -317,89 +321,67 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             emit_jmp(state, target_pc);
             break;
         case EBPF_OP_JEQ_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x84, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x84, target_pc));
         case EBPF_OP_JEQ_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x84, target_pc);
             break;
         case EBPF_OP_JGT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x87, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x87, target_pc));
         case EBPF_OP_JGT_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x87, target_pc);
             break;
         case EBPF_OP_JGE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x83, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x83, target_pc));
         case EBPF_OP_JGE_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x83, target_pc);
             break;
         case EBPF_OP_JLT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x82, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x82, target_pc));
         case EBPF_OP_JLT_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x82, target_pc);
             break;
         case EBPF_OP_JLE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x86, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x86, target_pc));
         case EBPF_OP_JLE_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x86, target_pc);
             break;
         case EBPF_OP_JSET_IMM:
-            emit_alu64_imm32(state, 0xf7, 0, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_alu64_imm32(state, 0xf7, 0, dst, inst.imm);emit_jcc(state, 0x85, target_pc));
         case EBPF_OP_JSET_REG:
             emit_alu64(state, 0x85, src, dst);
             emit_jcc(state, 0x85, target_pc);
             break;
         case EBPF_OP_JNE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x85, target_pc));
         case EBPF_OP_JNE_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x85, target_pc);
             break;
         case EBPF_OP_JSGT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8f, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x8f, target_pc));
         case EBPF_OP_JSGT_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x8f, target_pc);
             break;
         case EBPF_OP_JSGE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8d, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x8d, target_pc));
         case EBPF_OP_JSGE_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x8d, target_pc);
             break;
         case EBPF_OP_JSLT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8c, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x8c, target_pc));
         case EBPF_OP_JSLT_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x8c, target_pc);
             break;
         case EBPF_OP_JSLE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8e, target_pc);
-            break;
+            BLIND_IMM64_AND_FALL_THROUGH(emit_cmp_imm32(state, dst, inst.imm);emit_jcc(state, 0x8e, target_pc));
         case EBPF_OP_JSLE_REG:
             emit_cmp(state, src, dst);
             emit_jcc(state, 0x8e, target_pc);
@@ -432,36 +414,39 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             emit_load(state, S64, src, dst, inst.offset);
             break;
 
-        case EBPF_OP_STW:
-            emit_store_imm32(state, S32, dst, inst.offset, inst.imm);
-            break;
-        case EBPF_OP_STH:
-            emit_store_imm32(state, S16, dst, inst.offset, inst.imm);
-            break;
-        case EBPF_OP_STB:
-            emit_store_imm32(state, S8, dst, inst.offset, inst.imm);
-            break;
         case EBPF_OP_STDW:
-            emit_store_imm32(state, S64, dst, inst.offset, inst.imm);
+            BLIND_IMM64_AND_FALL_THROUGH(emit_store_imm32(state, S64, dst, inst.offset, inst.imm));
+        case EBPF_OP_STXDW:
+            emit_store(state, S64, src, dst, inst.offset);
             break;
-
+        case EBPF_OP_STW:
+            BLIND_IMM64_AND_FALL_THROUGH(emit_store_imm32(state, S32, dst, inst.offset, inst.imm));
         case EBPF_OP_STXW:
             emit_store(state, S32, src, dst, inst.offset);
             break;
+        case EBPF_OP_STH:
+            BLIND_IMM64_AND_FALL_THROUGH(emit_store_imm32(state, S16, dst, inst.offset, inst.imm));
         case EBPF_OP_STXH:
             emit_store(state, S16, src, dst, inst.offset);
             break;
+        case EBPF_OP_STB:
+            BLIND_IMM64_AND_FALL_THROUGH(emit_store_imm32(state, S8, dst, inst.offset, inst.imm));
         case EBPF_OP_STXB:
             emit_store(state, S8, src, dst, inst.offset);
-            break;
-        case EBPF_OP_STXDW:
-            emit_store(state, S64, src, dst, inst.offset);
             break;
 
         case EBPF_OP_LDDW: {
             struct ebpf_inst inst2 = vm->insts[++i];
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
-            emit_load_imm(state, dst, imm);
+            if (!state->blinding_required) {
+                emit_load_imm(state, dst, imm);
+            } else {
+                uint64_t secret = random();
+                emit_load_imm(state, dst, imm ^ secret);
+                emit_load_imm(state, RCX, secret);
+                // XORQ dst, %RDX
+                emit_alu64(state, 0x31, RCX, dst);
+            }
             break;
         }
 
@@ -534,7 +519,11 @@ muldivmod(struct jit_state *state, uint16_t pc, uint8_t opcode, int src, int dst
         emit_push(state, RDX);
     }
     if (imm) {
-        emit_load_imm(state, RCX, imm);
+        if (!state->blinding_required) {
+            emit_load_imm(state, RCX, imm);
+        } else {
+            emit_alu32_blind_load_imm_to_rcx(state, imm);
+        }
     } else {
         emit_mov(state, src, RCX);
     }

@@ -134,4 +134,14 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  */
 int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
 
+/* 
+ * Enable mitigations for code from a less trusted source. Note: Mitigations may
+ * degrade performance.
+ * 
+ * Mitigations currently include:
+ *   Constant blinding - All constants in the code are blinded to prevent JIT 
+ *   spraying attacks.
+ */
+void ubpf_enable_mitigations(struct ubpf_vm *vm);
+
 #endif

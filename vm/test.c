@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <elf.h>
 #include <math.h>
+#include <time.h>
 #include "ubpf.h"
 
 void ubpf_set_register_offset(int x);
@@ -38,6 +39,7 @@ static void usage(const char *name)
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
+    fprintf(stderr, "If --defensive is given then eBPF mitigations are enabled.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
     fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
@@ -53,6 +55,7 @@ int main(int argc, char **argv)
         { .name = "register-offset", .val = 'r', .has_arg=1 },
         { .name = "unload", .val = 'U' }, /* for unit test only */
         { .name = "reload", .val = 'R' }, /* for unit test only */
+        { .name = "defensive", .val = 'd' },
         { }
     };
 
@@ -60,12 +63,18 @@ int main(int argc, char **argv)
     bool jit = false;
     bool unload = false;
     bool reload = false;
+    bool mitigations = false;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:UR", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:djr:UR", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
+            break;
+        case 'd':
+            // Seed random number generator if mitigations are enabled.
+            srandom(time(NULL));
+            mitigations = true;
             break;
         case 'j':
             jit = true;
@@ -156,6 +165,10 @@ load:
     }
 
     uint64_t ret;
+    
+    if (mitigations) {
+        ubpf_enable_mitigations(vm);
+    }
 
     if (jit) {
         ubpf_jit_fn fn = ubpf_compile(vm, &errmsg);

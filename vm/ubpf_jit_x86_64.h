@@ -64,6 +64,7 @@ struct jit_state {
     uint32_t unwind_loc;
     struct jump *jumps;
     int num_jumps;
+    bool blinding_required;
 };
 
 static inline void
@@ -197,6 +198,20 @@ emit_alu32_imm8(struct jit_state *state, int op, int src, int dst, int8_t imm)
     emit1(state, imm);
 }
 
+/* Emit instructions to perform a blind load of the immediate value. */
+static inline void
+emit_alu32_blind_load_imm_to_rcx(struct jit_state *state, uint32_t imm)
+{
+    uint32_t secret = (uint32_t)random();
+    // Make sure upper bit of secret and imm match.
+    secret &= 0x7fffffff;
+    secret |= 0x80000000 & imm;
+    // mov rcx,imm^secret
+    emit_alu32_imm32(state, 0xc7, 0, RCX, imm ^ secret);
+    // xor rcx,secret
+    emit_alu32_imm32(state, 0x81, 6, RCX, secret);
+}
+
 /* REX.W prefix and ModRM byte */
 /* We use the MR encoding when there is a choice */
 /* 'src' is often used as an opcode extension */
@@ -281,6 +296,18 @@ emit_load_imm(struct jit_state *state, int dst, int64_t imm)
         emit1(state, 0xb8 | (dst & 7));
         emit8(state, imm);
     }
+}
+
+/* Emit instructions to perform a blind load of the immediate value. */
+static inline void
+emit_alu64_blind_load_imm_to_rcx(struct jit_state *state, uint32_t imm)
+{
+    uint32_t secret = (uint32_t)random();
+    // Make sure upper bit of secret and imm match.
+    secret &= 0x7fffffff;
+    secret |= 0x80000000 & imm;
+    emit_load_imm(state, RCX, imm ^ secret);
+    emit_alu64_imm32(state, 0x81, 6, RCX, secret);
 }
 
 /* Store register src to [dst + offset] */
