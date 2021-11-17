@@ -134,6 +134,12 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  */
 int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
 
+/*
+ * Add a debug callout that is invoked prior to each eBPF instruction being
+ * executed. Debug callout has access to the complete VM state and can be
+ * leveraged to debug the program.
+ * Returns 0 on success, -1 on if there is already a debug callout set.
+ */
 int ubpf_set_debug_callout(struct ubpf_vm *vm, void (*debug)(uint16_t program_counter, uint64_t instruction, uint64_t registers[11], uint64_t stack[(UBPF_STACK_SIZE+7)/8]));
 
 #endif
