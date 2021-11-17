@@ -162,6 +162,15 @@ ubpf_unload_code(struct ubpf_vm *vm)
     }
 }
 
+int ubpf_set_debug_callout(struct ubpf_vm *vm, void (*debug)(uint16_t program_counter, uint64_t instruction, uint64_t registers[11], uint64_t stack[(UBPF_STACK_SIZE+7)/8]))
+{
+    if (vm->debug_callout) {
+        return -1;
+    }
+    vm->debug_callout = debug;
+    return 0;
+}
+
 static uint32_t
 u32(uint64_t x)
 {
@@ -187,7 +196,11 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
 
     while (1) {
         const uint16_t cur_pc = pc;
+
         struct ebpf_inst inst = insts[pc++];
+        if (vm->debug_callout) {
+            vm->debug_callout(pc-1, *(uint64_t*)&inst, reg, stack);
+        }
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
