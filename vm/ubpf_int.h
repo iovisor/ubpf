@@ -33,7 +33,8 @@ struct ubpf_vm {
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
     int unwind_stack_extension_index;
-    void (*debug_callout)(uint16_t program_counter, uint64_t instruction, uint64_t registers[11], uint64_t stack[(UBPF_STACK_SIZE+7)/8]);
+    void *debug_context;
+    void (*debug_callout)(void *debug_context, uint16_t program_counter, uint64_t instruction, uint64_t registers[11], uint64_t stack[(UBPF_STACK_SIZE+7)/8]);
 };
 
 char *ubpf_error(const char *fmt, ...);
