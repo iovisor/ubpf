@@ -1,4 +1,5 @@
 import os
+import platform
 import tempfile
 import struct
 import re
@@ -12,11 +13,18 @@ try:
 except NameError:
     xrange = range
 
+def jit_supported_platform():
+    """Is the JIT supported on the current platform."""
+    return platform.machine() in ['amd64', 'x86_64']
+    
 def check_datafile(filename):
     """
     Given assembly source code and an expected result, run the eBPF program and
     verify that the result matches. Uses the JIT compiler.
     """
+    if not jit_supported_platform():
+        raise SkipTest("JIT is not supported on the current platform")
+
     data = testdata.read(filename)
     if 'asm' not in data and 'raw' not in data:
         raise SkipTest("no asm or raw section in datafile")

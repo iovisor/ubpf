@@ -71,6 +71,11 @@ ubpf_create(void)
     vm->bounds_check_enabled = true;
     vm->error_printf = fprintf;
 
+#if __x86_64__
+    vm->translate = ubpf_translate_x86_64;
+#else
+    vm->translate = ubpf_translate_null;
+#endif
     vm->unwind_stack_extension_index = -1;
     return vm;
 }

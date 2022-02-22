@@ -626,7 +626,7 @@ resolve_strings(struct jit_state *state)
 
 
 int
-ubpf_translate(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
+ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
 {
     struct jit_state state;
     int result = -1;
@@ -670,53 +670,4 @@ out:
     free(state.jumps);
     free(state.strings);
     return result;
-}
-
-ubpf_jit_fn
-ubpf_compile(struct ubpf_vm *vm, char **errmsg)
-{
-    void *jitted = NULL;
-    uint8_t *buffer = NULL;
-    size_t jitted_size;
-
-    if (vm->jitted) {
-        return vm->jitted;
-    }
-
-    *errmsg = NULL;
-
-    if (!vm->insts) {
-        *errmsg = ubpf_error("code has not been loaded into this VM");
-        return NULL;
-    }
-
-    jitted_size = 65536;
-    buffer = calloc(jitted_size, 1);
-
-    if (ubpf_translate(vm, buffer, &jitted_size, errmsg) < 0) {
-        goto out;
-    }
-
-    jitted = mmap(0, jitted_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (jitted == MAP_FAILED) {
-        *errmsg = ubpf_error("internal uBPF error: mmap failed: %s\n", strerror(errno));
-        goto out;
-    }
-
-    memcpy(jitted, buffer, jitted_size);
-
-    if (mprotect(jitted, jitted_size, PROT_READ | PROT_EXEC) < 0) {
-        *errmsg = ubpf_error("internal uBPF error: mprotect failed: %s\n", strerror(errno));
-        goto out;
-    }
-
-    vm->jitted = jitted;
-    vm->jitted_size = jitted_size;
-
-out:
-    free(buffer);
-    if (jitted && vm->jitted == NULL) {
-        munmap(jitted, jitted_size);
-    }
-    return vm->jitted;
 }

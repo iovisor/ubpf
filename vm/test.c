@@ -233,6 +233,7 @@ gather_bytes(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e)
 static void
 trash_registers(void)
 {
+#if __x86_64__
     /* Overwrite all caller-save registers */
     asm(
         "mov $0xf0, %rax;"
@@ -245,6 +246,10 @@ trash_registers(void)
         "mov $0xf7, %r10;"
         "mov $0xf8, %r11;"
     );
+#else
+    fprintf(stderr, "trash_registers not implemented for this architecture.\n");
+    exit(1);
+#endif
 }
 
 static uint32_t
