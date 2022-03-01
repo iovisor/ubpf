@@ -117,14 +117,14 @@ exit
         st_value=0,
         st_size=0,
         st_info=Container(bind='STB_WEAK', type='STT_FUNC'),
-        st_other=Container(visibility='STV_DEFAULT'),
+        st_other=Container(local=0, visibility='STV_DEFAULT'),
         st_shndx=0))
     add("sqrti_sym", Container(
         st_name=28,
         st_value=0,
         st_size=0,
         st_info=Container(bind='STB_WEAK', type='STT_FUNC'),
-        st_other=Container(visibility='STV_DEFAULT'),
+        st_other=Container(local=0, visibility='STV_DEFAULT'),
         st_shndx=0))
     add("sqrti_rel", Container(
         r_info=(1 << 32) | 2,
