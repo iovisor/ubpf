@@ -15,7 +15,7 @@ except NameError:
 
 def jit_supported_platform():
     """Is the JIT supported on the current platform."""
-    return platform.machine() in ['amd64', 'x86_64']
+    return platform.machine() in ['amd64', 'x86_64', 'arm64', 'aarch64']
     
 def check_datafile(filename):
     """
