@@ -37,7 +37,7 @@ all: libubpf.a libubpf.so test
 
 ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
 
-libubpf.a: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_jit.o
+libubpf.a: ubpf_vm.o ubpf_jit_arm64.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_jit.o
 	ar rc $@ $^
 
 libubpf.so: ubpf_vm.o ubpf_jit_x86_64.o ubpf_loader.o

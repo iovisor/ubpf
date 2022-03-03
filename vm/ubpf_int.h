@@ -41,6 +41,7 @@ struct ubpf_vm {
 };
 
 /* The various JIT targets.  */
+int ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg);
 int ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg);
 int ubpf_translate_null(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg);
 

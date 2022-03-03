@@ -74,6 +74,8 @@ ubpf_create(void)
 
 #if __x86_64__
     vm->translate = ubpf_translate_x86_64;
+#elif __aarch64__
+    vm->translate = ubpf_translate_arm64;
 #else
     vm->translate = ubpf_translate_null;
 #endif
