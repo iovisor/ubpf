@@ -162,6 +162,7 @@ load:
         if (fn == NULL) {
             fprintf(stderr, "Failed to compile: %s\n", errmsg);
             free(errmsg);
+            free(mem);
             return 1;
         }
         ret = fn(mem, mem_len);
@@ -173,6 +174,7 @@ load:
     printf("0x%"PRIx64"\n", ret);
 
     ubpf_destroy(vm);
+    free(mem);
 
     return 0;
 }
