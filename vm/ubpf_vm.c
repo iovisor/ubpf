@@ -90,6 +90,7 @@ ubpf_destroy(struct ubpf_vm *vm)
     ubpf_unload_code(vm);
     free(vm->ext_funcs);
     free(vm->ext_func_names);
+    free(vm->rodata);
     free(vm);
 }
 

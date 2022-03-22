@@ -16,6 +16,7 @@
 
 #include <ubpf_config.h>
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
@@ -149,6 +150,18 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
 
     struct section *text = &sections[text_shndx];
 
+    /* Find first read-only data section */
+    struct section *rodata = 0;
+    int rodata_shndx = 0;
+    for (i = 0; i < ehdr->e_shnum; i++) {
+      const Elf64_Shdr *shdr = sections[i].shdr;
+      if (shdr->sh_type == SHT_PROGBITS &&
+          shdr->sh_flags == (SHF_ALLOC | SHF_STRINGS | SHF_MERGE)) {
+        rodata_shndx = i;
+        break;
+      }
+    }
+
     /* May need to modify text for relocations, so make a copy */
     text_copy = malloc(text->size);
     if (!text_copy) {
@@ -156,6 +169,19 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
         goto error;
     }
     memcpy(text_copy, text->data, text->size);
+
+    /* if we found rodata, we need to copy the strings out */
+    if (rodata_shndx) {
+      rodata = &sections[rodata_shndx];
+
+      vm->rodata = malloc(rodata->size);
+      if (!vm->rodata) {
+        *errmsg = ubpf_error("failed to allocate memory");
+        goto error;
+      }
+      memcpy(vm->rodata, rodata->data, rodata->size);
+      vm->rodata_size = rodata->size;
+    }
 
     /* Process each relocation section */
     for (i = 0; i < ehdr->e_shnum; i++) {
@@ -188,39 +214,56 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
         int j;
         for (j = 0; j < rel->size/sizeof(Elf64_Rel); j++) {
             const Elf64_Rel *r = &rs[j];
+            uint8_t type = ELF64_R_TYPE(r->r_info);
 
-            if (ELF64_R_TYPE(r->r_info) != 2) {
-                *errmsg = ubpf_error("bad relocation type %u", ELF64_R_TYPE(r->r_info));
-                goto error;
+            /* must be R_BPF_64_32 or R_BPF_64_64 */
+            if (!(type == 0xA ||
+                  type == 0x1 ||
+                  type == 0x2)) {
+              *errmsg = ubpf_error("bad relocation type %u", type);
+              goto error;
             }
 
             uint32_t sym_idx = ELF64_R_SYM(r->r_info);
             if (sym_idx >= num_syms) {
-                *errmsg = ubpf_error("bad symbol index");
-                goto error;
+              *errmsg = ubpf_error("bad symbol index");
+              goto error;
             }
 
             const Elf64_Sym *sym = &syms[sym_idx];
 
             if (sym->st_name >= strtab->size) {
-                *errmsg = ubpf_error("bad symbol name");
-                goto error;
+              *errmsg = ubpf_error("bad symbol name");
+              goto error;
             }
 
-            const char *sym_name = strings + sym->st_name;
+            if (type == 0xA || type == 0x2) {
+              const char *sym_name = strings + sym->st_name;
 
-            if (r->r_offset + 8 > text->size) {
+              if (r->r_offset + 8 > text->size) {
                 *errmsg = ubpf_error("bad relocation offset");
                 goto error;
-            }
-
-            unsigned int imm = ubpf_lookup_registered_function(vm, sym_name);
-            if (imm == -1) {
+              }
+              unsigned int imm = ubpf_lookup_registered_function(vm, sym_name);
+              if (imm == -1) {
                 *errmsg = ubpf_error("function '%s' not found", sym_name);
                 goto error;
-            }
+              }
 
-            *(uint32_t *)(text_copy + r->r_offset + 4) = imm;
+              *(uint32_t *)(text_copy + r->r_offset + 4) = imm;
+            } else {
+              uintptr_t imm = (uintptr_t)vm->rodata + sym->st_value;
+
+              if (!vm->rodata || vm->rodata_size < sym->st_value) {
+                *errmsg = ubpf_error("bad relocation offset");
+                goto error;
+              }
+
+              *(uint32_t *)(text_copy + r->r_offset + 4) = /* instr + 1 */
+                  (imm & 0xFFFFFFFF);
+              *(uint32_t *)(text_copy + r->r_offset + 12) = /* instr + 1 */
+                  ((imm >> 32) & 0xFFFFFFFF);
+            }
         }
     }
 
