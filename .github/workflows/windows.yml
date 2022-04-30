@@ -1,0 +1,79 @@
+#
+# Copyright (c) 2022-present, IO Visor Project
+# All rights reserved.
+#
+# This source code is licensed in accordance with the terms specified in
+# the LICENSE file found in the root directory of this source tree.
+#
+
+name: Windows
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+
+      build_type:
+        required: true
+        type: string
+
+      upload_packages:
+        required: true
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ${{ inputs.platform }}
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Configure the project
+      run: |
+        cmake `
+          -S . `
+          -B build `
+          -DUBPF_ENABLE_TESTS=true `
+          -DUBPF_ENABLE_INSTALL=true
+
+    - name: Build the project
+      run: |
+        cmake `
+          --build build `
+          --config ${{ inputs.build_type }}
+
+    - name: Run the tests
+      working-directory: build
+      run: |
+        ctest -C ${{ inputs.build_type }} -V
+
+    - name: Generate the TGZ package
+      run: |
+        cmake `
+          -S . `
+          -B build `
+          -DUBPF_ENABLE_PACKAGE=true `
+          -DCPACK_GENERATOR=TGZ
+
+        cmake `
+          --build build `
+          --target package
+
+    - name: Locate the packages
+      id: package_locations
+      if: inputs.upload_packages == true
+      shell: bash
+      run: |
+        echo ::set-output name=REL_TGZ_PACKAGE_PATH::$(ls build/*.tar.gz)
+
+    - name: Upload the Windows TGZ package
+      if: inputs.upload_packages == true
+      uses: actions/upload-artifact@6673cd052c4cd6fcf4b4e6e60ea986c889389535
+      with:
+        name: windows_tgz_package
+        path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
+        retention-days: 5

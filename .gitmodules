@@ -1,0 +1,3 @@
+[submodule "vm/compat/libraries/win-c/src"]
+	path = vm/compat/libraries/win-c/src
+	url = https://github.com/takamin/win-c
