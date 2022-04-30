@@ -1,0 +1,170 @@
+#
+# Copyright (c) 2022-present, IO Visor Project
+# All rights reserved.
+#
+# This source code is licensed in accordance with the terms specified in
+# the LICENSE file found in the root directory of this source tree.
+#
+
+name: Main
+
+on:
+  schedule:
+    - cron: '00 21 * * *'
+
+  push:
+    branches:
+      - '*'
+
+  pull_request:
+    branches:
+      - '*'
+
+concurrency:
+  group: main-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  windows_release:
+    uses: ./.github/workflows/windows.yml
+    with:
+      platform: windows-latest
+      build_type: RelWithDebInfo
+      upload_packages: true
+
+  windows_debug:
+    uses: ./.github/workflows/windows.yml
+    with:
+      platform: windows-latest
+      build_type: Debug
+      upload_packages: true
+
+  macos_release:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: true
+
+  macos_release_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: true
+      scan_build: false
+      upload_packages: false
+
+  macos_release_sanitizers:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: RelWithDebInfo
+      enable_sanitizers: true
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+
+  macos_debug:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: Debug
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+
+  macos_debug_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: Debug
+      enable_sanitizers: false
+      enable_coverage: true
+      scan_build: false
+      upload_packages: false
+
+  macos_debug_sanitizers:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: macos-11
+      build_type: Debug
+      enable_sanitizers: true
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+
+  linux_release:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: true
+
+  linux_release_scan_build:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: true
+      upload_packages: false
+
+  linux_release_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: true
+      scan_build: false
+      upload_packages: false
+
+  linux_release_sanitizers:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_sanitizers: true
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+
+  linux_debug:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: Debug
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+
+  linux_debug_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: Debug
+      enable_sanitizers: false
+      enable_coverage: true
+      scan_build: false
+      upload_packages: false
+
+  linux_debug_sanitizers:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: Debug
+      enable_sanitizers: true
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
