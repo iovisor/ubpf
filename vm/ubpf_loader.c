@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <ubpf_config.h>
-
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
@@ -24,18 +22,13 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include "ubpf_int.h"
-
-#if defined(UBPF_HAS_ELF_H)
 #include <elf.h>
-#endif
 
 #define MAX_SECTIONS 32
 
 #ifndef EM_BPF
 #define EM_BPF 247
 #endif
-
-#if defined(UBPF_HAS_ELF_H)
 
 struct bounds {
     const void *base;
@@ -232,4 +225,3 @@ error:
     free(text_copy);
     return -1;
 }
-#endif

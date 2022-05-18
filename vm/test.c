@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 
-#include <ubpf_config.h>
-
 #define _GNU_SOURCE
 #include <inttypes.h>
 #include <stdlib.h>
@@ -26,12 +24,9 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <elf.h>
 #include <math.h>
 #include "ubpf.h"
-
-#if defined(UBPF_HAS_ELF_H)
-#include <elf.h>
-#endif
 
 void ubpf_set_register_offset(int x);
 static void *readfile(const char *path, size_t maxlen, size_t *len);
@@ -58,7 +53,7 @@ int main(int argc, char **argv)
         { .name = "register-offset", .val = 'r', .has_arg=1 },
         { .name = "unload", .val = 'U' }, /* for unit test only */
         { .name = "reload", .val = 'R' }, /* for unit test only */
-        { 0 }
+        { }
     };
 
     const char *mem_filename = NULL;
@@ -131,22 +126,16 @@ int main(int argc, char **argv)
      * The ELF magic corresponds to an RSH instruction with an offset,
      * which is invalid.
      */
-#if defined(UBPF_HAS_ELF_H)
     bool elf = code_len >= SELFMAG && !memcmp(code, ELFMAG, SELFMAG);
-#endif
 
     char *errmsg;
     int rv;
 load:
-#if defined(UBPF_HAS_ELF_H)    
     if (elf) {
 	rv = ubpf_load_elf(vm, code, code_len, &errmsg);
     } else {
-#endif
 	rv = ubpf_load(vm, code, code_len, &errmsg);
-#if defined(UBPF_HAS_ELF_H)  
     }
-#endif
     if (unload) {
         ubpf_unload_code(vm);
         unload = false;
@@ -204,7 +193,7 @@ static void *readfile(const char *path, size_t maxlen, size_t *len)
         return NULL;
     }
 
-    char *data = calloc(maxlen, 1);
+    void *data = calloc(maxlen, 1);
     size_t offset = 0;
     size_t rv;
     while ((rv = fread(data+offset, 1, maxlen-offset, file)) > 0) {
@@ -230,7 +219,7 @@ static void *readfile(const char *path, size_t maxlen, size_t *len)
     if (len) {
         *len = offset;
     }
-    return (void *) data;
+    return data;
 }
 
 #ifndef __GLIBC__
