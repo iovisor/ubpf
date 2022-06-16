@@ -35,7 +35,11 @@ endif
 
 all: libubpf.a libubpf.so test
 
-ubpf_jit_x86_64.o: ubpf_jit_x86_64.c ubpf_jit_x86_64.h
+ubpf_jit_x86_64.o: ubpf_config.h ubpf_jit_x86_64.c ubpf_jit_x86_64.h
+
+ubpf_vm.o: ubpf_config.h
+
+test.o: ubpf_config.h
 
 libubpf.a: ubpf_vm.o ubpf_jit_arm64.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_jit.o
 	ar rc $@ $^
@@ -43,14 +47,19 @@ libubpf.a: ubpf_vm.o ubpf_jit_arm64.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_jit.o
 libubpf.so: ubpf_vm.o ubpf_jit_arm64.o ubpf_jit_x86_64.o ubpf_loader.o ubpf_jit.o
 	$(CC) -shared -o $@ $^ $(LDLIBS)
 
+.PHONY: ubpf_config.h
+ubpf_config.h:
+	echo '#define UBPF_HAS_ELF_H 1' > "inc/ubpf_config.h"
+
 test: test.o libubpf.a
 
-install:
+install: all
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL) -m 644 libubpf.a $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL) -m 644 libubpf.so $(DESTDIR)$(PREFIX)/lib
 	$(INSTALL) -d $(DESTDIR)$(PREFIX)/include
 	$(INSTALL) -m 644 inc/ubpf.h $(DESTDIR)$(PREFIX)/include
+	$(INSTALL) -m 644 inc/ubpf_config.h $(DESTDIR)$(PREFIX)/include
 
 clean:
-	rm -f test libubpf.a libubpf.so *.o
+	rm -f test libubpf.a libubpf.so *.o inc/ubpf_config.h
