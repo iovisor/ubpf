@@ -17,6 +17,8 @@
 #ifndef UBPF_H
 #define UBPF_H
 
+#include <ubpf_config.h>
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -108,7 +110,10 @@ void ubpf_unload_code(struct ubpf_vm *vm);
  * Returns 0 on success, -1 on error. In case of error a pointer to the error
  * message will be stored in 'errmsg' and should be freed by the caller.
  */
+
+#if defined(UBPF_HAS_ELF_H)
 int ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_len, char **errmsg);
+#endif
 
 int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value);
 
