@@ -23,3 +23,7 @@ add_subdirectory("vm")
 if(UBPF_ENABLE_PACKAGE)
   include("cmake/packaging.cmake")
 endif()
+
+enable_testing()
+add_test(NAME unit_tests
+        COMMAND nosetests -v --where=${CMAKE_SOURCE_DIR})
