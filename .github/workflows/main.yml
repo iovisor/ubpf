@@ -162,7 +162,7 @@ jobs:
       upload_packages: false
       arch: x64
 
-  linux_debug:
+  linux_debug_arm64:
     uses: ./.github/workflows/posix.yml
     with:
       platform: ubuntu-20.04
