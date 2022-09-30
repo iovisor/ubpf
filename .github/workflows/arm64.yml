@@ -18,7 +18,7 @@ on:
 
 jobs:
   build:
-    runs-on: Ubuntu-22.04
+    runs-on: Ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v3
