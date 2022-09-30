@@ -1,0 +1,75 @@
+#
+# Copyright (c) 2022-present, IO Visor Project
+# All rights reserved.
+#
+# This source code is licensed in accordance with the terms specified in
+# the LICENSE file found in the root directory of this source tree.
+#
+
+name: ARM64
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.platform }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup ARM64
+      uses: docker/setup-qemu-action@v1
+      with:
+        platforms: arm64
+
+    - name: Create build container
+      if: inputs.platform == 'ubuntu-20.04'
+      run: \
+        sudo docker create --platform linux/arm64 --name build_container \
+        -v ${{ github.workspace }}:/home/builder/src \
+        -w /home/builder/src \
+        tail -f /dev/null
+
+    - name: Install system dependencies (Linux)
+      if: inputs.platform == 'ubuntu-20.04'
+      run: |
+        export RUN="sudo docker exec build_container"
+        ${RUN} apt-get update
+        ${RUN} apt-get install -y \
+          build-essential \
+          ccache \
+          ninja-build \
+          cmake \
+          git
+
+    - name: Configure the project
+      run: |
+        export RUN="sudo docker exec build_container"
+
+        ${RUN} cmake \
+          -G Ninja \
+          -S . \
+          -B build \
+          -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+          -DUBPF_ENABLE_TESTS=true \
+          -DUBPF_ENABLE_INSTALL=true
+
+    - name: Build the project
+      run: |
+        export RUN="sudo docker exec build_container"
+        ${RUN} cmake \
+          --build build \
+          -- -v
+
+    - name: Run the tests
+      run: |
+        export RUN="sudo docker exec build_container"
+        ${RUN} cmake \
+          --build build \
+          --target test \
+          -- -v

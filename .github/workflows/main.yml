@@ -168,3 +168,13 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+
+  linux_debug_arm64:
+    uses: ./.github/workflows/arm64.yml
+    with:
+      build_type: Debug
+
+  linux_release_arm64:
+    uses: ./.github/workflows/arm64.yml
+    with:
+      build_type: RelWithDebInfo
