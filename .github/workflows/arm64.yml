@@ -9,11 +9,12 @@
 name: arm64
 
 on:
-  workflow_call:
-    inputs:
-      build_type:
-        required: true
-        type: string
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - '*'
 
 jobs:
   build:
@@ -53,7 +54,7 @@ jobs:
           -G Ninja \
           -S . \
           -B build \
-          -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+          -DCMAKE_BUILD_TYPE=Debug \
           -DUBPF_ENABLE_TESTS=true \
           -DUBPF_ENABLE_INSTALL=true
 
