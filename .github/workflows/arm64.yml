@@ -28,7 +28,6 @@ jobs:
         platforms: arm64
 
     - name: Create build container
-      if: inputs.platform == 'ubuntu-20.04'
       run: \
         sudo docker create --platform linux/arm64 --name build_container \
         -v ${{ github.workspace }}:/home/builder/src \
@@ -36,7 +35,6 @@ jobs:
         tail -f /dev/null
 
     - name: Install system dependencies (Linux)
-      if: inputs.platform == 'ubuntu-20.04'
       run: |
         export RUN="sudo docker exec build_container"
         ${RUN} apt-get update
