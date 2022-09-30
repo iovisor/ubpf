@@ -31,7 +31,6 @@ jobs:
       platform: windows-latest
       build_type: RelWithDebInfo
       upload_packages: true
-      arch: x64
 
   windows_debug:
     uses: ./.github/workflows/windows.yml
@@ -39,7 +38,6 @@ jobs:
       platform: windows-latest
       build_type: Debug
       upload_packages: true
-      arch: x64
 
   macos_release:
     uses: ./.github/workflows/posix.yml
