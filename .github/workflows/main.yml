@@ -25,6 +25,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  linux_debug_arm64:
+    uses: ./.github/workflows/arm64.yml
+    with:
+      build_type: Debug
+
+  linux_release_arm64:
+    uses: ./.github/workflows/arm64.yml
+    with:
+      build_type: RelWithDebInfo
+
   windows_release:
     uses: ./.github/workflows/windows.yml
     with:
@@ -169,12 +179,3 @@ jobs:
       scan_build: false
       upload_packages: false
 
-  linux_debug_arm64:
-    uses: ./.github/workflows/arm64.yml
-    with:
-      build_type: Debug
-
-  linux_release_arm64:
-    uses: ./.github/workflows/arm64.yml
-    with:
-      build_type: RelWithDebInfo
