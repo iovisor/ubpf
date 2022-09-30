@@ -6,7 +6,7 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-#name: ARM64
+name: ARM64
 
 on:
   workflow_call:
@@ -27,7 +27,7 @@ jobs:
       with:
         platforms: arm64
 
-    - Name: Create build container
+    - name: Create build container
       if: inputs.platform == 'ubuntu-20.04'
       run: \
         sudo docker create --platform linux/arm64 --name build_container \
