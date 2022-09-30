@@ -31,6 +31,7 @@ jobs:
       platform: windows-latest
       build_type: RelWithDebInfo
       upload_packages: true
+      arch: x64
 
   windows_debug:
     uses: ./.github/workflows/windows.yml
@@ -38,6 +39,7 @@ jobs:
       platform: windows-latest
       build_type: Debug
       upload_packages: true
+      arch: x64
 
   macos_release:
     uses: ./.github/workflows/posix.yml
@@ -48,6 +50,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: true
+      arch: x64
 
   macos_release_coverage:
     uses: ./.github/workflows/posix.yml
@@ -58,6 +61,7 @@ jobs:
       enable_coverage: true
       scan_build: false
       upload_packages: false
+      arch: x64
 
   macos_release_sanitizers:
     uses: ./.github/workflows/posix.yml
@@ -68,6 +72,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
 
   macos_debug:
     uses: ./.github/workflows/posix.yml
@@ -78,6 +83,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
 
   macos_debug_coverage:
     uses: ./.github/workflows/posix.yml
@@ -88,6 +94,7 @@ jobs:
       enable_coverage: true
       scan_build: false
       upload_packages: false
+      arch: x64
 
   macos_debug_sanitizers:
     uses: ./.github/workflows/posix.yml
@@ -98,6 +105,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
 
   linux_release:
     uses: ./.github/workflows/posix.yml
@@ -108,6 +116,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: true
+      arch: x64
 
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
@@ -118,6 +127,7 @@ jobs:
       enable_coverage: false
       scan_build: true
       upload_packages: false
+      arch: x64
 
   linux_release_coverage:
     uses: ./.github/workflows/posix.yml
@@ -128,6 +138,7 @@ jobs:
       enable_coverage: true
       scan_build: false
       upload_packages: false
+      arch: x64
 
   linux_release_sanitizers:
     uses: ./.github/workflows/posix.yml
@@ -138,6 +149,7 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
 
   linux_debug:
     uses: ./.github/workflows/posix.yml
@@ -148,6 +160,18 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
+
+  linux_debug:
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: Debug
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+      arch: arm64
 
   linux_debug_coverage:
     uses: ./.github/workflows/posix.yml
@@ -158,6 +182,7 @@ jobs:
       enable_coverage: true
       scan_build: false
       upload_packages: false
+      arch: x64
 
   linux_debug_sanitizers:
     uses: ./.github/workflows/posix.yml
@@ -168,4 +193,5 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+      arch: x64
 

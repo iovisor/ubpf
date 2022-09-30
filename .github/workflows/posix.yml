@@ -11,6 +11,10 @@ name: Posix
 on:
   workflow_call:
     inputs:
+      arch:
+        description: 'Architecture'
+        required: true
+        type: string
       platform:
         required: true
         type: string
@@ -70,6 +74,24 @@ jobs:
             clang-tools
         fi
 
+    - name: Setup ARM64 emulator
+      if: inputs.arch == 'arm64'
+      run: |
+        sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+        sudo docker create --platform linux/arm64 --name build_container \
+          -v ${{ github.workspace }}:/home/builder/src \
+          -w /home/builder/src \
+          tail -f /dev/null
+
+        sudo docker exec build_container apt-get update
+        sudo docker exec build_container apt-get install -y \
+          build-essential \
+          ccache \
+          ninja-build \
+          cmake \
+          git
+
     - name: Install system dependencies (macOS)
       if: inputs.platform == 'macos-11'
       run: |
@@ -85,6 +107,10 @@ jobs:
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           mkdir scan_build_report
           command_prefix="scan-build -o scan_build_report"
+        fi
+
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          export command_prefix="sudo docker exec build_container"
         fi
 
         ${command_prefix} cmake \
@@ -105,6 +131,10 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          export command_prefix="sudo docker exec build_container"
+        fi
+
         ${command_prefix} cmake \
           --build build \
           -- -v
@@ -119,7 +149,11 @@ jobs:
 
     - name: Run the tests
       run: |
-        cmake \
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          export command_prefix="sudo docker exec build_container"
+        fi
+
+        ${command_prefix} cmake \
           --build build \
           --target test \
           -- -v
