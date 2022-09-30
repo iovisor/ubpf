@@ -23,21 +23,20 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Setup ARM64
-      uses: docker/setup-qemu-action@v1
-      with:
-        platforms: arm64
+    - name: Setup QEMU
+      run: \
+        sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
     - name: Create build container
       run: \
-        docker create --platform linux/arm64 --name build_container \
+        sudo docker create --platform linux/arm64 --name build_container \
         -v ${{ github.workspace }}:/home/builder/src \
         -w /home/builder/src \
         tail -f /dev/null
 
     - name: Install system dependencies (Linux)
       run: |
-        export RUN="docker exec build_container"
+        export RUN="sudo docker exec build_container"
         ${RUN} apt-get update
         ${RUN} apt-get install -y \
           build-essential \
@@ -48,7 +47,7 @@ jobs:
 
     - name: Configure the project
       run: |
-        export RUN="docker exec build_container"
+        export RUN="sudo docker exec build_container"
 
         ${RUN} cmake \
           -G Ninja \
@@ -60,14 +59,14 @@ jobs:
 
     - name: Build the project
       run: |
-        export RUN="docker exec build_container"
+        export RUN="sudo docker exec build_container"
         ${RUN} cmake \
           --build build \
           -- -v
 
     - name: Run the tests
       run: |
-        export RUN="docker exec build_container"
+        export RUN="sudo docker exec build_container"
         ${RUN} cmake \
           --build build \
           --target test \
