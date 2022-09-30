@@ -30,14 +30,14 @@ jobs:
 
     - name: Create build container
       run: \
-        sudo docker create --platform linux/arm64 --name build_container \
+        docker create --platform linux/arm64 --name build_container \
         -v ${{ github.workspace }}:/home/builder/src \
         -w /home/builder/src \
         tail -f /dev/null
 
     - name: Install system dependencies (Linux)
       run: |
-        export RUN="sudo docker exec build_container"
+        export RUN="docker exec build_container"
         ${RUN} apt-get update
         ${RUN} apt-get install -y \
           build-essential \
@@ -48,7 +48,7 @@ jobs:
 
     - name: Configure the project
       run: |
-        export RUN="sudo docker exec build_container"
+        export RUN="docker exec build_container"
 
         ${RUN} cmake \
           -G Ninja \
@@ -60,14 +60,14 @@ jobs:
 
     - name: Build the project
       run: |
-        export RUN="sudo docker exec build_container"
+        export RUN="docker exec build_container"
         ${RUN} cmake \
           --build build \
           -- -v
 
     - name: Run the tests
       run: |
-        export RUN="sudo docker exec build_container"
+        export RUN="docker exec build_container"
         ${RUN} cmake \
           --build build \
           --target test \
