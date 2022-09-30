@@ -11,6 +11,11 @@ name: Posix
 on:
   workflow_call:
     inputs:
+      arch:
+        description: 'Architecture'
+        required: true
+        type: string
+
       platform:
         required: true
         type: string
@@ -63,11 +68,19 @@ jobs:
         sudo apt-get install -y \
           ccache \
           ninja-build \
-          cmake
+          cmake \
+          lcov
 
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           sudo apt-get install -y \
             clang-tools
+        fi
+
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          sudo apt install -y \
+            g++-aarch64-linux-gnu \
+            gcc-aarch64-linux-gnu \
+            qemu-user
         fi
 
     - name: Install system dependencies (macOS)
@@ -76,7 +89,8 @@ jobs:
         brew install \
           cmake \
           ninja \
-          ccache
+          ccache \
+          lcov
 
     - name: Configure the project
       run: |
@@ -87,15 +101,24 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake"
+          test_flags=""
+        else
+          arch_flags=""
+          test_flags="-DUBPF_ENABLE_TESTS=true"
+        fi
+
         ${command_prefix} cmake \
           -G Ninja \
           -S . \
           -B build \
           -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
-          -DUBPF_ENABLE_COVERAGE=${{ inputs.enable_sanitizers }} \
-          -DUBPF_ENABLE_SANITIZERS=${{ inputs.enable_coverage }} \
-          -DUBPF_ENABLE_TESTS=true \
-          -DUBPF_ENABLE_INSTALL=true
+          -DUBPF_ENABLE_COVERAGE=${{ inputs.enable_coverage }} \
+          -DUBPF_ENABLE_SANITIZERS=${{ inputs.enable_sanitizers }} \
+          ${test_flags} \
+          -DUBPF_ENABLE_INSTALL=true \
+          ${arch_flags}
 
     - name: Build the project
       run: |
@@ -118,11 +141,31 @@ jobs:
         retention-days: 5
 
     - name: Run the tests
+      if: inputs.arch == 'x86_64'
       run: |
         cmake \
           --build build \
           --target test \
           -- -v
+
+    - name: Run the tests ARM64
+      if: inputs.arch == 'arm64'
+      run: |
+        qemu-aarch64 -L /usr/aarch64-linux-gnu build/unit_tests/ubpf_unit_test
+
+    - name: Generate code coverage report
+      if: inputs.enable_coverage == true
+      run: |
+        mkdir -p coverage
+        lcov --capture --directory build --include '*/vm/*' --output-file coverage/lcov.info
+
+    - name: Coveralls Parallel
+      if: inputs.enable_coverage == true
+      uses: coverallsapp/github-action@v1.1.2
+      with:
+        github-token: ${{ secrets.github_token }}
+        flag-name: run-${{inputs.build_type}}-${{inputs.platform}}
+        parallel: true
 
     - name: Run the install target
       run: |

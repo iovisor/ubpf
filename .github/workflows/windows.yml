@@ -49,7 +49,7 @@ jobs:
     - name: Run the tests
       working-directory: build
       run: |
-        ctest -C ${{ inputs.build_type }} -V
+        ctest -C ${{ inputs.build_type }} --output-on-failure
 
     - name: Generate the TGZ package
       run: |

@@ -19,7 +19,9 @@ if(UBPF_ENABLE_TESTS)
 endif()
 
 add_subdirectory("vm")
+add_subdirectory("unit_tests")
 
 if(UBPF_ENABLE_PACKAGE)
   include("cmake/packaging.cmake")
 endif()
+
