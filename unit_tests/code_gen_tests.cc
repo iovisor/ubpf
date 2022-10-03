@@ -15,19 +15,6 @@ extern "C"
 
 std::map<std::string, std::string> unsupported_tests {
 #if defined(__aarch64__)
-    {"mod-by-zero-reg.data", "JIT"},
-    {"div-by-zero-reg.data", "JIT"},
-    {"div-by-zero-imm.data", "JIT"},
-    {"mod-by-zero-reg.data", "JIT"},
-    {"mod-by-zero-reg.data", "JIT"},
-    { "mod-by-zero-reg.data", "JIT"}, 
-    {"div-by-zero-reg.data", "JIT"}, 
-    {"div-by-zero-imm.data", "JIT"}, 
-    {"div64-by-zero-imm.data", "JIT"}, 
-    {"mod64-by-zero-imm.data", "JIT"}, 
-    {"mod-by-zero-imm.data", "JIT"}, 
-    {"div64-by-zero-reg.data", "JIT"}, 
-    {"mod64-by-zero-reg.data", "JIT"}, 
 #else
 #endif
 };
