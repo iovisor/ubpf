@@ -37,7 +37,6 @@
 
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT ~UINT32_C(0)
-#define TARGET_PC_DIV_BY_ZERO ~UINT32_C(1)
 
 // This is guaranteed to be an illegal A64 instruction.
 #define BAD_OPCODE ~UINT32_C(0)
@@ -58,7 +57,6 @@ struct jit_state {
     uint32_t size;
     uint32_t *pc_locs;
     uint32_t exit_loc;
-    uint32_t div_by_zero_loc;
     uint32_t unwind_loc;
     struct jump *jumps;
     int num_jumps;
@@ -74,7 +72,7 @@ enum Registers {R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14,
 // Callee saved registers - this must be a multiple of two because of how we save the stack later on.
 static enum Registers callee_saved_registers[] = {R19, R20, R21, R22, R23, R24, R25, R26};
 // Caller saved registers (and parameter registers)
-static enum Registers caller_saved_registers[] = {R0, R1, R2, R3, R4};
+//static enum Registers caller_saved_registers[] = {R0, R1, R2, R3, R4};
 // Temp register for immediate generation
 static enum Registers temp_register = R24; 
 // Temp register for division results
@@ -113,7 +111,7 @@ map_register(int r)
 
 /* Some forward declarations.  */
 static void emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers rd, uint64_t imm);
-static void divmod(struct jit_state *state, uint16_t pc, uint8_t opcode, int rd, int rn, int rm);
+static void divmod(struct jit_state *state, uint8_t opcode, int rd, int rn, int rm);
 
 static void
 emit_bytes(struct jit_state *state, void *data, uint32_t len)
@@ -456,6 +454,7 @@ emit_function_prologue(struct jit_state *state, size_t ubpf_stack_size)
     emit_addsub_immediate(state, true, AS_ADD, map_register(10), SP, state->stack_size);
 }
 
+#if 0
 static void
 emit_string_load(struct jit_state *state, enum Registers dst, int string_id)
 {
@@ -469,6 +468,7 @@ emit_string_load(struct jit_state *state, enum Registers dst, int string_id)
     emit_instruction(state, (0 << 29) | (1 << 28) | (0 << 5) | dst);
     state->num_strings++;
 }
+#endif
 
 static void emit_call(struct jit_state *state, uintptr_t func) {
     emit_movewide_immediate(state, true, temp_register, func);
@@ -827,7 +827,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_MOD_REG:
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_REG:
-            divmod(state, i, opcode, dst, dst, src);
+            divmod(state, opcode, dst, dst, src);
             break;
         case EBPF_OP_OR_REG:
         case EBPF_OP_AND_REG:
@@ -981,20 +981,6 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
     }
 
     emit_function_epilogue(state);
-    /* Division by zero handler */
-
-    // Save the address of the start of the divide by zero handler.
-    state->div_by_zero_loc = state->offset;
-
-    /* error_printf(stderr, UBPF_STRING_ID_DIVIDE_BY_ZERO, pc);
-       pc has already been set up by emit_divmod(). */
-    emit_string_load(state, caller_saved_registers[1], UBPF_STRING_ID_DIVIDE_BY_ZERO);
-    emit_movewide_immediate(state, true,caller_saved_registers[0], (uintptr_t)stderr);
-    emit_call(state, (uintptr_t)vm->error_printf);
-
-    emit_movewide_immediate(state, true, map_register(0), ((uint64_t)INT64_C(-1)));
-    emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
-
     // Emit string table.
     state->string_table_loc = state->offset;
     for (i = 0; i < _countof(ubpf_string_table); i++) {
@@ -1005,17 +991,15 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 }
 
 static void
-divmod(struct jit_state *state, uint16_t pc, uint8_t opcode, int rd, int rn, int rm)
+divmod(struct jit_state *state, uint8_t opcode, int rd, int rn, int rm)
 {
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool sixty_four = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
     enum Registers div_dest = mod ? temp_div_register : rd;
 
-    // Handle divide by zero case
-    // CBNZ rm, .+12 (we don't need to note_jump() as we know the destination immediately).
-    emit_instruction(state, (sixty_four << 31) | CBR_CBNZ | (3 << 5) | rm);
-    emit_movewide_immediate(state, true, caller_saved_registers[2], pc);
-    emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_DIV_BY_ZERO);
+    /* Do not need to treet divide by zero as special because the UDIV instruction already
+     * returns 0 when dividing by zero.
+     */
     emit_dataprocessing_twosource(state, sixty_four, DP2_UDIV, div_dest, rn, rm);
     if (mod) {
         emit_dataprocessing_threesource(state, sixty_four, DP3_MSUB, rd, rm, div_dest, rn);
@@ -1031,8 +1015,6 @@ resolve_jumps(struct jit_state *state)
         int32_t target_loc;
         if (jump.target_pc == TARGET_PC_EXIT) {
             target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_DIV_BY_ZERO) {
-            target_loc = state->div_by_zero_loc;
         } else {
             target_loc = state->pc_locs[jump.target_pc];
         }
