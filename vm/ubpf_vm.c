@@ -700,6 +700,10 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
             break;
 
         case EBPF_OP_LDDW:
+            if (inst.src != 0) {
+                *errmsg = ubpf_error("invalid source register for LDDW at PC %d", i);
+                return false;
+            }
             if (i + 1 >= num_insts || insts[i+1].opcode != 0) {
                 *errmsg = ubpf_error("incomplete lddw at PC %d", i);
                 return false;
