@@ -16,14 +16,31 @@ This project aims to create an Apache-licensed library for executing eBPF progra
 This project includes an eBPF assembler, disassembler, interpreter (for all platforms),
 and JIT compiler (for x86-64 and Arm64 targets).
 
-## Building
+## Building with CMake
+Note: This works on Windows, Linux, and MacOS, provided the prerequisites are installed.
+```
+cmake -S . -B build -DUBPF_ENABLE_TESTS=true
+cmake --build build --config Debug
+```
 
+## Running the tests
+### Linux and MacOS
+```
+cmake --build build --target test --
+```
+
+### Windows
+```
+ctest --test-dir build
+```
+
+## Building with make (Linux)
 Run `make -C vm` to build the VM. This produces a static library `libubpf.a`
 and a simple executable used by the testsuite. After building the
 library you can install using `make -C vm install` via either root or
 sudo.
 
-## Running the tests
+## Running the tests (Linux)
 To run the tests, you first need to build the vm code then use nosetests to execute the tests. Note: The tests have some dependencies that need to be present. See the [.travis.yml](https://github.com/iovisor/ubpf/blob/master/.travis.yml) for details.
 
 ### Before running the test (assuming Debian derived distro)
