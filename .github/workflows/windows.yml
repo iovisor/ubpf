@@ -23,6 +23,10 @@ on:
         required: true
         type: boolean
 
+      build_codeql:
+        required: false
+        type: boolean
+
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
@@ -30,7 +34,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        submodules: true
+        submodules: 'recursive'
+
+    - name: Initialize CodeQL
+      if: inputs.build_codeql == true
+      uses: github/codeql-action/init@86f3159a697a097a813ad9bfa0002412d97690a4
+      with:
+        languages: 'cpp'
 
     - name: Configure the project
       run: |
@@ -77,3 +87,7 @@ jobs:
         name: windows_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
         retention-days: 5
+
+    - name: Perform CodeQL Analysis
+      if: inputs.build_codeql == true
+      uses: github/codeql-action/analyze@86f3159a697a097a813ad9bfa0002412d97690a4
