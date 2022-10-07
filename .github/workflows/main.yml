@@ -8,6 +8,10 @@
 
 name: Main
 
+permissions:
+  contents: read
+  security-events: write # Required by codeql task.
+
 on:
   schedule:
     - cron: '00 21 * * *'
@@ -168,3 +172,15 @@ jobs:
       enable_coverage: false
       scan_build: false
       upload_packages: false
+
+  linux_release_codeql:
+    if: github.event_name == 'schedule'
+    uses: ./.github/workflows/posix.yml
+    with:
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_sanitizers: false
+      enable_coverage: false
+      scan_build: false
+      upload_packages: false
+      build_codeql: true
