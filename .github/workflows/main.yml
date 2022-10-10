@@ -32,155 +32,160 @@ jobs:
   windows_release:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-latest
+      platform: windows-2019
       build_type: RelWithDebInfo
       upload_packages: true
 
   windows_debug:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-latest
+      platform: windows-2019
       build_type: Debug
       upload_packages: true
 
   macos_release:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: RelWithDebInfo
-      enable_sanitizers: false
-      enable_coverage: false
-      scan_build: false
       upload_packages: true
 
   macos_release_coverage:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: RelWithDebInfo
-      enable_sanitizers: false
       enable_coverage: true
-      scan_build: false
-      upload_packages: false
 
   macos_release_sanitizers:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: RelWithDebInfo
       enable_sanitizers: true
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
 
   macos_debug:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: Debug
-      enable_sanitizers: false
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
 
   macos_debug_coverage:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: Debug
-      enable_sanitizers: false
       enable_coverage: true
-      scan_build: false
-      upload_packages: false
 
   macos_debug_sanitizers:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: macos-11
       build_type: Debug
       enable_sanitizers: true
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
 
   linux_release:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: RelWithDebInfo
-      enable_sanitizers: false
-      enable_coverage: false
-      scan_build: false
       upload_packages: true
 
+  linux_release_arm64:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: arm64
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+  
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: RelWithDebInfo
-      enable_sanitizers: false
-      enable_coverage: false
       scan_build: true
-      upload_packages: false
 
   linux_release_coverage:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: RelWithDebInfo
-      enable_sanitizers: false
       enable_coverage: true
-      scan_build: false
-      upload_packages: false
+
+  linux_arm64_release_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: arm64
+      platform: ubuntu-20.04
+      build_type: RelWithDebInfo
+      enable_coverage: true
 
   linux_release_sanitizers:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: RelWithDebInfo
       enable_sanitizers: true
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
 
   linux_debug:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: Debug
-      enable_sanitizers: false
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
+
+  linux_debug_arm64:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: arm64
+      platform: ubuntu-20.04
+      build_type: Debug
+      upload_packages: true
 
   linux_debug_coverage:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: Debug
-      enable_sanitizers: false
       enable_coverage: true
-      scan_build: false
-      upload_packages: false
+
+  linux_debug_arm64_coverage:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: arm64
+      platform: ubuntu-20.04
+      build_type: Debug
+      enable_coverage: true
 
   linux_debug_sanitizers:
     uses: ./.github/workflows/posix.yml
     with:
+      arch: x86_64
       platform: ubuntu-20.04
       build_type: Debug
       enable_sanitizers: true
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
 
-  linux_release_codeql:
-    if: github.event_name == 'schedule'
-    uses: ./.github/workflows/posix.yml
-    with:
-      platform: ubuntu-20.04
-      build_type: RelWithDebInfo
-      enable_sanitizers: false
-      enable_coverage: false
-      scan_build: false
-      upload_packages: false
-      build_codeql: true
+  finish:
+    needs:
+      - macos_release_coverage
+      - macos_debug_coverage
+      - linux_release_coverage
+      - linux_debug_coverage
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Coveralls Finished
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.github_token }}
+        parallel-finished: true

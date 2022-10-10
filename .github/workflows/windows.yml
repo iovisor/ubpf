@@ -42,7 +42,7 @@ jobs:
       with:
         languages: 'cpp'
 
-    - name: Configure the project
+    - name: Configure uBPF
       run: |
         cmake `
           -S . `
@@ -50,16 +50,18 @@ jobs:
           -DUBPF_ENABLE_TESTS=true `
           -DUBPF_ENABLE_INSTALL=true
 
-    - name: Build the project
+    - name: Build uBPF
       run: |
         cmake `
           --build build `
           --config ${{ inputs.build_type }}
 
-    - name: Run the tests
-      working-directory: build
+    # Switch this to Docker when a Windows image is available.
+    - name: Run the bpf_conformance tests (Windows)
       run: |
-        ctest -C ${{ inputs.build_type }} -V
+        cd .\build\bin\${{ inputs.build_type }}
+        .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
+        .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
 
     - name: Generate the TGZ package
       run: |

@@ -20,6 +20,14 @@ endif()
 
 add_subdirectory("vm")
 
+if(UBPF_ENABLE_TESTS)
+  add_subdirectory("ubpf_plugin")
+  if (NOT UBPF_SKIP_EXTERNAL)
+    add_subdirectory("external")
+  endif()
+endif()
+
 if(UBPF_ENABLE_PACKAGE)
   include("cmake/packaging.cmake")
 endif()
+

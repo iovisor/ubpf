@@ -15,6 +15,11 @@ permissions:
 on:
   workflow_call:
     inputs:
+      arch:
+        description: 'Architecture'
+        required: true
+        type: string
+
       platform:
         required: true
         type: string
@@ -24,19 +29,19 @@ on:
         type: string
 
       enable_sanitizers:
-        required: true
+        required: false
         type: boolean
 
       enable_coverage:
-        required: true
+        required: false
         type: boolean
 
       scan_build:
-        required: true
+        required: false
         type: boolean
 
       upload_packages:
-        required: true
+        required: false
         type: boolean
 
       build_codeql:
@@ -60,7 +65,7 @@ jobs:
 
     - name: Generate the cache key
       id: cache_key
-      run: echo ::set-output name=VALUE::platform-${{ inputs.platform }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}
+      run: echo ::set-output name=VALUE::platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}
 
     - name: Update the cache (ccache)
       uses: actions/cache@v3.0.10
@@ -79,11 +84,23 @@ jobs:
         sudo apt-get install -y \
           ccache \
           ninja-build \
-          cmake
+          cmake \
+          lcov \
+          libboost-dev \
+          libboost-program-options-dev \
+          libboost-filesystem-dev \
+          libbpf-dev
 
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           sudo apt-get install -y \
             clang-tools
+        fi
+
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          sudo apt install -y \
+            g++-aarch64-linux-gnu \
+            gcc-aarch64-linux-gnu \
+            qemu-user
         fi
 
     - name: Install system dependencies (macOS)
@@ -92,9 +109,29 @@ jobs:
         brew install \
           cmake \
           ninja \
-          ccache
+          ccache \
+          lcov \
+          boost
 
-    - name: Configure the project
+    # Build the bpf_conformance suite seperately as it doesn't build in arm64.
+    - name: Configure bpf_conformance
+      run: |
+        export CCACHE_DIR="$(pwd)/ccache"
+
+        cmake \
+          -G Ninja \
+          -S external/bpf_conformance \
+          -B build_bpf_conformance
+
+    - name: Build bpf_conformance
+      run: |
+        export CCACHE_DIR="$(pwd)/ccache"
+
+        cmake \
+          --build build_bpf_conformance \
+          --config ${{ inputs.build_type }}
+
+    - name: Configure uBPF
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
@@ -103,17 +140,25 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake"
+        else
+          arch_flags=""
+        fi
+
         ${command_prefix} cmake \
           -G Ninja \
           -S . \
           -B build \
           -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
-          -DUBPF_ENABLE_COVERAGE=${{ inputs.enable_sanitizers }} \
-          -DUBPF_ENABLE_SANITIZERS=${{ inputs.enable_coverage }} \
+          -DUBPF_ENABLE_COVERAGE=${{ inputs.enable_coverage }} \
+          -DUBPF_ENABLE_SANITIZERS=${{ inputs.enable_sanitizers }} \
           -DUBPF_ENABLE_TESTS=true \
-          -DUBPF_ENABLE_INSTALL=true
+          -DUBPF_ENABLE_INSTALL=true \
+          -DUBPF_SKIP_EXTERNAL=true \
+          ${arch_flags}
 
-    - name: Build the project
+    - name: Build uBPF
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
@@ -133,12 +178,36 @@ jobs:
         path: ${{github.workspace}}/scan_build_report
         retention-days: 5
 
-    - name: Run the tests
+    - name: Run the bpf_conformance tests
       run: |
-        cmake \
-          --build build \
-          --target test \
-          -- -v
+        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
+        export BPF_CONFORMANCE_TEST_DIR="--test_file_directory tests"
+
+        # For arm64, we need to run the tests in qemu, so use the scripts
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path aarch64_test/run-jit.sh"
+          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path aarch64_test/run-interpret.sh"
+        else
+          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path build/bin/ubpf_plugin --plugin_options --jit"
+          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path build/bin/ubpf_plugin --plugin_options --interpret"
+        fi
+
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_JIT}
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
+
+    - name: Generate code coverage report
+      if: inputs.enable_coverage == true
+      run: |
+        mkdir -p coverage
+        lcov --capture --directory build --include '*' --output-file coverage/lcov.info
+
+    - name: Coveralls Parallel
+      if: inputs.enable_coverage == true
+      uses: coverallsapp/github-action@v1.1.2
+      with:
+        github-token: ${{ secrets.github_token }}
+        flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
+        parallel: true
 
     - name: Run the install target
       run: |

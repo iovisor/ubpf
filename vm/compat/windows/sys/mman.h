@@ -10,12 +10,12 @@
 
 #include <stdint.h>
 
-#define PROT_READ 0
-#define PROT_WRITE 0
+#define PROT_READ 0x1
+#define PROT_WRITE 0x2
 #define MAP_PRIVATE 0
 #define MAP_ANONYMOUS 0
 #define MAP_FAILED NULL
-#define PROT_EXEC 0
+#define PROT_EXEC 0x4
 
 typedef int64_t off_t;
 

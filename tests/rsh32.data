@@ -1,5 +1,5 @@
 -- asm
-xor r0, r0
+mov r0, 0
 sub r0, 1
 rsh32 r0, 8
 exit
