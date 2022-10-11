@@ -142,4 +142,11 @@ int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
 void ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs);
 uint64_t *ubpf_get_registers(const struct ubpf_vm *vm);
 
+/**
+ * @brief Optional secret to improve ROP protection.
+ * 
+ * @param[in] secret Optional secret to improve ROP protection.
+ */
+void ubpf_set_pointer_secret(uint64_t secret);
+
 #endif

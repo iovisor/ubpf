@@ -66,6 +66,9 @@ int main(int argc, char **argv)
     bool unload = false;
     bool reload = false;
 
+    uint64_t secret = (uint64_t)rand() << 32 | (uint64_t)rand();
+    ubpf_set_pointer_secret(secret);
+
     int opt;
     while ((opt = getopt_long(argc, argv, "hm:jr:UR", longopts, NULL)) != -1) {
         switch (opt) {
