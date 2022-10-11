@@ -48,6 +48,25 @@ int ubpf_translate_null(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, cha
 char *ubpf_error(const char *fmt, ...);
 unsigned int ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name);
 
+/**
+ * @brief Fetch the instruction at the given index.
+ * 
+ * @param[in] vm The VM to fetch the instruction from.
+ * @param[in] pc The index of the instruction to fetch.
+ * @return The instruction.
+ */
+struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc);
+
+/**
+ * @brief Store the given instruction at the given index.
+ * 
+ * @param[in] vm The VM to store the instruction in.
+ * @param[in] pc The index of the instruction to store.
+ * @param[in] inst The instruction to store.
+ */
+void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_inst inst);
+
+
 extern const char* ubpf_string_table[1];
 #define UBPF_STRING_ID_DIVIDE_BY_ZERO 0
 

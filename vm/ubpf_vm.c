@@ -32,6 +32,8 @@ const char* ubpf_string_table[1] = {
     "uBPF error: division by zero at PC %u\n",
 };
 
+static uint64_t _ubpf_pointer_secret = 0x0;
+
 static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
 static bool bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
 
@@ -132,6 +134,7 @@ ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name)
 int
 ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg)
 {
+    const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
     if (vm->insts) {
@@ -154,8 +157,12 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
         return -1;
     }
 
-    memcpy(vm->insts, code, code_len);
     vm->num_insts = code_len/sizeof(vm->insts[0]);
+    
+    // Store instructions in the vm.
+    for (uint32_t i = 0; i < vm->num_insts; i++) {
+        ubpf_store_instruction(vm, i, source_inst[i]);
+    }
 
     return 0;
 }
@@ -620,7 +627,7 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
 
     int i;
     for (i = 0; i < num_insts; i++) {
-        struct ebpf_inst inst = insts[i];
+        struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
         bool store = false;
 
         switch (inst.opcode) {
@@ -700,11 +707,13 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
             break;
 
         case EBPF_OP_LDDW:
-            if (i + 1 >= num_insts || insts[i+1].opcode != 0) {
-                *errmsg = ubpf_error("incomplete lddw at PC %d", i);
-                return false;
+            {
+                if (i + 1 >= num_insts || ubpf_fetch_instruction(vm, i + 1).opcode != 0) {
+                    *errmsg = ubpf_error("incomplete lddw at PC %d", i);
+                    return false;
+                }
+                i++; /* Skip next instruction */
             }
-            i++; /* Skip next instruction */
             break;
 
         case EBPF_OP_JA:
@@ -843,3 +852,25 @@ ubpf_get_registers(const struct ubpf_vm *vm)
 }
 
 #endif
+
+struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc)
+{
+    // XOR instruction with base address of vm.
+    // This makes ROP attack more difficult.
+    uint64_t inst_ptr = *(uint64_t *)(vm->insts + pc) ^ (uint64_t)(uintptr_t)vm ^ _ubpf_pointer_secret;
+    struct ebpf_inst inst = *(struct ebpf_inst *)(uintptr_t)inst_ptr;
+    return inst;
+}
+
+void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_inst inst)
+{
+    // XOR instruction with base address of vm.
+    // This makes ROP attack more difficult.
+    uint64_t inst_ptr = *(uint64_t *)(vm->insts + pc) ^ (uint64_t)(uintptr_t)vm ^ _ubpf_pointer_secret;
+    *(struct ebpf_inst *)(uintptr_t)inst_ptr = inst;
+}
+
+void ubpf_set_pointer_secret(uint64_t secret)
+{
+    _ubpf_pointer_secret = secret;
+}
