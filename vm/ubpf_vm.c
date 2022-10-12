@@ -32,8 +32,6 @@ const char* ubpf_string_table[1] = {
     "uBPF error: division by zero at PC %u\n",
 };
 
-static uint64_t _ubpf_pointer_secret = 0x0;
-
 static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
 static bool bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
 
@@ -869,7 +867,7 @@ struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc)
     ebpf_encoded_inst encode_inst;
     encode_inst.inst = vm->insts[pc];
     encode_inst.value ^= (uint64_t)vm->insts;
-    encode_inst.value ^= _ubpf_pointer_secret;
+    encode_inst.value ^= vm->pointer_secret;
     return encode_inst.inst;
 }
 
@@ -880,7 +878,7 @@ void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_i
     ebpf_encoded_inst encode_inst;
     encode_inst.inst = inst;
     encode_inst.value ^= (uint64_t)vm->insts;
-    encode_inst.value ^= _ubpf_pointer_secret;
+    encode_inst.value ^= vm->pointer_secret;
     vm->insts[pc] = encode_inst.inst;
 }
 
