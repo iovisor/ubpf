@@ -73,7 +73,6 @@ int main(int argc, char **argv)
     std::vector<std::string> args(argv, argv + argc);
     std::string program_string;
     std::string memory_string;
-    std::getline(std::cin, program_string);
 
     // Remove the first argument which is the program name.
     args.erase(args.begin());
@@ -83,6 +82,15 @@ int main(int argc, char **argv)
     {
         memory_string = args[0];
         args.erase(args.begin());
+    }
+    if (args.size() > 0 && args[0] == "--program")
+    {
+        args.erase(args.begin());
+        if (args.size() > 0)
+        {
+            program_string = args[0];
+            args.erase(args.begin());
+        }
     }
     if (args.size() > 0 && args[0] == "--jit")
     {
@@ -99,6 +107,10 @@ int main(int argc, char **argv)
     {
         std::cerr << "Invalid arguments: " << args[0] << std::endl;
         return 1;
+    }
+
+    if (program_string.empty()) {
+        std::getline(std::cin, program_string);
     }
 
     std::vector<ebpf_inst> program = bytes_to_ebpf_inst(base16_decode(program_string));

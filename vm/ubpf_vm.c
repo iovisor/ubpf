@@ -181,6 +181,56 @@ u32(uint64_t x)
     return x;
 }
 
+#define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a) - 1)) == 0)
+
+inline static uint64_t ubpf_mem_load(uint64_t address, size_t size)
+{
+    if (!IS_ALIGNED(address, size)) {
+        // Fill the result with 0 to avoid leaking uninitialized memory.
+        uint64_t value = 0;
+        memcpy(&value, (void *)address, size);
+        return value;
+    }
+
+    switch (size) {
+    case 1:
+        return *(uint8_t *)address;
+    case 2:
+        return *(uint16_t *)address;
+    case 4:
+        return *(uint32_t *)address;
+    case 8:
+        return *(uint64_t *)address;
+    default:
+        abort();
+    }
+}
+
+inline static void ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
+{
+    if (!IS_ALIGNED(address, size)) {
+        memcpy((void *)address, &value, size);
+        return;
+    }
+    
+    switch (size) {
+    case 1:
+        *(uint8_t *)address = value;
+        break;
+    case 2:
+        *(uint16_t *)address = value;
+        break;
+    case 4:
+        *(uint32_t *)address = value;
+        break;
+    case 8:
+        *(uint64_t *)address = value;
+        break;
+    default:
+        abort();
+    }
+}
+
 int 
 ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value)
 {
@@ -429,53 +479,53 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
 
         case EBPF_OP_LDXW:
             BOUNDS_CHECK_LOAD(4);
-            reg[inst.dst] = *(uint32_t *)(uintptr_t)(reg[inst.src] + inst.offset);
+            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 4);
             break;
         case EBPF_OP_LDXH:
             BOUNDS_CHECK_LOAD(2);
-            reg[inst.dst] = *(uint16_t *)(uintptr_t)(reg[inst.src] + inst.offset);
+            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 2);
             break;
         case EBPF_OP_LDXB:
             BOUNDS_CHECK_LOAD(1);
-            reg[inst.dst] = *(uint8_t *)(uintptr_t)(reg[inst.src] + inst.offset);
+            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 1);
             break;
         case EBPF_OP_LDXDW:
             BOUNDS_CHECK_LOAD(8);
-            reg[inst.dst] = *(uint64_t *)(uintptr_t)(reg[inst.src] + inst.offset);
+            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 8);
             break;
 
         case EBPF_OP_STW:
             BOUNDS_CHECK_STORE(4);
-            *(uint32_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = inst.imm;
+            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 4);
             break;
         case EBPF_OP_STH:
             BOUNDS_CHECK_STORE(2);
-            *(uint16_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = inst.imm;
+            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 2);
             break;
         case EBPF_OP_STB:
             BOUNDS_CHECK_STORE(1);
-            *(uint8_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = inst.imm;
+            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 1);
             break;
         case EBPF_OP_STDW:
             BOUNDS_CHECK_STORE(8);
-            *(uint64_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = inst.imm;
+            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 8);
             break;
 
         case EBPF_OP_STXW:
             BOUNDS_CHECK_STORE(4);
-            *(uint32_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = reg[inst.src];
+            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 4);
             break;
         case EBPF_OP_STXH:
             BOUNDS_CHECK_STORE(2);
-            *(uint16_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = reg[inst.src];
+            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 2);
             break;
         case EBPF_OP_STXB:
             BOUNDS_CHECK_STORE(1);
-            *(uint8_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = reg[inst.src];
+            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 1);
             break;
         case EBPF_OP_STXDW:
             BOUNDS_CHECK_STORE(8);
-            *(uint64_t *)(uintptr_t)(reg[inst.dst] + inst.offset) = reg[inst.src];
+            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 8);
             break;
 
         case EBPF_OP_LDDW:
