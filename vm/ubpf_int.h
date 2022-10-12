@@ -35,6 +35,7 @@ struct ubpf_vm {
     int (*error_printf)(FILE* stream, const char* format, ...);
     int (*translate)(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg);
     int unwind_stack_extension_index;
+    uint64_t pointer_secret;
 #ifdef DEBUG
     uint64_t *regs;
 #endif

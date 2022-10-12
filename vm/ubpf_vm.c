@@ -880,7 +880,11 @@ void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_i
     vm->insts[pc] = encode_inst.inst;
 }
 
-void ubpf_set_pointer_secret(uint64_t secret)
+int ubpf_set_pointer_secret(struct ubpf_vm *vm, uint64_t secret)
 {
-    _ubpf_pointer_secret = secret;
+    if (vm->insts) {
+        return -1;
+    }
+    vm->pointer_secret = secret;
+    return 0;
 }

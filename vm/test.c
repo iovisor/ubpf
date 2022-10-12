@@ -67,7 +67,6 @@ int main(int argc, char **argv)
     bool reload = false;
 
     uint64_t secret = (uint64_t)rand() << 32 | (uint64_t)rand();
-    ubpf_set_pointer_secret(secret);
 
     int opt;
     while ((opt = getopt_long(argc, argv, "hm:jr:UR", longopts, NULL)) != -1) {
@@ -125,6 +124,11 @@ int main(int argc, char **argv)
     struct ubpf_vm *vm = ubpf_create();
     if (!vm) {
         fprintf(stderr, "Failed to create VM\n");
+        return 1;
+    }
+
+    if (ubpf_set_pointer_secret(vm, secret) != 0) {
+        fprintf(stderr, "Failed to set pointer secret\n");
         return 1;
     }
 
