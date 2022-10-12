@@ -113,8 +113,10 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
 
     /* Parse section headers into an array */
     struct section sections[MAX_SECTIONS];
+    uint64_t shoff = ehdr->e_shoff;
     for (i = 0; i < ehdr->e_shnum; i++) {
-        const Elf64_Shdr *shdr = bounds_check(&b, ehdr->e_shoff + i*ehdr->e_shentsize, sizeof(*shdr));
+        const Elf64_Shdr *shdr = bounds_check(&b, shoff, sizeof(*shdr));
+        shoff += ehdr->e_shentsize;
         if (!shdr) {
             *errmsg = ubpf_error("bad section header offset or size");
             goto error;
