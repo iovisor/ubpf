@@ -180,9 +180,6 @@ jobs:
 
     - name: Run the bpf_conformance tests
       run: |
-        if [[ "${{ inputs.enable_sanitizers }}" == "true" ]] ; then
-          export LSAN_OPTIONS=verbosity=1:log_threads=1
-        fi
         export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
         export BPF_CONFORMANCE_TEST_DIR="--test_file_directory tests"
 
