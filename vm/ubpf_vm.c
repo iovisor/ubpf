@@ -73,9 +73,9 @@ ubpf_create(void)
     vm->bounds_check_enabled = true;
     vm->error_printf = fprintf;
 
-#if __x86_64__
+#if defined(__x86_64__) || defined(_M_X64)
     vm->translate = ubpf_translate_x86_64;
-#elif __aarch64__
+#elif defined(__aarch64__) || defined(_M_ARM64)
     vm->translate = ubpf_translate_arm64;
 #else
     vm->translate = ubpf_translate_null;
@@ -132,6 +132,7 @@ ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name)
 int
 ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg)
 {
+    const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
     if (vm->insts) {
@@ -154,8 +155,12 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
         return -1;
     }
 
-    memcpy(vm->insts, code, code_len);
     vm->num_insts = code_len/sizeof(vm->insts[0]);
+    
+    // Store instructions in the vm.
+    for (uint32_t i = 0; i < vm->num_insts; i++) {
+        ubpf_store_instruction(vm, i, source_inst[i]);
+    }
 
     return 0;
 }
@@ -210,7 +215,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
 
     while (1) {
         const uint16_t cur_pc = pc;
-        struct ebpf_inst inst = insts[pc++];
+        struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
@@ -479,7 +484,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
             break;
 
         case EBPF_OP_LDDW:
-            reg[inst.dst] = (uint32_t)inst.imm | ((uint64_t)insts[pc++].imm << 32);
+            reg[inst.dst] = (uint32_t)inst.imm | ((uint64_t)ubpf_fetch_instruction(vm, pc++).imm << 32);
             break;
 
         case EBPF_OP_JA:
@@ -847,3 +852,41 @@ ubpf_get_registers(const struct ubpf_vm *vm)
 }
 
 #endif
+
+typedef struct _ebpf_encoded_inst {
+    union {
+        uint64_t value;
+        struct ebpf_inst inst;
+    };
+} ebpf_encoded_inst;
+
+struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc)
+{
+    // XOR instruction with base address of vm.
+    // This makes ROP attack more difficult.
+    ebpf_encoded_inst encode_inst;
+    encode_inst.inst = vm->insts[pc];
+    encode_inst.value ^= (uint64_t)vm->insts;
+    encode_inst.value ^= vm->pointer_secret;
+    return encode_inst.inst;
+}
+
+void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_inst inst)
+{
+    // XOR instruction with base address of vm.
+    // This makes ROP attack more difficult.
+    ebpf_encoded_inst encode_inst;
+    encode_inst.inst = inst;
+    encode_inst.value ^= (uint64_t)vm->insts;
+    encode_inst.value ^= vm->pointer_secret;
+    vm->insts[pc] = encode_inst.inst;
+}
+
+int ubpf_set_pointer_secret(struct ubpf_vm *vm, uint64_t secret)
+{
+    if (vm->insts) {
+        return -1;
+    }
+    vm->pointer_secret = secret;
+    return 0;
+}
