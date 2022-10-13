@@ -1,0 +1,25 @@
+# This file uses regular expressions, not shell globs!
+
+# File extensions that don't support embedding license info
+.*\.md$
+.*\.o$
+.*\.png$
+.*\.proj$
+.*\.rc$
+.*\.sln$
+.*\.vsdx$
+
+# Generated files
+tools/netsh/resource.h
+
+# Other Files
+LICENSE.txt
+Doxyfile
+\.check-license\.ignore
+\.clang-format
+\.gitattributes
+\.github/CODEOWNERS
+\.github/workflows/build.yml
+\.gitignore
+\.gitmodules
+packages.config

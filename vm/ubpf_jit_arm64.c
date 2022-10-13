@@ -14,7 +14,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * References:
  * [ArmARM-A H.a]: https://developer.arm.com/documentation/ddi0487/ha
  */
@@ -41,32 +41,69 @@
 // This is guaranteed to be an illegal A64 instruction.
 #define BAD_OPCODE ~UINT32_C(0)
 
-struct jump {
+struct jump
+{
     uint32_t offset_loc;
     uint32_t target_pc;
 };
 
-struct jit_state {
-    uint8_t *buf;
+struct jit_state
+{
+    uint8_t* buf;
     uint32_t offset;
     uint32_t size;
-    uint32_t *pc_locs;
+    uint32_t* pc_locs;
     uint32_t exit_loc;
     uint32_t unwind_loc;
-    struct jump *jumps;
+    struct jump* jumps;
     int num_jumps;
     uint32_t stack_size;
 };
 
 // All A64 registers (note SP & RZ get encoded the same way).
-enum Registers {R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14, R15, R16, R17, R18, R19, R20, R21, R22, R23, R24, R25, R26, R27, R28, R29, R30, SP, RZ = 31};
+enum Registers
+{
+    R0,
+    R1,
+    R2,
+    R3,
+    R4,
+    R5,
+    R6,
+    R7,
+    R8,
+    R9,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+    R16,
+    R17,
+    R18,
+    R19,
+    R20,
+    R21,
+    R22,
+    R23,
+    R24,
+    R25,
+    R26,
+    R27,
+    R28,
+    R29,
+    R30,
+    SP,
+    RZ = 31
+};
 
 // Callee saved registers - this must be a multiple of two because of how we save the stack later on.
 static enum Registers callee_saved_registers[] = {R19, R20, R21, R22, R23, R24, R25, R26};
 // Caller saved registers (and parameter registers)
-//static enum Registers caller_saved_registers[] = {R0, R1, R2, R3, R4};
+// static enum Registers caller_saved_registers[] = {R0, R1, R2, R3, R4};
 // Temp register for immediate generation
-static enum Registers temp_register = R24; 
+static enum Registers temp_register = R24;
 // Temp register for division results
 static enum Registers temp_div_register = R25;
 // Temp register for load/store offsets
@@ -89,8 +126,16 @@ static enum Registers offset_register = R26;
 // result to the correct place.
 static enum Registers register_map[REGISTER_MAP_SIZE] = {
     R5, // result
-    R0, R1, R2, R3, R4, // parameters
-    R19, R20, R21, R22, R23, // callee-saved
+    R0,
+    R1,
+    R2,
+    R3,
+    R4, // parameters
+    R19,
+    R20,
+    R21,
+    R22,
+    R23, // callee-saved
 };
 
 /* Return the Arm64 register for the given eBPF register */
@@ -102,11 +147,13 @@ map_register(int r)
 }
 
 /* Some forward declarations.  */
-static void emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers rd, uint64_t imm);
-static void divmod(struct jit_state *state, uint8_t opcode, int rd, int rn, int rm);
+static void
+emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm);
+static void
+divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm);
 
 static void
-emit_bytes(struct jit_state *state, void *data, uint32_t len)
+emit_bytes(struct jit_state* state, void* data, uint32_t len)
 {
     assert(len <= state->size);
     assert(state->offset <= state->size - len);
@@ -118,20 +165,37 @@ emit_bytes(struct jit_state *state, void *data, uint32_t len)
     state->offset += len;
 }
 
-static void emit_instruction(struct jit_state *state, uint32_t instr)
+static void
+emit_instruction(struct jit_state* state, uint32_t instr)
 {
     assert(instr != BAD_OPCODE);
     emit_bytes(state, &instr, 4);
 }
 
-enum AddSubOpcode { AS_ADD = 0, AS_ADDS = 1, AS_SUB = 2, AS_SUBS = 3 };
+enum AddSubOpcode
+{
+    AS_ADD = 0,
+    AS_ADDS = 1,
+    AS_SUB = 2,
+    AS_SUBS = 3
+};
 
 /* Get the value of the size bit in most instruction encodings (bit 31). */
-static uint32_t sz(bool sixty_four) { return (sixty_four ? UINT32_C(1) : UINT32_C(0)) << 31; }
+static uint32_t
+sz(bool sixty_four)
+{
+    return (sixty_four ? UINT32_C(1) : UINT32_C(0)) << 31;
+}
 
 /* [ArmARM-A H.a]: C4.1.64: Add/subtract (immediate).  */
 static void
-emit_addsub_immediate(struct jit_state *state, bool sixty_four, enum AddSubOpcode op, enum Registers rd, enum Registers rn, uint32_t imm12)
+emit_addsub_immediate(
+    struct jit_state* state,
+    bool sixty_four,
+    enum AddSubOpcode op,
+    enum Registers rd,
+    enum Registers rn,
+    uint32_t imm12)
 {
     const uint32_t imm_op_base = 0x11000000;
     assert(imm12 < 0x1000);
@@ -140,32 +204,40 @@ emit_addsub_immediate(struct jit_state *state, bool sixty_four, enum AddSubOpcod
 
 /* [ArmARM-A H.a]: C4.1.67: Add/subtract (shifted register).  */
 static void
-emit_addsub_register(struct jit_state *state, bool sixty_four, enum AddSubOpcode op, enum Registers rd, enum Registers rn, enum Registers rm)
+emit_addsub_register(
+    struct jit_state* state,
+    bool sixty_four,
+    enum AddSubOpcode op,
+    enum Registers rd,
+    enum Registers rn,
+    enum Registers rm)
 {
     const uint32_t reg_op_base = 0x0b000000;
     emit_instruction(state, sz(sixty_four) | (op << 29) | reg_op_base | (rm << 16) | (rn << 5) | rd);
 }
 
-enum LoadStoreOpcode {
-                             // sz    V   op
-    LS_STRB   = 0x00000000U, // 0000_0000_0000_0000_0000_0000_0000_0000
-    LS_LDRB   = 0x00400000U, // 0000_0000_0100_0000_0000_0000_0000_0000
+enum LoadStoreOpcode
+{
+    // sz    V   op
+    LS_STRB = 0x00000000U,   // 0000_0000_0000_0000_0000_0000_0000_0000
+    LS_LDRB = 0x00400000U,   // 0000_0000_0100_0000_0000_0000_0000_0000
     LS_LDRSBX = 0x00800000U, // 0000_0000_1000_0000_0000_0000_0000_0000
     LS_LDRSBW = 0x00c00000U, // 0000_0000_1100_0000_0000_0000_0000_0000
-    LS_STRH   = 0x40000000U, // 0100_0000_0000_0000_0000_0000_0000_0000
-    LS_LDRH   = 0x40400000U, // 0100_0000_0100_0000_0000_0000_0000_0000
+    LS_STRH = 0x40000000U,   // 0100_0000_0000_0000_0000_0000_0000_0000
+    LS_LDRH = 0x40400000U,   // 0100_0000_0100_0000_0000_0000_0000_0000
     LS_LDRSHX = 0x40800000U, // 0100_0000_1000_0000_0000_0000_0000_0000
     LS_LDRSHW = 0x40c00000U, // 0100_0000_1100_0000_0000_0000_0000_0000
-    LS_STRW   = 0x80000000U, // 1000_0000_0000_0000_0000_0000_0000_0000
-    LS_LDRW   = 0x80400000U, // 1000_0000_0100_0000_0000_0000_0000_0000
-    LS_LDRSW  = 0x80800000U, // 1000_0000_1000_0000_0000_0000_0000_0000
-    LS_STRX   = 0xc0000000U, // 1100_0000_0000_0000_0000_0000_0000_0000
-    LS_LDRX   = 0xc0400000U, // 1100_0000_0100_0000_0000_0000_0000_0000
+    LS_STRW = 0x80000000U,   // 1000_0000_0000_0000_0000_0000_0000_0000
+    LS_LDRW = 0x80400000U,   // 1000_0000_0100_0000_0000_0000_0000_0000
+    LS_LDRSW = 0x80800000U,  // 1000_0000_1000_0000_0000_0000_0000_0000
+    LS_STRX = 0xc0000000U,   // 1100_0000_0000_0000_0000_0000_0000_0000
+    LS_LDRX = 0xc0400000U,   // 1100_0000_0100_0000_0000_0000_0000_0000
 };
 
 /* [ArmARM-A H.a]: C4.1.66: Load/store register (unscaled immediate).  */
 static void
-emit_loadstore_immediate(struct jit_state *state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, int16_t imm9)
+emit_loadstore_immediate(
+    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, int16_t imm9)
 {
     const uint32_t imm_op_base = 0x38000000U;
     assert(imm9 >= -256 && imm9 < 256);
@@ -175,24 +247,32 @@ emit_loadstore_immediate(struct jit_state *state, enum LoadStoreOpcode op, enum 
 
 /* [ArmARM-A H.a]: C4.1.66: Load/store register (register offset).  */
 static void
-emit_loadstore_register(struct jit_state *state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, enum Registers rm)
+emit_loadstore_register(
+    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, enum Registers rm)
 {
     const uint32_t reg_op_base = 0x38206800U;
     emit_instruction(state, op | reg_op_base | (rm << 16) | (rn << 5) | rt);
 }
 
-enum LoadStorePairOpcode {
-                              // op    V    L
-    LSP_STPW   = 0x29000000U, // 0010_1001_0000_0000_0000_0000_0000_0000
-    LSP_LDPW   = 0x29400000U, // 0010_1001_0100_0000_0000_0000_0000_0000
-    LSP_LDPSW  = 0x69400000U, // 0110_1001_0100_0000_0000_0000_0000_0000
-    LSP_STPX   = 0xa9000000U, // 1010_1001_0000_0000_0000_0000_0000_0000
-    LSP_LDPX   = 0xa9400000U, // 1010_1001_0100_0000_0000_0000_0000_0000
+enum LoadStorePairOpcode
+{
+    // op    V    L
+    LSP_STPW = 0x29000000U,  // 0010_1001_0000_0000_0000_0000_0000_0000
+    LSP_LDPW = 0x29400000U,  // 0010_1001_0100_0000_0000_0000_0000_0000
+    LSP_LDPSW = 0x69400000U, // 0110_1001_0100_0000_0000_0000_0000_0000
+    LSP_STPX = 0xa9000000U,  // 1010_1001_0000_0000_0000_0000_0000_0000
+    LSP_LDPX = 0xa9400000U,  // 1010_1001_0100_0000_0000_0000_0000_0000
 };
 
 /* [ArmARM-A H.a]: C4.1.66: Load/store register pair (offset).  */
 static void
-emit_loadstorepair_immediate(struct jit_state *state, enum LoadStorePairOpcode op, enum Registers rt, enum Registers rt2, enum Registers rn, int32_t imm7)
+emit_loadstorepair_immediate(
+    struct jit_state* state,
+    enum LoadStorePairOpcode op,
+    enum Registers rt,
+    enum Registers rt2,
+    enum Registers rn,
+    int32_t imm7)
 {
     int32_t imm_div = ((op == LSP_STPX) || (op == LSP_LDPX)) ? 8 : 4;
     assert(imm7 % imm_div == 0);
@@ -200,84 +280,113 @@ emit_loadstorepair_immediate(struct jit_state *state, enum LoadStorePairOpcode o
     emit_instruction(state, op | (imm7 << 15) | (rt2 << 10) | (rn << 5) | rt);
 }
 
-enum  LogicalOpcode {
-                            //  op         N
-    LOG_AND  = 0x00000000U, // 0000_0000_0000_0000_0000_0000_0000_0000
-    LOG_BIC  = 0x00200000U, // 0000_0000_0010_0000_0000_0000_0000_0000
-    LOG_ORR  = 0x20000000U, // 0010_0000_0000_0000_0000_0000_0000_0000
-    LOG_ORN  = 0x20200000U, // 0010_0000_0010_0000_0000_0000_0000_0000
-    LOG_EOR  = 0x40000000U, // 0100_0000_0000_0000_0000_0000_0000_0000
-    LOG_EON  = 0x40200000U, // 0100_0000_0010_0000_0000_0000_0000_0000
+enum LogicalOpcode
+{
+    //  op         N
+    LOG_AND = 0x00000000U,  // 0000_0000_0000_0000_0000_0000_0000_0000
+    LOG_BIC = 0x00200000U,  // 0000_0000_0010_0000_0000_0000_0000_0000
+    LOG_ORR = 0x20000000U,  // 0010_0000_0000_0000_0000_0000_0000_0000
+    LOG_ORN = 0x20200000U,  // 0010_0000_0010_0000_0000_0000_0000_0000
+    LOG_EOR = 0x40000000U,  // 0100_0000_0000_0000_0000_0000_0000_0000
+    LOG_EON = 0x40200000U,  // 0100_0000_0010_0000_0000_0000_0000_0000
     LOG_ANDS = 0x60000000U, // 0110_0000_0000_0000_0000_0000_0000_0000
     LOG_BICS = 0x60200000U, // 0110_0000_0010_0000_0000_0000_0000_0000
 };
 
 /* [ArmARM-A H.a]: C4.1.67: Logical (shifted register).  */
 static void
-emit_logical_register(struct jit_state *state, bool sixty_four, enum LogicalOpcode op, enum Registers rd, enum Registers rn, enum Registers rm)
+emit_logical_register(
+    struct jit_state* state,
+    bool sixty_four,
+    enum LogicalOpcode op,
+    enum Registers rd,
+    enum Registers rn,
+    enum Registers rm)
 {
     emit_instruction(state, sz(sixty_four) | op | (1 << 27) | (1 << 25) | (rm << 16) | (rn << 5) | rd);
 }
 
-enum UnconditionalBranchOpcode {
-                          //         opc-|op2--|op3----|        op4|
-    BR_BR  = 0xd61f0000U, // 1101_0110_0001_1111_0000_0000_0000_0000
+enum UnconditionalBranchOpcode
+{
+    //         opc-|op2--|op3----|        op4|
+    BR_BR = 0xd61f0000U,  // 1101_0110_0001_1111_0000_0000_0000_0000
     BR_BLR = 0xd63f0000U, // 1101_0110_0011_1111_0000_0000_0000_0000
     BR_RET = 0xd65f0000U, // 1101_0110_0101_1111_0000_0000_0000_0000
 };
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (register).  */
 static void
-emit_unconditonalbranch_register(struct jit_state *state, enum UnconditionalBranchOpcode op, enum Registers rn)
+emit_unconditonalbranch_register(struct jit_state* state, enum UnconditionalBranchOpcode op, enum Registers rn)
 {
     emit_instruction(state, op | (rn << 5));
 }
 
-enum UnconditionalBranchImmediateOpcode {
-                          // O
-    UBR_B =  0x14000000U, // 0001_0100_0000_0000_0000_0000_0000_0000
+enum UnconditionalBranchImmediateOpcode
+{
+    // O
+    UBR_B = 0x14000000U,  // 0001_0100_0000_0000_0000_0000_0000_0000
     UBR_BL = 0x94000000U, // 1001_0100_0000_0000_0000_0000_0000_0000
 };
 
 static void
-note_jump(struct jit_state *state, uint32_t target_pc)
+note_jump(struct jit_state* state, uint32_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
     }
-    struct jump *jump = &state->jumps[state->num_jumps++];
+    struct jump* jump = &state->jumps[state->num_jumps++];
     jump->offset_loc = state->offset;
     jump->target_pc = target_pc;
 }
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
 static void
-emit_unconditionalbranch_immediate(struct jit_state *state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
+emit_unconditionalbranch_immediate(
+    struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
     note_jump(state, target_pc);
     emit_instruction(state, op);
 }
 
-enum Condition {
-    COND_EQ, COND_NE, COND_CS, COND_CC, COND_MI, COND_PL, COND_VS, COND_VC, COND_HI, COND_LS, COND_GE, COND_LT, COND_GT, COND_LE, COND_AL, COND_NV,
-    COND_HS = COND_CS, COND_LO = COND_CC
+enum Condition
+{
+    COND_EQ,
+    COND_NE,
+    COND_CS,
+    COND_CC,
+    COND_MI,
+    COND_PL,
+    COND_VS,
+    COND_VC,
+    COND_HI,
+    COND_LS,
+    COND_GE,
+    COND_LT,
+    COND_GT,
+    COND_LE,
+    COND_AL,
+    COND_NV,
+    COND_HS = COND_CS,
+    COND_LO = COND_CC
 };
 
-enum ConditionalBranchImmediateOpcode {
+enum ConditionalBranchImmediateOpcode
+{
     BR_Bcond = 0x54000000U
 };
 
 /* [ArmARM-A H.a]: C4.1.65: Conditional branch (immediate).  */
 static void
-emit_conditionalbranch_immediate(struct jit_state *state, enum Condition cond, uint32_t target_pc)
+emit_conditionalbranch_immediate(struct jit_state* state, enum Condition cond, uint32_t target_pc)
 {
     note_jump(state, target_pc);
     emit_instruction(state, BR_Bcond | (0 << 5) | cond);
 }
 
-enum CompareBranchOpcode {
-                            //          o
-    CBR_CBZ  = 0x34000000U, // 0011_0100_0000_0000_0000_0000_0000_0000
+enum CompareBranchOpcode
+{
+    //          o
+    CBR_CBZ = 0x34000000U,  // 0011_0100_0000_0000_0000_0000_0000_0000
     CBR_CBNZ = 0x35000000U, // 0011_0101_0000_0000_0000_0000_0000_0000
 };
 
@@ -290,8 +399,9 @@ emit_comparebranch_immediate(struct jit_state *state, bool sixty_four, enum Comp
 }
 #endif
 
-enum DP1Opcode {
-                             //   S          op2--|op-----|
+enum DP1Opcode
+{
+    //   S          op2--|op-----|
     DP1_REV16 = 0x5ac00400U, // 0101_1010_1100_0000_0000_0100_0000_0000
     DP1_REV32 = 0x5ac00800U, // 0101_1010_1100_0000_0000_1000_0000_0000
     DP1_REV64 = 0xdac00c00U, // 0101_1010_1100_0000_0000_1100_0000_0000
@@ -299,13 +409,15 @@ enum DP1Opcode {
 
 /* [ArmARM-A H.a]: C4.1.67: Data-processing (1 source).  */
 static void
-emit_dataprocessing_onesource(struct jit_state *state, bool sixty_four, enum DP1Opcode op, enum Registers rd, enum Registers rn)
+emit_dataprocessing_onesource(
+    struct jit_state* state, bool sixty_four, enum DP1Opcode op, enum Registers rd, enum Registers rn)
 {
     emit_instruction(state, sz(sixty_four) | op | (rn << 5) | rd);
 }
 
-enum DP2Opcode {
-                            //   S                 opcode|
+enum DP2Opcode
+{
+    //   S                 opcode|
     DP2_UDIV = 0x1ac00800U, // 0001_1010_1100_0000_0000_1000_0000_0000
     DP2_SDIV = 0x1ac00c00U, // 0001_1010_1100_0000_0000_1100_0000_0000
     DP2_LSLV = 0x1ac02000U, // 0001_1010_1100_0000_0010_0000_0000_0000
@@ -316,26 +428,41 @@ enum DP2Opcode {
 
 /* [ArmARM-A H.a]: C4.1.67: Data-processing (2 source).  */
 static void
-emit_dataprocessing_twosource(struct jit_state *state, bool sixty_four, enum DP2Opcode op, enum Registers rd, enum Registers rn, enum Registers rm)
+emit_dataprocessing_twosource(
+    struct jit_state* state,
+    bool sixty_four,
+    enum DP2Opcode op,
+    enum Registers rd,
+    enum Registers rn,
+    enum Registers rm)
 {
     emit_instruction(state, sz(sixty_four) | op | (rm << 16) | (rn << 5) | rd);
 }
 
-enum DP3Opcode {
-                            //  54       31|       0
+enum DP3Opcode
+{
+    //  54       31|       0
     DP3_MADD = 0x1b000000U, // 0001_1011_0000_0000_0000_0000_0000_0000
     DP3_MSUB = 0x1b008000U, // 0001_1011_0000_0000_1000_0000_0000_0000
 };
 
 /* [ArmARM-A H.a]: C4.1.67: Data-processing (3 source).  */
 static void
-emit_dataprocessing_threesource(struct jit_state *state, bool sixty_four, enum DP3Opcode op, enum Registers rd, enum Registers rn, enum Registers rm, enum Registers ra)
+emit_dataprocessing_threesource(
+    struct jit_state* state,
+    bool sixty_four,
+    enum DP3Opcode op,
+    enum Registers rd,
+    enum Registers rn,
+    enum Registers rm,
+    enum Registers ra)
 {
     emit_instruction(state, sz(sixty_four) | op | (rm << 16) | (ra << 10) | (rn << 5) | rd);
 }
 
-enum MoveWideOpcode {
-                           //  op
+enum MoveWideOpcode
+{
+    //  op
     MW_MOVN = 0x12800000U, // 0001_0010_1000_0000_0000_0000_0000_0000
     MW_MOVZ = 0x52800000U, // 0101_0010_1000_0000_0000_0000_0000_0000
     MW_MOVK = 0x72800000U, // 0111_0010_1000_0000_0000_0000_0000_0000
@@ -343,7 +470,7 @@ enum MoveWideOpcode {
 
 /* [ArmARM-A H.a]: C4.1.64: Move wide (Immediate).  */
 static void
-emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers rd, uint64_t imm)
+emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm)
 {
     /* Emit a MOVZ or MOVN followed by a sequence of MOVKs to generate the 64-bit constant in imm.
      * See whether the 0x0000 or 0xffff pattern is more common in the immediate.  This ensures we
@@ -355,8 +482,7 @@ emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers
         uint64_t block = (imm >> i) & 0xffff;
         if (block == 0xffff) {
             ++countffff;
-        }
-        else if (block == 0) {
+        } else if (block == 0) {
             ++count0000;
         }
     }
@@ -384,29 +510,27 @@ emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers
     }
 }
 
-static void update_branch_immediate(struct jit_state *state, uint32_t offset, int32_t imm)
+static void
+update_branch_immediate(struct jit_state* state, uint32_t offset, int32_t imm)
 {
     assert((imm & 3) == 0);
     uint32_t instr;
     imm >>= 2;
     memcpy(&instr, state->buf + offset, sizeof(uint32_t));
-    if ((instr & 0xfe000000U) == 0x54000000U          /* Conditional branch immediate.  */
-        || (instr & 0x7e000000U) == 0x34000000U) {    /* Compare and branch immediate.  */
+    if ((instr & 0xfe000000U) == 0x54000000U       /* Conditional branch immediate.  */
+        || (instr & 0x7e000000U) == 0x34000000U) { /* Compare and branch immediate.  */
         assert((imm >> 19) == INT64_C(-1) || (imm >> 19) == 0);
         instr |= (imm & 0x7ffff) << 5;
-    }
-    else if ((instr & 0x7c000000U) == 0x14000000U) {
+    } else if ((instr & 0x7c000000U) == 0x14000000U) {
         /* Unconditional branch immediate.  */
         assert((imm >> 26) == INT64_C(-1) || (imm >> 26) == 0);
         instr |= (imm & 0x03ffffffU) << 0;
-    }
-    else {
+    } else {
         assert(false);
         instr = BAD_OPCODE;
     }
     memcpy(state->buf + offset, &instr, sizeof(uint32_t));
 }
-
 
 /* Generate the function prologue.
  *
@@ -417,28 +541,30 @@ static void update_branch_immediate(struct jit_state *state, uint32_t offset, in
  *   Frame <- SP.
  */
 static void
-emit_function_prologue(struct jit_state *state, size_t ubpf_stack_size)
+emit_function_prologue(struct jit_state* state, size_t ubpf_stack_size)
 {
-    uint32_t register_space =  _countof(callee_saved_registers) * 8 + 2 * 8;
+    uint32_t register_space = _countof(callee_saved_registers) * 8 + 2 * 8;
     state->stack_size = (ubpf_stack_size + register_space + 15) & ~15U;
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, state->stack_size);
-    
+
     /* Set up frame */
     emit_loadstorepair_immediate(state, LSP_STPX, R29, R30, SP, 0);
     emit_addsub_immediate(state, true, AS_ADD, R29, SP, 0);
 
     /* Save callee saved registers */
     unsigned i;
-    for (i = 0; i < _countof(callee_saved_registers); i += 2)
-    {
-        emit_loadstorepair_immediate(state, LSP_STPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
+    for (i = 0; i < _countof(callee_saved_registers); i += 2) {
+        emit_loadstorepair_immediate(
+            state, LSP_STPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
     }
 
     /* Setup UBPF frame pointer. */
     emit_addsub_immediate(state, true, AS_ADD, map_register(10), SP, state->stack_size);
 }
 
-static void emit_call(struct jit_state *state, uintptr_t func) {
+static void
+emit_call(struct jit_state* state, uintptr_t func)
+{
     emit_movewide_immediate(state, true, temp_register, func);
     emit_unconditonalbranch_register(state, BR_BLR, temp_register);
 
@@ -450,7 +576,7 @@ static void emit_call(struct jit_state *state, uintptr_t func) {
 }
 
 static void
-emit_function_epilogue(struct jit_state *state)
+emit_function_epilogue(struct jit_state* state)
 {
     state->exit_loc = state->offset;
 
@@ -462,7 +588,8 @@ emit_function_epilogue(struct jit_state *state)
     /* Restore callee-saved registers).  */
     size_t i;
     for (i = 0; i < _countof(callee_saved_registers); i += 2) {
-        emit_loadstorepair_immediate(state, LSP_LDPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
+        emit_loadstorepair_immediate(
+            state, LSP_LDPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
     }
     emit_loadstorepair_immediate(state, LSP_LDPX, R29, R30, SP, 0);
     emit_addsub_immediate(state, true, AS_ADD, SP, SP, state->stack_size);
@@ -470,7 +597,7 @@ emit_function_epilogue(struct jit_state *state)
 }
 
 static bool
-is_imm_op(struct ebpf_inst const * inst)
+is_imm_op(struct ebpf_inst const* inst)
 {
     int class = inst->opcode & EBPF_CLS_MASK;
     bool is_imm = (inst->opcode & EBPF_SRC_REG) == EBPF_SRC_IMM;
@@ -487,14 +614,14 @@ is_imm_op(struct ebpf_inst const * inst)
 }
 
 static bool
-is_alu64_op(struct ebpf_inst const * inst)
+is_alu64_op(struct ebpf_inst const* inst)
 {
     int class = inst->opcode & EBPF_CLS_MASK;
     return class == EBPF_CLS_ALU64 || class == EBPF_CLS_JMP;
 }
 
 static bool
-is_simple_imm(struct ebpf_inst const *inst)
+is_simple_imm(struct ebpf_inst const* inst)
 {
     switch (inst->opcode) {
     case EBPF_OP_ADD_IMM:
@@ -566,8 +693,7 @@ to_reg_op(uint8_t opcode)
     int class = opcode & EBPF_CLS_MASK;
     if (class == EBPF_CLS_ALU64 || class == EBPF_CLS_ALU || class == EBPF_CLS_JMP || class == EBPF_CLS_JMP32) {
         return opcode | EBPF_SRC_REG;
-    }
-    else if (class == EBPF_CLS_ST) {
+    } else if (class == EBPF_CLS_ST) {
         return (opcode & ~EBPF_CLS_MASK) | EBPF_CLS_STX;
     }
     assert(false);
@@ -575,10 +701,9 @@ to_reg_op(uint8_t opcode)
 }
 
 static enum AddSubOpcode
-to_addsub_opcode(int opcode) 
+to_addsub_opcode(int opcode)
 {
-    switch (opcode)
-    {
+    switch (opcode) {
     case EBPF_OP_ADD_IMM:
     case EBPF_OP_ADD_REG:
     case EBPF_OP_ADD64_IMM:
@@ -598,8 +723,7 @@ to_addsub_opcode(int opcode)
 static enum LogicalOpcode
 to_logical_opcode(int opcode)
 {
-    switch (opcode)
-    {
+    switch (opcode) {
     case EBPF_OP_OR_IMM:
     case EBPF_OP_OR_REG:
     case EBPF_OP_OR64_IMM:
@@ -624,8 +748,7 @@ to_logical_opcode(int opcode)
 static enum DP1Opcode
 to_dp1_opcode(int opcode, uint32_t imm)
 {
-    switch (opcode)
-    {
+    switch (opcode) {
     case EBPF_OP_BE:
     case EBPF_OP_LE:
         switch (imm) {
@@ -647,10 +770,9 @@ to_dp1_opcode(int opcode, uint32_t imm)
 }
 
 static enum DP2Opcode
-to_dp2_opcode(int opcode) 
+to_dp2_opcode(int opcode)
 {
-    switch (opcode)
-    {
+    switch (opcode) {
     case EBPF_OP_LSH_IMM:
     case EBPF_OP_LSH_REG:
     case EBPF_OP_LSH64_IMM:
@@ -680,8 +802,7 @@ to_dp2_opcode(int opcode)
 static enum LoadStoreOpcode
 to_loadstore_opcode(int opcode)
 {
-    switch (opcode)
-    {
+    switch (opcode) {
     case EBPF_OP_LDXW:
         return LS_LDRW;
     case EBPF_OP_LDXH:
@@ -712,8 +833,7 @@ static enum Condition
 to_condition(int opcode)
 {
     uint8_t jmp_type = opcode & EBPF_JMP_OP_MASK;
-    switch (jmp_type)
-    {
+    switch (jmp_type) {
     case EBPF_MODE_JEQ:
         return COND_EQ;
     case EBPF_MODE_JGT:
@@ -742,9 +862,8 @@ to_condition(int opcode)
     }
 }
 
-
 static int
-translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
+translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
     int i;
 
@@ -913,12 +1032,11 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_STXW:
         case EBPF_OP_STXH:
         case EBPF_OP_STXB:
-        case EBPF_OP_STXDW:
-            {
-                enum Registers tmp = dst;
-                dst = src;
-                src = tmp;
-            }
+        case EBPF_OP_STXDW: {
+            enum Registers tmp = dst;
+            dst = src;
+            src = tmp;
+        }
             /* fallthrough: */
         case EBPF_OP_LDXW:
         case EBPF_OP_LDXH:
@@ -926,8 +1044,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_LDXDW:
             if (inst.offset >= -256 && inst.offset < 256) {
                 emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, src, inst.offset);
-            }
-            else {
+            } else {
                 emit_movewide_immediate(state, true, offset_register, inst.offset);
                 emit_loadstore_register(state, to_loadstore_opcode(opcode), dst, src, offset_register);
             }
@@ -978,7 +1095,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 }
 
 static void
-divmod(struct jit_state *state, uint8_t opcode, int rd, int rn, int rm)
+divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm)
 {
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool sixty_four = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
@@ -994,7 +1111,7 @@ divmod(struct jit_state *state, uint8_t opcode, int rd, int rn, int rm)
 }
 
 static void
-resolve_jumps(struct jit_state *state)
+resolve_jumps(struct jit_state* state)
 {
     for (unsigned i = 0; i < state->num_jumps; ++i) {
         struct jump jump = state->jumps[i];
@@ -1012,7 +1129,7 @@ resolve_jumps(struct jit_state *state)
 }
 
 int
-ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg)
+ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
     struct jit_state state;
     int result = -1;
@@ -1020,7 +1137,7 @@ ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **e
     state.offset = 0;
     state.size = *size;
     state.buf = buffer;
-    state.pc_locs = calloc(UBPF_MAX_INSTS+1, sizeof(state.pc_locs[0]));
+    state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
     state.num_jumps = 0;
 

@@ -28,17 +28,29 @@
 
 #define MAX_EXT_FUNCS 64
 
-static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
-static bool bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
+static bool
+validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
+static bool
+bounds_check(
+    const struct ubpf_vm* vm,
+    void* addr,
+    int size,
+    const char* type,
+    uint16_t cur_pc,
+    void* mem,
+    size_t mem_len,
+    void* stack);
 
-bool ubpf_toggle_bounds_check(struct ubpf_vm *vm, bool enable)
+bool
+ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable)
 {
     bool old = vm->bounds_check_enabled;
     vm->bounds_check_enabled = enable;
     return old;
 }
 
-void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE* stream, const char* format, ...))
+void
+ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...))
 {
     if (error_printf)
         vm->error_printf = error_printf;
@@ -46,10 +58,10 @@ void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE* stream, 
         vm->error_printf = fprintf;
 }
 
-struct ubpf_vm *
+struct ubpf_vm*
 ubpf_create(void)
 {
-    struct ubpf_vm *vm = calloc(1, sizeof(*vm));
+    struct ubpf_vm* vm = calloc(1, sizeof(*vm));
     if (vm == NULL) {
         return NULL;
     }
@@ -81,7 +93,7 @@ ubpf_create(void)
 }
 
 void
-ubpf_destroy(struct ubpf_vm *vm)
+ubpf_destroy(struct ubpf_vm* vm)
 {
     ubpf_unload_code(vm);
     free(vm->ext_funcs);
@@ -90,7 +102,7 @@ ubpf_destroy(struct ubpf_vm *vm)
 }
 
 int
-ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn)
+ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
 {
     if (idx >= MAX_EXT_FUNCS) {
         return -1;
@@ -102,7 +114,8 @@ ubpf_register(struct ubpf_vm *vm, unsigned int idx, const char *name, void *fn)
     return 0;
 }
 
-int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx)
+int
+ubpf_set_unwind_function_index(struct ubpf_vm* vm, unsigned int idx)
 {
     if (vm->unwind_stack_extension_index != -1) {
         return -1;
@@ -113,11 +126,11 @@ int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx)
 }
 
 unsigned int
-ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name)
+ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
 {
     int i;
     for (i = 0; i < MAX_EXT_FUNCS; i++) {
-        const char *other = vm->ext_func_names[i];
+        const char* other = vm->ext_func_names[i];
         if (other && !strcmp(other, name)) {
             return i;
         }
@@ -126,13 +139,14 @@ ubpf_lookup_registered_function(struct ubpf_vm *vm, const char *name)
 }
 
 int
-ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg)
+ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg)
 {
     const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
     if (vm->insts) {
-        *errmsg = ubpf_error("code has already been loaded into this VM. Use ubpf_unload_code() if you need to reuse this VM");
+        *errmsg = ubpf_error(
+            "code has already been loaded into this VM. Use ubpf_unload_code() if you need to reuse this VM");
         return -1;
     }
 
@@ -141,7 +155,7 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
         return -1;
     }
 
-    if (!validate(vm, code, code_len/8, errmsg)) {
+    if (!validate(vm, code, code_len / 8, errmsg)) {
         return -1;
     }
 
@@ -151,8 +165,8 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
         return -1;
     }
 
-    vm->num_insts = code_len/sizeof(vm->insts[0]);
-    
+    vm->num_insts = code_len / sizeof(vm->insts[0]);
+
     // Store instructions in the vm.
     for (uint32_t i = 0; i < vm->num_insts; i++) {
         ubpf_store_instruction(vm, i, source_inst[i]);
@@ -162,7 +176,7 @@ ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg
 }
 
 void
-ubpf_unload_code(struct ubpf_vm *vm)
+ubpf_unload_code(struct ubpf_vm* vm)
 {
     if (vm->jitted) {
         munmap(vm->jitted, vm->jitted_size);
@@ -188,64 +202,66 @@ i32(uint64_t x)
     return x;
 }
 
-#define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a) - 1)) == 0)
+#define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
-inline static uint64_t ubpf_mem_load(uint64_t address, size_t size)
+inline static uint64_t
+ubpf_mem_load(uint64_t address, size_t size)
 {
     if (!IS_ALIGNED(address, size)) {
         // Fill the result with 0 to avoid leaking uninitialized memory.
         uint64_t value = 0;
-        memcpy(&value, (void *)address, size);
+        memcpy(&value, (void*)address, size);
         return value;
     }
 
     switch (size) {
     case 1:
-        return *(uint8_t *)address;
+        return *(uint8_t*)address;
     case 2:
-        return *(uint16_t *)address;
+        return *(uint16_t*)address;
     case 4:
-        return *(uint32_t *)address;
+        return *(uint32_t*)address;
     case 8:
-        return *(uint64_t *)address;
+        return *(uint64_t*)address;
     default:
         abort();
     }
 }
 
-inline static void ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
+inline static void
+ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
 {
     if (!IS_ALIGNED(address, size)) {
-        memcpy((void *)address, &value, size);
+        memcpy((void*)address, &value, size);
         return;
     }
-    
+
     switch (size) {
     case 1:
-        *(uint8_t *)address = value;
+        *(uint8_t*)address = value;
         break;
     case 2:
-        *(uint16_t *)address = value;
+        *(uint16_t*)address = value;
         break;
     case 4:
-        *(uint32_t *)address = value;
+        *(uint32_t*)address = value;
         break;
     case 8:
-        *(uint64_t *)address = value;
+        *(uint64_t*)address = value;
         break;
     default:
         abort();
     }
 }
 
-int 
-ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_return_value)
+int
+ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_return_value)
 {
     uint16_t pc = 0;
-    const struct ebpf_inst *insts = vm->insts;
-    uint64_t *reg;
+    const struct ebpf_inst* insts = vm->insts;
+    uint64_t* reg;
     uint64_t _reg[16];
-    uint64_t stack[(UBPF_STACK_SIZE+7)/8];
+    uint64_t stack[(UBPF_STACK_SIZE + 7) / 8];
 
     if (!insts) {
         /* Code must be loaded before we can execute */
@@ -389,7 +405,6 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
 
-
         case EBPF_OP_ADD64_IMM:
             reg[inst.dst] += inst.imm;
             break;
@@ -466,22 +481,22 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] = (int64_t)reg[inst.dst] >> reg[inst.src];
             break;
 
-        /*
-         * HACK runtime bounds check
-         *
-         * Needed since we don't have a verifier yet.
-         */
-#define BOUNDS_CHECK_LOAD(size) \
-    do { \
-        if (!bounds_check(vm, (char *)reg[inst.src] + inst.offset, size, "load", cur_pc, mem, mem_len, stack)) { \
-            return -1; \
-        } \
+            /*
+             * HACK runtime bounds check
+             *
+             * Needed since we don't have a verifier yet.
+             */
+#define BOUNDS_CHECK_LOAD(size)                                                                                 \
+    do {                                                                                                        \
+        if (!bounds_check(vm, (char*)reg[inst.src] + inst.offset, size, "load", cur_pc, mem, mem_len, stack)) { \
+            return -1;                                                                                          \
+        }                                                                                                       \
     } while (0)
-#define BOUNDS_CHECK_STORE(size) \
-    do { \
-        if (!bounds_check(vm, (char *)reg[inst.dst] + inst.offset, size, "store", cur_pc, mem, mem_len, stack)) { \
-            return -1; \
-        } \
+#define BOUNDS_CHECK_STORE(size)                                                                                 \
+    do {                                                                                                         \
+        if (!bounds_check(vm, (char*)reg[inst.dst] + inst.offset, size, "store", cur_pc, mem, mem_len, stack)) { \
+            return -1;                                                                                           \
+        }                                                                                                        \
     } while (0)
 
         case EBPF_OP_LDXW:
@@ -778,7 +793,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t* bpf_ret
 }
 
 static bool
-validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg)
+validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
 {
     if (num_insts >= UBPF_MAX_INSTS) {
         *errmsg = ubpf_error("too many instructions (max %u)", UBPF_MAX_INSTS);
@@ -871,7 +886,7 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
                 *errmsg = ubpf_error("invalid source register for LDDW at PC %d", i);
                 return false;
             }
-            if (i + 1 >= num_insts || insts[i+1].opcode != 0) {
+            if (i + 1 >= num_insts || insts[i + 1].opcode != 0) {
                 *errmsg = ubpf_error("incomplete lddw at PC %d", i);
                 return false;
             }
@@ -977,7 +992,15 @@ validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_i
 }
 
 static bool
-bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack)
+bounds_check(
+    const struct ubpf_vm* vm,
+    void* addr,
+    int size,
+    const char* type,
+    uint16_t cur_pc,
+    void* mem,
+    size_t mem_len,
+    void* stack)
 {
     if (!vm->bounds_check_enabled)
         return true;
@@ -988,15 +1011,25 @@ bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, u
         /* Stack access */
         return true;
     } else {
-        vm->error_printf(stderr, "uBPF error: out of bounds memory %s at PC %u, addr %p, size %d\nmem %p/%zd stack %p/%d\n", type, cur_pc, addr, size, mem, mem_len, stack, UBPF_STACK_SIZE);
+        vm->error_printf(
+            stderr,
+            "uBPF error: out of bounds memory %s at PC %u, addr %p, size %d\nmem %p/%zd stack %p/%d\n",
+            type,
+            cur_pc,
+            addr,
+            size,
+            mem,
+            mem_len,
+            stack,
+            UBPF_STACK_SIZE);
         return false;
     }
 }
 
-char *
-ubpf_error(const char *fmt, ...)
+char*
+ubpf_error(const char* fmt, ...)
 {
-    char *msg;
+    char* msg;
     va_list ap;
     va_start(ap, fmt);
     if (vasprintf(&msg, fmt, ap) < 0) {
@@ -1008,43 +1041,46 @@ ubpf_error(const char *fmt, ...)
 
 #ifdef DEBUG
 void
-ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs)
+ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)
 {
     vm->regs = regs;
 }
 
-uint64_t *
-ubpf_get_registers(const struct ubpf_vm *vm)
+uint64_t*
+ubpf_get_registers(const struct ubpf_vm* vm)
 {
     return vm->regs;
 }
 #else
 void
-ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs)
+ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)
 {
-    (void) vm;
-    (void) regs;
+    (void)vm;
+    (void)regs;
     fprintf(stderr, "uBPF warning: registers are not exposed in release mode. Please recompile in debug mode\n");
 }
 
-uint64_t *
-ubpf_get_registers(const struct ubpf_vm *vm)
+uint64_t*
+ubpf_get_registers(const struct ubpf_vm* vm)
 {
-    (void) vm;
+    (void)vm;
     fprintf(stderr, "uBPF warning: registers are not exposed in release mode. Please recompile in debug mode\n");
     return NULL;
 }
 
 #endif
 
-typedef struct _ebpf_encoded_inst {
-    union {
+typedef struct _ebpf_encoded_inst
+{
+    union
+    {
         uint64_t value;
         struct ebpf_inst inst;
     };
 } ebpf_encoded_inst;
 
-struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc)
+struct ebpf_inst
+ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc)
 {
     // XOR instruction with base address of vm.
     // This makes ROP attack more difficult.
@@ -1055,7 +1091,8 @@ struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc)
     return encode_inst.inst;
 }
 
-void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_inst inst)
+void
+ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst inst)
 {
     // XOR instruction with base address of vm.
     // This makes ROP attack more difficult.
@@ -1066,7 +1103,8 @@ void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_i
     vm->insts[pc] = encode_inst.inst;
 }
 
-int ubpf_set_pointer_secret(struct ubpf_vm *vm, uint64_t secret)
+int
+ubpf_set_pointer_secret(struct ubpf_vm* vm, uint64_t secret)
 {
     if (vm->insts) {
         return -1;

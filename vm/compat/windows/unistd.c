@@ -8,32 +8,36 @@
 
 #include "unistd.h"
 
-#define _CRT_RAND_S  
+#define _CRT_RAND_S
 #include <stdlib.h>
 
 #include <stdio.h>
 
-int rand_r(unsigned int *seedp) {
-  (void) seedp;
+int
+rand_r(unsigned int* seedp)
+{
+    (void)seedp;
 
-  unsigned int value = 0;
-  rand_s(&value);
+    unsigned int value = 0;
+    rand_s(&value);
 
-  return (int) value;
+    return (int)value;
 }
 
-int vasprintf(char **strp, const char *fmt, va_list ap) {
-  int buffer_size = vsnprintf(NULL, 0, fmt, ap);
-  if (buffer_size < 0) {
-    return -1;
-  }
+int
+vasprintf(char** strp, const char* fmt, va_list ap)
+{
+    int buffer_size = vsnprintf(NULL, 0, fmt, ap);
+    if (buffer_size < 0) {
+        return -1;
+    }
 
-  buffer_size++;
+    buffer_size++;
 
-  *strp = (char *) malloc(buffer_size);
-  if (*strp == NULL) {
-    return -1;
-  }
- 
-  return vsprintf_s(*strp, buffer_size, fmt, ap);
+    *strp = (char*)malloc(buffer_size);
+    if (*strp == NULL) {
+        return -1;
+    }
+
+    return vsprintf_s(*strp, buffer_size, fmt, ap);
 }

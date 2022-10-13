@@ -34,8 +34,8 @@
 #define RIP 5
 #define RSI 6
 #define RDI 7
-#define R8  8
-#define R9  9
+#define R8 8
+#define R9 9
 #define R10 10
 #define R11 11
 #define R12 12
@@ -43,32 +43,35 @@
 #define R14 14
 #define R15 15
 
-enum operand_size {
+enum operand_size
+{
     S8,
     S16,
     S32,
     S64,
 };
 
-struct jump {
+struct jump
+{
     uint32_t offset_loc;
     uint32_t target_pc;
 };
 
-struct jit_state {
-    uint8_t *buf;
+struct jit_state
+{
+    uint8_t* buf;
     uint32_t offset;
     uint32_t size;
-    uint32_t *pc_locs;
+    uint32_t* pc_locs;
     uint32_t exit_loc;
     uint32_t div_by_zero_loc;
     uint32_t unwind_loc;
-    struct jump *jumps;
+    struct jump* jumps;
     int num_jumps;
 };
 
 static inline void
-emit_bytes(struct jit_state *state, void *data, uint32_t len)
+emit_bytes(struct jit_state* state, void* data, uint32_t len)
 {
     assert(state->offset <= state->size - len);
     if ((state->offset + len) > state->size) {
@@ -80,56 +83,56 @@ emit_bytes(struct jit_state *state, void *data, uint32_t len)
 }
 
 static inline void
-emit1(struct jit_state *state, uint8_t x)
+emit1(struct jit_state* state, uint8_t x)
 {
     emit_bytes(state, &x, sizeof(x));
 }
 
 static inline void
-emit2(struct jit_state *state, uint16_t x)
+emit2(struct jit_state* state, uint16_t x)
 {
     emit_bytes(state, &x, sizeof(x));
 }
 
 static inline void
-emit4(struct jit_state *state, uint32_t x)
+emit4(struct jit_state* state, uint32_t x)
 {
     emit_bytes(state, &x, sizeof(x));
 }
 
 static inline void
-emit8(struct jit_state *state, uint64_t x)
+emit8(struct jit_state* state, uint64_t x)
 {
     emit_bytes(state, &x, sizeof(x));
 }
 
 static inline void
-emit_jump_offset(struct jit_state *state, int32_t target_pc)
+emit_jump_offset(struct jit_state* state, int32_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
     }
-    struct jump *jump = &state->jumps[state->num_jumps++];
+    struct jump* jump = &state->jumps[state->num_jumps++];
     jump->offset_loc = state->offset;
     jump->target_pc = target_pc;
     emit4(state, 0);
 }
 
 static inline void
-emit_modrm(struct jit_state *state, int mod, int r, int m)
+emit_modrm(struct jit_state* state, int mod, int r, int m)
 {
     assert(!(mod & ~0xc0));
     emit1(state, (mod & 0xc0) | ((r & 7) << 3) | (m & 7));
 }
 
 static inline void
-emit_modrm_reg2reg(struct jit_state *state, int r, int m)
+emit_modrm_reg2reg(struct jit_state* state, int r, int m)
 {
     emit_modrm(state, 0xc0, r, m);
 }
 
 static inline void
-emit_modrm_and_displacement(struct jit_state *state, int r, int m, int32_t d)
+emit_modrm_and_displacement(struct jit_state* state, int r, int m, int32_t d)
 {
     if (d == 0 && (m & 7) != RBP) {
         emit_modrm(state, 0x00, r, m);
@@ -143,7 +146,7 @@ emit_modrm_and_displacement(struct jit_state *state, int r, int m, int32_t d)
 }
 
 static inline void
-emit_rex(struct jit_state *state, int w, int r, int x, int b)
+emit_rex(struct jit_state* state, int w, int r, int x, int b)
 {
     assert(!(w & ~1));
     assert(!(r & ~1));
@@ -157,7 +160,7 @@ emit_rex(struct jit_state *state, int w, int r, int x, int b)
  * Skipped if no bits would be set.
  */
 static inline void
-emit_basic_rex(struct jit_state *state, int w, int src, int dst)
+emit_basic_rex(struct jit_state* state, int w, int src, int dst)
 {
     if (w || (src & 8) || (dst & 8)) {
         emit_rex(state, w, !!(src & 8), 0, !!(dst & 8));
@@ -165,14 +168,14 @@ emit_basic_rex(struct jit_state *state, int w, int src, int dst)
 }
 
 static inline void
-emit_push(struct jit_state *state, int r)
+emit_push(struct jit_state* state, int r)
 {
     emit_basic_rex(state, 0, 0, r);
     emit1(state, 0x50 | (r & 7));
 }
 
 static inline void
-emit_pop(struct jit_state *state, int r)
+emit_pop(struct jit_state* state, int r)
 {
     emit_basic_rex(state, 0, 0, r);
     emit1(state, 0x58 | (r & 7));
@@ -182,7 +185,7 @@ emit_pop(struct jit_state *state, int r)
 /* We use the MR encoding when there is a choice */
 /* 'src' is often used as an opcode extension */
 static inline void
-emit_alu32(struct jit_state *state, int op, int src, int dst)
+emit_alu32(struct jit_state* state, int op, int src, int dst)
 {
     emit_basic_rex(state, 0, src, dst);
     emit1(state, op);
@@ -191,7 +194,7 @@ emit_alu32(struct jit_state *state, int op, int src, int dst)
 
 /* REX prefix, ModRM byte, and 32-bit immediate */
 static inline void
-emit_alu32_imm32(struct jit_state *state, int op, int src, int dst, int32_t imm)
+emit_alu32_imm32(struct jit_state* state, int op, int src, int dst, int32_t imm)
 {
     emit_alu32(state, op, src, dst);
     emit4(state, imm);
@@ -199,7 +202,7 @@ emit_alu32_imm32(struct jit_state *state, int op, int src, int dst, int32_t imm)
 
 /* REX prefix, ModRM byte, and 8-bit immediate */
 static inline void
-emit_alu32_imm8(struct jit_state *state, int op, int src, int dst, int8_t imm)
+emit_alu32_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
 {
     emit_alu32(state, op, src, dst);
     emit1(state, imm);
@@ -209,7 +212,7 @@ emit_alu32_imm8(struct jit_state *state, int op, int src, int dst, int8_t imm)
 /* We use the MR encoding when there is a choice */
 /* 'src' is often used as an opcode extension */
 static inline void
-emit_alu64(struct jit_state *state, int op, int src, int dst)
+emit_alu64(struct jit_state* state, int op, int src, int dst)
 {
     emit_basic_rex(state, 1, src, dst);
     emit1(state, op);
@@ -218,7 +221,7 @@ emit_alu64(struct jit_state *state, int op, int src, int dst)
 
 /* REX.W prefix, ModRM byte, and 32-bit immediate */
 static inline void
-emit_alu64_imm32(struct jit_state *state, int op, int src, int dst, int32_t imm)
+emit_alu64_imm32(struct jit_state* state, int op, int src, int dst, int32_t imm)
 {
     emit_alu64(state, op, src, dst);
     emit4(state, imm);
@@ -226,7 +229,7 @@ emit_alu64_imm32(struct jit_state *state, int op, int src, int dst, int32_t imm)
 
 /* REX.W prefix, ModRM byte, and 8-bit immediate */
 static inline void
-emit_alu64_imm8(struct jit_state *state, int op, int src, int dst, int8_t imm)
+emit_alu64_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
 {
     emit_alu64(state, op, src, dst);
     emit1(state, imm);
@@ -234,37 +237,37 @@ emit_alu64_imm8(struct jit_state *state, int op, int src, int dst, int8_t imm)
 
 /* Register to register mov */
 static inline void
-emit_mov(struct jit_state *state, int src, int dst)
+emit_mov(struct jit_state* state, int src, int dst)
 {
     emit_alu64(state, 0x89, src, dst);
 }
 
 static inline void
-emit_cmp_imm32(struct jit_state *state, int dst, int32_t imm)
+emit_cmp_imm32(struct jit_state* state, int dst, int32_t imm)
 {
     emit_alu64_imm32(state, 0x81, 7, dst, imm);
 }
 
 static inline void
-emit_cmp32_imm32(struct jit_state *state, int dst, int32_t imm)
+emit_cmp32_imm32(struct jit_state* state, int dst, int32_t imm)
 {
     emit_alu32_imm32(state, 0x81, 7, dst, imm);
 }
 
 static inline void
-emit_cmp(struct jit_state *state, int src, int dst)
+emit_cmp(struct jit_state* state, int src, int dst)
 {
     emit_alu64(state, 0x39, src, dst);
 }
 
 static inline void
-emit_cmp32(struct jit_state *state, int src, int dst)
+emit_cmp32(struct jit_state* state, int src, int dst)
 {
     emit_alu32(state, 0x39, src, dst);
 }
 
 static inline void
-emit_jcc(struct jit_state *state, int code, int32_t target_pc)
+emit_jcc(struct jit_state* state, int code, int32_t target_pc)
 {
     emit1(state, 0x0f);
     emit1(state, code);
@@ -273,7 +276,7 @@ emit_jcc(struct jit_state *state, int code, int32_t target_pc)
 
 /* Load [src + offset] into dst */
 static inline void
-emit_load(struct jit_state *state, enum operand_size size, int src, int dst, int32_t offset)
+emit_load(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
 {
     emit_basic_rex(state, size == S64, dst, src);
 
@@ -291,7 +294,7 @@ emit_load(struct jit_state *state, enum operand_size size, int src, int dst, int
 
 /* Load sign-extended immediate into register */
 static inline void
-emit_load_imm(struct jit_state *state, int dst, int64_t imm)
+emit_load_imm(struct jit_state* state, int dst, int64_t imm)
 {
     if (imm >= INT32_MIN && imm <= INT32_MAX) {
         emit_alu64_imm32(state, 0xc7, 0, dst, imm);
@@ -305,7 +308,7 @@ emit_load_imm(struct jit_state *state, int dst, int64_t imm)
 
 /* Store register src to [dst + offset] */
 static inline void
-emit_store(struct jit_state *state, enum operand_size size, int src, int dst, int32_t offset)
+emit_store(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
 {
     if (size == S16) {
         emit1(state, 0x66); /* 16-bit override */
@@ -320,7 +323,7 @@ emit_store(struct jit_state *state, enum operand_size size, int src, int dst, in
 
 /* Store immediate to [dst + offset] */
 static inline void
-emit_store_imm32(struct jit_state *state, enum operand_size size, int dst, int32_t offset, int32_t imm)
+emit_store_imm32(struct jit_state* state, enum operand_size size, int dst, int32_t offset, int32_t imm)
 {
     if (size == S16) {
         emit1(state, 0x66); /* 16-bit override */
@@ -338,7 +341,7 @@ emit_store_imm32(struct jit_state *state, enum operand_size size, int dst, int32
 }
 
 static inline void
-emit_call(struct jit_state *state, void *target)
+emit_call(struct jit_state* state, void* target)
 {
 #if defined(_WIN32)
     /* Windows x64 ABI spills 5th parameter to stack */
@@ -362,7 +365,7 @@ emit_call(struct jit_state *state, void *target)
 }
 
 static inline void
-emit_jmp(struct jit_state *state, uint32_t target_pc)
+emit_jmp(struct jit_state* state, uint32_t target_pc)
 {
     emit1(state, 0xe9);
     emit_jump_offset(state, target_pc);

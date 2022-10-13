@@ -1,5 +1,6 @@
-#
 # Copyright (c) 2022-present, IO Visor Project
+# SPDX-License-Identifier: Apache-2.0
+#
 # All rights reserved.
 #
 # This source code is licensed in accordance with the terms specified in
@@ -8,6 +9,12 @@
 
 project("ubpf")
 cmake_minimum_required(VERSION 3.16)
+
+if (UBPF_INSTALL_GIT_HOOKS)
+  # Install Git pre-commit hook
+  file(COPY scripts/pre-commit scripts/commit-msg
+       DESTINATION "${PROJECT_SOURCE_DIR}/.git/hooks")
+endif()
 
 include("cmake/platform.cmake")
 include("cmake/settings.cmake")

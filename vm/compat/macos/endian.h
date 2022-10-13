@@ -10,20 +10,14 @@
 
 #include <libkern/OSByteOrder.h>
 
-#define htole16(value) \
-  OSSwapHostToLittleInt16(value)
+#define htole16(value) OSSwapHostToLittleInt16(value)
 
-#define htole32(value) \
-  OSSwapHostToLittleInt32(value)
+#define htole32(value) OSSwapHostToLittleInt32(value)
 
-#define htole64(value) \
-  OSSwapHostToLittleInt64(value)
+#define htole64(value) OSSwapHostToLittleInt64(value)
 
-#define htobe16(value) \
-  OSSwapHostToBigInt16(value)
+#define htobe16(value) OSSwapHostToBigInt16(value)
 
-#define htobe32(value) \
-  OSSwapHostToBigInt32(value)
+#define htobe32(value) OSSwapHostToBigInt32(value)
 
-#define htobe64(value) \
-  OSSwapHostToBigInt64(value)
+#define htobe64(value) OSSwapHostToBigInt64(value)

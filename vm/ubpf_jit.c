@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,13 +31,13 @@
 #define UNUSED(x) ((void)x)
 
 int
-ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg)
+ubpf_translate(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
     return vm->translate(vm, buffer, size, errmsg);
 }
 
 int
-ubpf_translate_null(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
+ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
     /* NULL JIT target - just returns an error. */
     UNUSED(vm);
@@ -49,10 +48,10 @@ ubpf_translate_null(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **
 }
 
 ubpf_jit_fn
-ubpf_compile(struct ubpf_vm *vm, char **errmsg)
+ubpf_compile(struct ubpf_vm* vm, char** errmsg)
 {
-    void *jitted = NULL;
-    uint8_t *buffer = NULL;
+    void* jitted = NULL;
+    uint8_t* buffer = NULL;
     size_t jitted_size;
 
     if (vm->jitted) {
