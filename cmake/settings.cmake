@@ -51,7 +51,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     if(UBPF_ENABLE_SANITIZERS)
       set(sanitizer_flags
         -fno-omit-frame-pointer
-        -fsanitize=undefined,address
+        -fsanitize=undefined#,address
       )
 
       target_compile_options("ubpf_settings" INTERFACE
