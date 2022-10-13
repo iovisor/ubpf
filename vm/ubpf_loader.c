@@ -113,8 +113,10 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
 
     /* Parse section headers into an array */
     struct section sections[MAX_SECTIONS];
+    uint64_t shoff = ehdr->e_shoff;
     for (i = 0; i < ehdr->e_shnum; i++) {
-        const Elf64_Shdr *shdr = bounds_check(&b, ehdr->e_shoff + i*ehdr->e_shentsize, sizeof(*shdr));
+        const Elf64_Shdr *shdr = bounds_check(&b, shoff, sizeof(*shdr));
+        shoff += ehdr->e_shentsize;
         if (!shdr) {
             *errmsg = ubpf_error("bad section header offset or size");
             goto error;
@@ -187,29 +189,33 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
 
         int j;
         for (j = 0; j < rel->size/sizeof(Elf64_Rel); j++) {
-            const Elf64_Rel *r = &rs[j];
+            /* Copy rs[j] as it may not be appropriately aligned */
+            Elf64_Rel r;
+            memcpy(&r, rs + j, sizeof(Elf64_Rel));
 
-            if (ELF64_R_TYPE(r->r_info) != 2) {
-                *errmsg = ubpf_error("bad relocation type %u", ELF64_R_TYPE(r->r_info));
+            if (ELF64_R_TYPE(r.r_info) != 2) {
+                *errmsg = ubpf_error("bad relocation type %u", ELF64_R_TYPE(r.r_info));
                 goto error;
             }
 
-            uint32_t sym_idx = ELF64_R_SYM(r->r_info);
+            uint32_t sym_idx = ELF64_R_SYM(r.r_info);
             if (sym_idx >= num_syms) {
                 *errmsg = ubpf_error("bad symbol index");
                 goto error;
             }
 
-            const Elf64_Sym *sym = &syms[sym_idx];
+            /* Copy syms[sym_idx] as it may not be appropriately aligned */
+            Elf64_Sym sym;
+            memcpy(&sym, syms + sym_idx, sizeof(Elf64_Sym));
 
-            if (sym->st_name >= strtab->size) {
+            if (sym.st_name >= strtab->size) {
                 *errmsg = ubpf_error("bad symbol name");
                 goto error;
             }
 
-            const char *sym_name = strings + sym->st_name;
+            const char *sym_name = strings + sym.st_name;
 
-            if (r->r_offset + 8 > text->size) {
+            if (r.r_offset + 8 > text->size) {
                 *errmsg = ubpf_error("bad relocation offset");
                 goto error;
             }
@@ -220,7 +226,7 @@ ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_size, char **errms
                 goto error;
             }
 
-            *(uint32_t *)(text_copy + r->r_offset + 4) = imm;
+            *(uint32_t *)(text_copy + r.r_offset + 4) = imm;
         }
     }
 

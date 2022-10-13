@@ -148,7 +148,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
     emit_alu64_imm32(state, 0x81, 5, RSP, UBPF_STACK_SIZE);
 
     for (i = 0; i < vm->num_insts; i++) {
-        struct ebpf_inst inst = vm->insts[i];
+        struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
         state->pc_locs[i] = state->offset;
 
         int dst = map_register(inst.dst);
@@ -459,7 +459,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
             break;
 
         case EBPF_OP_LDDW: {
-            struct ebpf_inst inst2 = vm->insts[++i];
+            struct ebpf_inst inst2 = ubpf_fetch_instruction(vm, ++i);
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
             emit_load_imm(state, dst, imm);
             break;

@@ -25,8 +25,8 @@ LDFLAGS += -fprofile-arcs
 endif
 
 ifeq ($(ASAN),1)
-CFLAGS += -fsanitize=address
-LDFLAGS += -fsanitize=address
+CFLAGS += -fsanitize=address,undefined
+LDFLAGS += -fsanitize=address,undefined
 endif
 
 ifeq ($(DEBUG),1)
