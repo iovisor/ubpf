@@ -68,7 +68,7 @@ jobs:
       run: echo ::set-output name=VALUE::platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}
 
     - name: Update the cache (ccache)
-      uses: actions/cache@v3.0.10
+      uses: actions/cache@v3.0.11
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
