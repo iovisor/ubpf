@@ -890,6 +890,16 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_JSGE_IMM:
         case EBPF_OP_JSLT_IMM:
         case EBPF_OP_JSLE_IMM:
+        case EBPF_OP_JEQ32_IMM:
+        case EBPF_OP_JGT32_IMM:
+        case EBPF_OP_JGE32_IMM:
+        case EBPF_OP_JLT32_IMM:
+        case EBPF_OP_JLE32_IMM:
+        case EBPF_OP_JNE32_IMM:
+        case EBPF_OP_JSGT32_IMM:
+        case EBPF_OP_JSGE32_IMM:
+        case EBPF_OP_JSLT32_IMM:
+        case EBPF_OP_JSLE32_IMM:
             emit_addsub_immediate(state, sixty_four, AS_SUBS, RZ, dst, inst.imm);
             emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
             break;
@@ -903,10 +913,21 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_JSGE_REG:
         case EBPF_OP_JSLT_REG:
         case EBPF_OP_JSLE_REG:
+        case EBPF_OP_JEQ32_REG:
+        case EBPF_OP_JGT32_REG:
+        case EBPF_OP_JGE32_REG:
+        case EBPF_OP_JLT32_REG:
+        case EBPF_OP_JLE32_REG:
+        case EBPF_OP_JNE32_REG:
+        case EBPF_OP_JSGT32_REG:
+        case EBPF_OP_JSGE32_REG:
+        case EBPF_OP_JSLT32_REG:
+        case EBPF_OP_JSLE32_REG:
             emit_addsub_register(state, sixty_four, AS_SUBS, RZ, dst, src);
             emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
             break;
         case EBPF_OP_JSET_REG:
+        case EBPF_OP_JSET32_REG:
             emit_logical_register(state, sixty_four, LOG_ANDS, RZ, dst, src);
             emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
             break;
