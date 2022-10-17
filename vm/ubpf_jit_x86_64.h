@@ -55,11 +55,6 @@ struct jump {
     uint32_t target_pc;
 };
 
-struct string_reference {
-    uint32_t offset_loc;
-    uint32_t string_id;
-};
-
 struct jit_state {
     uint8_t *buf;
     uint32_t offset;
@@ -70,9 +65,6 @@ struct jit_state {
     uint32_t unwind_loc;
     struct jump *jumps;
     int num_jumps;
-    struct string_reference* strings;
-    int num_strings;
-    uint32_t string_table_loc;
 };
 
 static inline void
@@ -362,23 +354,6 @@ emit_jmp(struct jit_state *state, uint32_t target_pc)
 {
     emit1(state, 0xe9);
     emit_jump_offset(state, target_pc);
-}
-
-/* emit "lea    dst,[rip+0x0]" and store offset + string id */
-static inline void
-emit_string_load(struct jit_state *state, int dst, int string_id)
-{
-    if (state->num_strings == UBPF_MAX_INSTS) {
-        return;
-    }
-
-    emit_basic_rex(state, 1, RIP, dst);
-    emit1(state, 0x8d);
-    emit_modrm(state, 0, dst, RIP);
-    emit4(state, 0);
-    state->strings[state->num_strings].offset_loc = state->offset;
-    state->strings[state->num_strings].string_id = string_id;
-    state->num_strings++;
 }
 
 #endif

@@ -67,8 +67,4 @@ struct ebpf_inst ubpf_fetch_instruction(const struct ubpf_vm *vm, uint16_t pc);
  */
 void ubpf_store_instruction(const struct ubpf_vm *vm, uint16_t pc, struct ebpf_inst inst);
 
-
-extern const char* ubpf_string_table[1];
-#define UBPF_STRING_ID_DIVIDE_BY_ZERO 0
-
 #endif

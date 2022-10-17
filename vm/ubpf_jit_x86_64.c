@@ -490,27 +490,6 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 
     emit1(state, 0xc3); /* ret */
 
-    /* Division by zero handler */
-
-    // Save the address of the start of the divide by zero handler.
-    state->div_by_zero_loc = state->offset;
-
-    // RCX is the first parameter register for Windows, so first save the value.
-    emit_mov(state, RCX, platform_parameter_registers[2]); /* muldivmod stored pc in RCX */
-    emit_string_load(state, platform_parameter_registers[1], UBPF_STRING_ID_DIVIDE_BY_ZERO);
-    emit_load_imm(state, platform_parameter_registers[0], (uintptr_t)stderr);
-    emit_call(state, vm->error_printf);
-
-    emit_load_imm(state, map_register(0), -1);
-    emit_jmp(state, TARGET_PC_EXIT);
-
-
-    // Emit string table.
-    state->string_table_loc = state->offset;
-    for (i = 0; i < _countof(ubpf_string_table); i++) {
-        emit_bytes(state, (void*)ubpf_string_table[i], strlen(ubpf_string_table[i]) + 1);
-    }
-
     return 0;
 }
 
@@ -662,31 +641,6 @@ resolve_jumps(struct jit_state *state)
     }
 }
 
-static uint32_t
-string_offset_from_id(struct jit_state *state, uint32_t string_id)
-{
-    uint32_t offset = state->string_table_loc;
-    uint32_t i;
-    for (i = 0; i < string_id; i ++) {
-        offset += strlen(ubpf_string_table[i]) + 1;
-    }
-    return offset;
-}
-
-static void
-resolve_strings(struct jit_state *state)
-{
-    int i;
-    for (i = 0; i < state->num_strings; i++) {
-        struct string_reference string = state->strings[i];
-        uint32_t rel = string_offset_from_id(state, string.string_id) - (string.offset_loc);
-
-        uint8_t *offset_ptr = &state->buf[string.offset_loc - sizeof(uint32_t)];
-        memcpy(offset_ptr, &rel, sizeof(uint32_t));
-    }
-}
-
-
 int
 ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
 {
@@ -698,9 +652,7 @@ ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char 
     state.buf = buffer;
     state.pc_locs = calloc(UBPF_MAX_INSTS+1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
-    state.strings = calloc(UBPF_MAX_INSTS, sizeof(state.strings[0]));
     state.num_jumps = 0;
-    state.num_strings = 0;
 
     if (translate(vm, &state, errmsg) < 0) {
         goto out;
@@ -711,18 +663,12 @@ ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char 
         goto out;
     }
 
-    if (state.num_strings == UBPF_MAX_INSTS) {
-        *errmsg = ubpf_error("Excessive number of string targets");
-        goto out;
-    }
-
     if (state.offset == state.size) {
         *errmsg = ubpf_error("Target buffer too small");
         goto out;
     }
 
     resolve_jumps(&state);
-    resolve_strings(&state);
     result = 0;
 
     *size = state.offset;
@@ -730,6 +676,5 @@ ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char 
 out:
     free(state.pc_locs);
     free(state.jumps);
-    free(state.strings);
     return result;
 }

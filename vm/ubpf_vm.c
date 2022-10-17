@@ -28,10 +28,6 @@
 
 #define MAX_EXT_FUNCS 64
 
-const char* ubpf_string_table[1] = {
-    "uBPF error: division by zero at PC %u\n",
-};
-
 static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
 static bool bounds_check(const struct ubpf_vm *vm, void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
 

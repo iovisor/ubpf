@@ -46,11 +46,6 @@ struct jump {
     uint32_t target_pc;
 };
 
-struct string_reference {
-    uint32_t offset_loc;
-    uint32_t string_id;
-};
-
 struct jit_state {
     uint8_t *buf;
     uint32_t offset;
@@ -60,9 +55,6 @@ struct jit_state {
     uint32_t unwind_loc;
     struct jump *jumps;
     int num_jumps;
-    struct string_reference* strings;
-    int num_strings;
-    uint32_t string_table_loc;
     uint32_t stack_size;
 };
 
@@ -392,18 +384,6 @@ emit_movewide_immediate(struct jit_state *state, bool sixty_four, enum Registers
     }
 }
 
-static void update_adr_immediate(struct jit_state *state, uint32_t offset, int64_t imm21)
-{
-    assert((imm21 >> 21) == 0 || (imm21 >> 21) == INT64_C(-1));
-
-    /* Read-modify-write the instruction.  */
-    uint32_t instr;
-    memcpy(&instr, state->buf + offset, sizeof(uint32_t));
-    instr |= (imm21 & 3) << 29;
-    instr |= ((imm21 >> 2) & 0x3ffff) << 5;
-    memcpy(state->buf + offset, &instr, sizeof(uint32_t));
-}
-
 static void update_branch_immediate(struct jit_state *state, uint32_t offset, int32_t imm)
 {
     assert((imm & 3) == 0);
@@ -457,22 +437,6 @@ emit_function_prologue(struct jit_state *state, size_t ubpf_stack_size)
     /* Setup UBPF frame pointer. */
     emit_addsub_immediate(state, true, AS_ADD, map_register(10), SP, state->stack_size);
 }
-
-#if 0
-static void
-emit_string_load(struct jit_state *state, enum Registers dst, int string_id)
-{
-    if (state->num_strings == UBPF_MAX_INSTS) {
-        return;
-    }
-
-    state->strings[state->num_strings].offset_loc = state->offset;
-    state->strings[state->num_strings].string_id = string_id;
-    // ADR dst, #0 - will be fixed up later.
-    emit_instruction(state, (0 << 29) | (1 << 28) | (0 << 5) | dst);
-    state->num_strings++;
-}
-#endif
 
 static void emit_call(struct jit_state *state, uintptr_t func) {
     emit_movewide_immediate(state, true, temp_register, func);
@@ -985,11 +949,6 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
     }
 
     emit_function_epilogue(state);
-    // Emit string table.
-    state->string_table_loc = state->offset;
-    for (i = 0; i < _countof(ubpf_string_table); i++) {
-        emit_bytes(state, (void*)ubpf_string_table[i], strlen(ubpf_string_table[i]) + 1);
-    }
 
     return 0;
 }
@@ -1028,28 +987,6 @@ resolve_jumps(struct jit_state *state)
     }
 }
 
-static uint32_t
-string_offset_from_id(struct jit_state *state, uint32_t string_id)
-{
-    uint32_t offset = state->string_table_loc;
-    uint32_t i;
-    for (i = 0; i < string_id; i ++) {
-        offset += strlen(ubpf_string_table[i]) + 1;
-    }
-    return offset;
-}
-
-static void
-resolve_strings(struct jit_state *state)
-{
-    int i;
-    for (i = 0; i < state->num_strings; i++) {
-        struct string_reference string = state->strings[i];
-        int64_t rel = string_offset_from_id(state, string.string_id) - string.offset_loc;
-        update_adr_immediate(state, string.offset_loc, rel);
-    }
-}
-
 int
 ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg)
 {
@@ -1061,9 +998,7 @@ ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **e
     state.buf = buffer;
     state.pc_locs = calloc(UBPF_MAX_INSTS+1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
-    state.strings = calloc(UBPF_MAX_INSTS, sizeof(state.strings[0]));
     state.num_jumps = 0;
-    state.num_strings = 0;
 
     if (translate(vm, &state, errmsg) < 0) {
         goto out;
@@ -1074,18 +1009,12 @@ ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **e
         goto out;
     }
 
-    if (state.num_strings == UBPF_MAX_INSTS) {
-        *errmsg = ubpf_error("Excessive number of string targets");
-        goto out;
-    }
-
     if (state.offset == state.size) {
         *errmsg = ubpf_error("Target buffer too small");
         goto out;
     }
 
     resolve_jumps(&state);
-    resolve_strings(&state);
     result = 0;
 
     *size = state.offset;
@@ -1093,6 +1022,5 @@ ubpf_translate_arm64(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **e
 out:
     free(state.pc_locs);
     free(state.jumps);
-    free(state.strings);
     return result;
 }
