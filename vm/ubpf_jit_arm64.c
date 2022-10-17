@@ -588,7 +588,7 @@ static uint8_t
 to_reg_op(uint8_t opcode)
 {
     int class = opcode & EBPF_CLS_MASK;
-    if (class == EBPF_CLS_ALU64 || class == EBPF_CLS_ALU || class == EBPF_CLS_JMP) {
+    if (class == EBPF_CLS_ALU64 || class == EBPF_CLS_ALU || class == EBPF_CLS_JMP || class == EBPF_CLS_JMP32) {
         return opcode | EBPF_SRC_REG;
     }
     else if (class == EBPF_CLS_ST) {
