@@ -195,6 +195,24 @@ jobs:
         ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_JIT}
         ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
 
+    # Issue163 - Eliminate duplicate tests in tests and external/bpf_conformance/tests
+    - name: Run the bpf_conformance tests from external/bpf_conformance/tests
+      run: |
+        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
+        export BPF_CONFORMANCE_TEST_DIR="--test_file_directory external/bpf_conformance/tests"
+
+        # For arm64, we need to run the tests in qemu, so use the scripts
+        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path aarch64_test/run-jit.sh"
+          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path aarch64_test/run-interpret.sh"
+        else
+          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path build/bin/ubpf_plugin --plugin_options --jit"
+          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path build/bin/ubpf_plugin --plugin_options --interpret"
+        fi
+
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_JIT}
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
+
     - name: Generate code coverage report
       if: inputs.enable_coverage == true
       run: |
