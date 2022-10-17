@@ -516,9 +516,10 @@ is_imm_op(struct ebpf_inst const * inst)
     bool is_exit = inst->opcode == EBPF_OP_EXIT;
     bool is_ja = inst->opcode == EBPF_OP_JA;
     bool is_alu = (class == EBPF_CLS_ALU || class == EBPF_CLS_ALU64) && !is_endian && !is_neg;
-    bool is_jmp = class == EBPF_CLS_JMP && !is_ja && !is_call && !is_exit;
+    bool is_jmp = (class == EBPF_CLS_JMP && !is_ja && !is_call && !is_exit);
+    bool is_jmp32 = class == EBPF_CLS_JMP32;
     bool is_store = class == EBPF_CLS_ST;
-    return (is_imm && (is_alu || is_jmp)) || is_store;
+    return (is_imm && (is_alu || is_jmp || is_jmp32)) || is_store;
 }
 
 static bool
@@ -546,6 +547,16 @@ is_simple_imm(struct ebpf_inst const *inst)
     case EBPF_OP_JLE_IMM:
     case EBPF_OP_JSLT_IMM:
     case EBPF_OP_JSLE_IMM:
+    case EBPF_OP_JEQ32_IMM:
+    case EBPF_OP_JGT32_IMM:
+    case EBPF_OP_JGE32_IMM:
+    case EBPF_OP_JNE32_IMM:
+    case EBPF_OP_JSGT32_IMM:
+    case EBPF_OP_JSGE32_IMM:
+    case EBPF_OP_JLT32_IMM:
+    case EBPF_OP_JLE32_IMM:
+    case EBPF_OP_JSLT32_IMM:
+    case EBPF_OP_JSLE32_IMM:
         return inst->imm >= 0 && inst->imm < 0x1000;
     case EBPF_OP_MOV_IMM:
     case EBPF_OP_MOV64_IMM:
@@ -565,6 +576,7 @@ is_simple_imm(struct ebpf_inst const *inst)
     case EBPF_OP_RSH64_IMM:
         return false;
     case EBPF_OP_JSET_IMM:
+    case EBPF_OP_JSET32_IMM:
         return false;
     case EBPF_OP_DIV_IMM:
     case EBPF_OP_DIV64_IMM:
@@ -735,40 +747,30 @@ to_loadstore_opcode(int opcode)
 static enum Condition
 to_condition(int opcode)
 {
-    switch (opcode)
+    uint8_t jmp_type = opcode & EBPF_JMP_OP_MASK;
+    switch (jmp_type)
     {
-    case EBPF_OP_JEQ_IMM:
-    case EBPF_OP_JEQ_REG:
+    case EBPF_MODE_JEQ:
         return COND_EQ;
-    case EBPF_OP_JGT_IMM:
-    case EBPF_OP_JGT_REG:
+    case EBPF_MODE_JGT:
         return COND_HI;
-    case EBPF_OP_JGE_IMM:
-    case EBPF_OP_JGE_REG:
+    case EBPF_MODE_JGE:
         return COND_HS;
-    case EBPF_OP_JLT_IMM:
-    case EBPF_OP_JLT_REG:
+    case EBPF_MODE_JLT:
         return COND_LO;
-    case EBPF_OP_JLE_IMM:
-    case EBPF_OP_JLE_REG:
+    case EBPF_MODE_JLE:
         return COND_LS;
-    case EBPF_OP_JSET_IMM:
-    case EBPF_OP_JSET_REG:
+    case EBPF_MODE_JSET:
         return COND_NE;
-    case EBPF_OP_JNE_IMM:
-    case EBPF_OP_JNE_REG:
+    case EBPF_MODE_JNE:
         return COND_NE;
-    case EBPF_OP_JSGT_IMM:
-    case EBPF_OP_JSGT_REG:
+    case EBPF_MODE_JSGT:
         return COND_GT;
-    case EBPF_OP_JSGE_IMM:
-    case EBPF_OP_JSGE_REG:
+    case EBPF_MODE_JSGE:
         return COND_GE;
-    case EBPF_OP_JSLT_IMM:
-    case EBPF_OP_JSLT_REG:
+    case EBPF_MODE_JSLT:
         return COND_LT;
-    case EBPF_OP_JSLE_IMM:
-    case EBPF_OP_JSLE_REG:
+    case EBPF_MODE_JSLE:
         return COND_LE;
     default:
         assert(false);
@@ -985,6 +987,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
         case EBPF_OP_STB:
         case EBPF_OP_STDW:
         case EBPF_OP_JSET_IMM:
+        case EBPF_OP_JSET32_IMM:
         case EBPF_OP_OR_IMM:
         case EBPF_OP_AND_IMM:
         case EBPF_OP_XOR_IMM:
