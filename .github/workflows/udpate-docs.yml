@@ -44,7 +44,7 @@ jobs:
       run: |
         git config --global user.email 'ubpf@users.noreply.github.com'
         git config --global user.name 'Github Action'
-        git clone --branch gh-pages https://github.com/iovisor/ubpf.git docs/html
+        git clone --branch gh-pages https://github.com/${{github.repository}}.git docs/html
 
     - name: Update docs
       run: |
@@ -53,6 +53,6 @@ jobs:
         git add .
         if [ -n "$(git status --porcelain)" ]; then
         git commit -s -m "Updated documentation"
-        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/iovisor/ubpf.git
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git
         git push
         fi
