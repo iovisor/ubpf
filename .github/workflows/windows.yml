@@ -63,13 +63,6 @@ jobs:
         .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
         .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
 
-    # Issue163 - Eliminate duplicate tests in tests and external/bpf_conformance/tests
-    - name: Run the bpf_conformance tests (Windows) in external\bpf_conformance\tests
-      run: |
-        cd .\build\bin\${{ inputs.build_type }}
-        .\bpf_conformance_runner.exe --test_file_directory ..\..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
-        .\bpf_conformance_runner.exe --test_file_directory ..\..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
-
     - name: Generate the TGZ package
       run: |
         cmake `
