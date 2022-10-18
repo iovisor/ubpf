@@ -9,8 +9,11 @@
  * eBPF lives in the Linux kernel, but due to its GPL license it can't be used in many projects.
  *
  * For more info see:
- * <a href=https://www.kernel.org/doc/Documentation/networking/filter.txt>Linux documentation for the eBPF instruction set</a>
- * <a href=https://github.com/iovisor/bpf-docs/blob/master/eBPF.md>Instruction set reference</a>
+ * <ul>
+ * <li><a href=https://www.kernel.org/doc/Documentation/networking/filter.txt>Linux documentation for the eBPF instruction set</a>
+ * <li><a href=https://github.com/iovisor/bpf-docs/blob/master/eBPF.md>Instruction set reference</a>
+ * </ul>
+ *
  * This project includes an eBPF assembler, disassembler, interpreter (for all platforms), and JIT compiler (for x86-64 and Arm64 targets).
  *
  * @section build Building
