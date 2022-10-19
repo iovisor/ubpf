@@ -246,9 +246,21 @@ emit_cmp_imm32(struct jit_state *state, int dst, int32_t imm)
 }
 
 static inline void
+emit_cmp32_imm32(struct jit_state *state, int dst, int32_t imm)
+{
+    emit_alu32_imm32(state, 0x81, 7, dst, imm);
+}
+
+static inline void
 emit_cmp(struct jit_state *state, int src, int dst)
 {
     emit_alu64(state, 0x39, src, dst);
+}
+
+static inline void
+emit_cmp32(struct jit_state *state, int src, int dst)
+{
+    emit_alu32(state, 0x39, src, dst);
 }
 
 static inline void
