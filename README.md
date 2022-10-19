@@ -13,6 +13,8 @@ This project aims to create an Apache-licensed library for executing eBPF progra
 
 [Instruction set reference](https://github.com/iovisor/bpf-docs/blob/master/eBPF.md)
 
+[API Documentation](http://iovisor.github.io/ubpf/ubpf_8h.html)
+
 This project includes an eBPF assembler, disassembler, interpreter (for all platforms),
 and JIT compiler (for x86-64 and Arm64 targets).
 
