@@ -46,21 +46,23 @@ struct ubpf_vm;
 /**
  * @brief Opaque type for a uBPF JIT compiled function.
  */
-typedef uint64_t (*ubpf_jit_fn)(void *mem, size_t mem_len);
+typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
 
 /**
  * @brief Create a new uBPF VM.
  *
  * @return A pointer to the new VM, or NULL on failure.
  */
-struct ubpf_vm *ubpf_create(void);
+struct ubpf_vm*
+ubpf_create(void);
 
 /**
  * @brief Free a uBPF VM.
  *
  * @param[in] vm The VM to free.
  */
-void ubpf_destroy(struct ubpf_vm *vm);
+void
+ubpf_destroy(struct ubpf_vm* vm);
 
 /**
  * @brief Enable / disable bounds_check. Bounds check is enabled by default, but it may be too restrictive.
@@ -69,7 +71,8 @@ void ubpf_destroy(struct ubpf_vm *vm);
  * @param[in] enable Enable bounds check if true, disable if false.
  * @retval true Bounds check was previously enabled.
  */
-bool ubpf_toggle_bounds_check(struct ubpf_vm *vm, bool enable);
+bool
+ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable);
 
 /**
  * @brief Set the function to be invoked if the program hits a fatal error.
@@ -77,7 +80,8 @@ bool ubpf_toggle_bounds_check(struct ubpf_vm *vm, bool enable);
  * @param[in] vm The VM to set the error function on.
  * @param[in] error_printf The function to be invoked on fatal error.
  */
-void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE *stream, const char *format, ...));
+void
+ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...));
 
 /**
  * @brief Register an external function.
@@ -92,7 +96,8 @@ void ubpf_set_error_print(struct ubpf_vm *vm, int (*error_printf)(FILE *stream, 
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_register(struct ubpf_vm *vm, unsigned int index, const char *name, void *fn);
+int
+ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, void* fn);
 
 /**
  * @brief Load code into a VM.
@@ -109,7 +114,8 @@ int ubpf_register(struct ubpf_vm *vm, unsigned int index, const char *name, void
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg);
+int
+ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg);
 
 /*
  * Unload code from a VM
@@ -128,7 +134,8 @@ int ubpf_load(struct ubpf_vm *vm, const void *code, uint32_t code_len, char **er
  *
  * @param[in] vm The VM to unload the code from.
  */
-void ubpf_unload_code(struct ubpf_vm *vm);
+void
+ubpf_unload_code(struct ubpf_vm* vm);
 
 #if defined(UBPF_HAS_ELF_H)
 /**
@@ -151,7 +158,8 @@ void ubpf_unload_code(struct ubpf_vm *vm);
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_len, char **errmsg);
+int
+ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_len, char** errmsg);
 #endif
 
 /**
@@ -167,7 +175,8 @@ int ubpf_load_elf(struct ubpf_vm *vm, const void *elf, size_t elf_len, char **er
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t *bpf_return_value);
+int
+ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_return_value);
 
 /**
  * @brief Compile a BPF program in the VM to native code.
@@ -179,7 +188,8 @@ int ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t *bpf
  * @param[out] errmsg The error message, if any. This should be freed by the caller.
  * @return ubpf_jit_fn A pointer to the compiled program, or NULL on failure.
  */
-ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
+ubpf_jit_fn
+ubpf_compile(struct ubpf_vm* vm, char** errmsg);
 
 /*
  * Translate the eBPF byte code to x64 machine code, store in buffer, and
@@ -204,7 +214,8 @@ ubpf_jit_fn ubpf_compile(struct ubpf_vm *vm, char **errmsg);
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg);
+int
+ubpf_translate(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
 
 /**
  * @brief Instruct the uBPF runtime to apply unwind-on-success semantics to a helper function.
@@ -217,7 +228,8 @@ int ubpf_translate(struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **err
  * @retval 0 Success.
  * @retval -1 Failure.
  */
-int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
+int
+ubpf_set_unwind_function_index(struct ubpf_vm* vm, unsigned int idx);
 
 /**
  * @brief Override the storage location for the BPF registers in the VM.
@@ -225,7 +237,8 @@ int ubpf_set_unwind_function_index(struct ubpf_vm *vm, unsigned int idx);
  * @param[in] vm The VM to set the register storage in.
  * @param[in] regs The register storage.
  */
-void ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs);
+void
+ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs);
 
 /**
  * @brief Retrieve the storage location for the BPF registers in the VM.
@@ -233,7 +246,8 @@ void ubpf_set_registers(struct ubpf_vm *vm, uint64_t *regs);
  * @param[in] vm The VM to get the register storage from.
  * @return uint64_t* A pointer to the register storage.
  */
-uint64_t *ubpf_get_registers(const struct ubpf_vm *vm);
+uint64_t*
+ubpf_get_registers(const struct ubpf_vm* vm);
 
 /**
  * @brief Optional secret to improve ROP protection.
@@ -243,6 +257,7 @@ uint64_t *ubpf_get_registers(const struct ubpf_vm *vm);
  * Returns 0 on success, -1 on error (e.g. if the secret is set after
  * the instructions are loaded).
  */
-int ubpf_set_pointer_secret(struct ubpf_vm *vm, uint64_t secret);
+int
+ubpf_set_pointer_secret(struct ubpf_vm* vm, uint64_t secret);
 
 #endif

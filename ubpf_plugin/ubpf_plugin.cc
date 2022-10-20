@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 
 // This program reads BPF instructions from stdin and memory contents from
 // the first agument. It then executes the BPF program and prints the

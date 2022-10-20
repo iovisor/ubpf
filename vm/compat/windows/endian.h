@@ -10,20 +10,14 @@
 
 #include <Winsock2.h>
 
-#define htole16(value) \
-  (value)
+#define htole16(value) (value)
 
-#define htole32(value) \
-  (value)
+#define htole32(value) (value)
 
-#define htole64(value) \
-  (value)
+#define htole64(value) (value)
 
-#define htobe16(value) \
-  htons(value)
+#define htobe16(value) htons(value)
 
-#define htobe32(value) \
-  htonl(value)
+#define htobe32(value) htonl(value)
 
-#define htobe64(value) \
-  htonll(value)
+#define htobe64(value) htonll(value)

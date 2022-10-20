@@ -33,35 +33,44 @@
 #include <elf.h>
 #endif
 
-void ubpf_set_register_offset(int x);
-static void *readfile(const char *path, size_t maxlen, size_t *len);
-static void register_functions(struct ubpf_vm *vm);
+void
+ubpf_set_register_offset(int x);
+static void*
+readfile(const char* path, size_t maxlen, size_t* len);
+static void
+register_functions(struct ubpf_vm* vm);
 
-static void usage(const char *name)
+static void
+usage(const char* name)
 {
     fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] BINARY\n", name);
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
-    fprintf(stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
+    fprintf(
+        stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
     fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
-    fprintf(stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
+    fprintf(
+        stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
     struct option longopts[] = {
-        { .name = "help", .val = 'h', },
-        { .name = "mem", .val = 'm', .has_arg=1 },
-        { .name = "jit", .val = 'j' },
-        { .name = "register-offset", .val = 'r', .has_arg=1 },
-        { .name = "unload", .val = 'U' }, /* for unit test only */
-        { .name = "reload", .val = 'R' }, /* for unit test only */
-        { 0 }
-    };
+        {
+            .name = "help",
+            .val = 'h',
+        },
+        {.name = "mem", .val = 'm', .has_arg = 1},
+        {.name = "jit", .val = 'j'},
+        {.name = "register-offset", .val = 'r', .has_arg = 1},
+        {.name = "unload", .val = 'U'}, /* for unit test only */
+        {.name = "reload", .val = 'R'}, /* for unit test only */
+        {0}};
 
-    const char *mem_filename = NULL;
+    const char* mem_filename = NULL;
     bool jit = false;
     bool unload = false;
     bool reload = false;
@@ -105,23 +114,23 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const char *code_filename = argv[optind];
+    const char* code_filename = argv[optind];
     size_t code_len;
-    void *code = readfile(code_filename, 1024*1024, &code_len);
+    void* code = readfile(code_filename, 1024 * 1024, &code_len);
     if (code == NULL) {
         return 1;
     }
 
     size_t mem_len = 0;
-    void *mem = NULL;
+    void* mem = NULL;
     if (mem_filename != NULL) {
-        mem = readfile(mem_filename, 1024*1024, &mem_len);
+        mem = readfile(mem_filename, 1024 * 1024, &mem_len);
         if (mem == NULL) {
             return 1;
         }
     }
 
-    struct ubpf_vm *vm = ubpf_create();
+    struct ubpf_vm* vm = ubpf_create();
     if (!vm) {
         fprintf(stderr, "Failed to create VM\n");
         return 1;
@@ -134,7 +143,7 @@ int main(int argc, char **argv)
 
     register_functions(vm);
 
-    /* 
+    /*
      * The ELF magic corresponds to an RSH instruction with an offset,
      * which is invalid.
      */
@@ -142,16 +151,16 @@ int main(int argc, char **argv)
     bool elf = code_len >= SELFMAG && !memcmp(code, ELFMAG, SELFMAG);
 #endif
 
-    char *errmsg;
+    char* errmsg;
     int rv;
 load:
-#if defined(UBPF_HAS_ELF_H)    
+#if defined(UBPF_HAS_ELF_H)
     if (elf) {
-	rv = ubpf_load_elf(vm, code, code_len, &errmsg);
+        rv = ubpf_load_elf(vm, code, code_len, &errmsg);
     } else {
 #endif
-	rv = ubpf_load(vm, code, code_len, &errmsg);
-#if defined(UBPF_HAS_ELF_H)  
+        rv = ubpf_load(vm, code, code_len, &errmsg);
+#if defined(UBPF_HAS_ELF_H)
     }
 #endif
     if (unload) {
@@ -189,7 +198,7 @@ load:
             ret = UINT64_MAX;
     }
 
-    printf("0x%"PRIx64"\n", ret);
+    printf("0x%" PRIx64 "\n", ret);
 
     ubpf_destroy(vm);
     free(mem);
@@ -197,9 +206,10 @@ load:
     return 0;
 }
 
-static void *readfile(const char *path, size_t maxlen, size_t *len)
+static void*
+readfile(const char* path, size_t maxlen, size_t* len)
 {
-    FILE *file;
+    FILE* file;
     if (!strcmp(path, "-")) {
         file = fdopen(STDIN_FILENO, "r");
     } else {
@@ -211,10 +221,10 @@ static void *readfile(const char *path, size_t maxlen, size_t *len)
         return NULL;
     }
 
-    char *data = calloc(maxlen, 1);
+    char* data = calloc(maxlen, 1);
     size_t offset = 0;
     size_t rv;
-    while ((rv = fread(data+offset, 1, maxlen-offset, file)) > 0) {
+    while ((rv = fread(data + offset, 1, maxlen - offset, file)) > 0) {
         offset += rv;
     }
 
@@ -226,8 +236,7 @@ static void *readfile(const char *path, size_t maxlen, size_t *len)
     }
 
     if (!feof(file)) {
-        fprintf(stderr, "Failed to read %s because it is too large (max %u bytes)\n",
-                path, (unsigned)maxlen);
+        fprintf(stderr, "Failed to read %s because it is too large (max %u bytes)\n", path, (unsigned)maxlen);
         fclose(file);
         free(data);
         return NULL;
@@ -237,15 +246,15 @@ static void *readfile(const char *path, size_t maxlen, size_t *len)
     if (len) {
         *len = offset;
     }
-    return (void *) data;
+    return (void*)data;
 }
 
 #ifndef __GLIBC__
-void *
-memfrob(void *s, size_t n)
+void*
+memfrob(void* s, size_t n)
 {
     for (int i = 0; i < n; i++) {
-        ((char *)s)[i] ^= 42;
+        ((char*)s)[i] ^= 42;
     }
     return s;
 }
@@ -254,11 +263,7 @@ memfrob(void *s, size_t n)
 static uint64_t
 gather_bytes(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e)
 {
-    return ((uint64_t)a << 32) |
-        ((uint32_t)b << 24) |
-        ((uint32_t)c << 16) |
-        ((uint16_t)d << 8) |
-        e;
+    return ((uint64_t)a << 32) | ((uint32_t)b << 24) | ((uint32_t)c << 16) | ((uint16_t)d << 8) | e;
 }
 
 static void
@@ -266,8 +271,7 @@ trash_registers(void)
 {
     /* Overwrite all caller-save registers */
 #if __x86_64__
-    asm(
-        "mov $0xf0, %rax;"
+    asm("mov $0xf0, %rax;"
         "mov $0xf1, %rcx;"
         "mov $0xf2, %rdx;"
         "mov $0xf3, %rsi;"
@@ -275,11 +279,9 @@ trash_registers(void)
         "mov $0xf5, %r8;"
         "mov $0xf6, %r9;"
         "mov $0xf7, %r10;"
-        "mov $0xf8, %r11;"
-    );
+        "mov $0xf8, %r11;");
 #elif __aarch64__
-    asm(
-        "mov w0, #0xf0;"
+    asm("mov w0, #0xf0;"
         "mov w1, #0xf1;"
         "mov w2, #0xf2;"
         "mov w3, #0xf3;"
@@ -294,9 +296,8 @@ trash_registers(void)
         "mov w12, #0xfc;"
         "mov w13, #0xfd;"
         "mov w14, #0xfe;"
-        "mov w15, #0xff;"
-        ::: "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9", "w10", "w11", "w12", "w13", "w14", "w15"
-    );
+        "mov w15, #0xff;" ::
+            : "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9", "w10", "w11", "w12", "w13", "w14", "w15");
 #else
     fprintf(stderr, "trash_registers not implemented for this architecture.\n");
     exit(1);
@@ -316,7 +317,7 @@ unwind(uint64_t i)
 }
 
 static void
-register_functions(struct ubpf_vm *vm)
+register_functions(struct ubpf_vm* vm)
 {
     ubpf_register(vm, 0, "gather_bytes", gather_bytes);
     ubpf_register(vm, 1, "memfrob", memfrob);

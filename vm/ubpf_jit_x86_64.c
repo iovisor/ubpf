@@ -35,7 +35,8 @@
 #define TARGET_PC_EXIT -1
 #define TARGET_PC_DIV_BY_ZERO -2
 
-static void muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst, int32_t imm);
+static void
+muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm);
 
 #define REGISTER_MAP_SIZE 11
 
@@ -45,12 +46,8 @@ static void muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst,
  */
 
 #if defined(_WIN32)
-static int platform_nonvolatile_registers[] = {
-    RBP, RBX, RDI, RSI, R12, R13, R14, R15
-};
-static int platform_parameter_registers[] = {
-    RCX, RDX, R8, R9
-};
+static int platform_nonvolatile_registers[] = {RBP, RBX, RDI, RSI, R12, R13, R14, R15};
+static int platform_parameter_registers[] = {RCX, RDX, R8, R9};
 #define RCX_ALT R10
 // Register assignments:
 // BPF R0-R4 are "volatile"
@@ -73,12 +70,8 @@ static int register_map[REGISTER_MAP_SIZE] = {
 };
 #else
 #define RCX_ALT R9
-static int platform_nonvolatile_registers[] = {
-    RBP, RBX, R13, R14, R15
-};
-static int platform_parameter_registers[] = {
-    RDI, RSI, RDX, RCX, R8, R9
-};
+static int platform_nonvolatile_registers[] = {RBP, RBX, R13, R14, R15};
+static int platform_parameter_registers[] = {RDI, RSI, RDX, RCX, R8, R9};
 static int register_map[REGISTER_MAP_SIZE] = {
     RAX,
     RDI,
@@ -111,13 +104,13 @@ ubpf_set_register_offset(int x)
         int tmp[REGISTER_MAP_SIZE];
         memcpy(tmp, register_map, sizeof(register_map));
         for (i = 0; i < REGISTER_MAP_SIZE; i++) {
-            register_map[i] = tmp[(i+x)%REGISTER_MAP_SIZE];
+            register_map[i] = tmp[(i + x) % REGISTER_MAP_SIZE];
         }
     } else {
         /* Shuffle array */
         unsigned int seed = x;
-        for (i = 0; i < REGISTER_MAP_SIZE-1; i++) {
-            int j = i + (rand_r(&seed) % (REGISTER_MAP_SIZE-i));
+        for (i = 0; i < REGISTER_MAP_SIZE - 1; i++) {
+            int j = i + (rand_r(&seed) % (REGISTER_MAP_SIZE - i));
             int tmp = register_map[j];
             register_map[j] = register_map[i];
             register_map[i] = tmp;
@@ -126,13 +119,12 @@ ubpf_set_register_offset(int x)
 }
 
 static int
-translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
+translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
     int i;
 
     /* Save platform non-volatile registers */
-    for (i = 0; i < _countof(platform_nonvolatile_registers); i++)
-    {
+    for (i = 0; i < _countof(platform_nonvolatile_registers); i++) {
         emit_push(state, platform_nonvolatile_registers[i]);
     }
 
@@ -571,8 +563,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
     emit_alu64_imm32(state, 0x81, 0, RSP, UBPF_STACK_SIZE);
 
     /* Restore platform non-volatile registers */
-    for (i = 0; i < _countof(platform_nonvolatile_registers); i++)
-    {
+    for (i = 0; i < _countof(platform_nonvolatile_registers); i++) {
         emit_pop(state, platform_nonvolatile_registers[_countof(platform_nonvolatile_registers) - i - 1]);
     }
 
@@ -582,7 +573,7 @@ translate(struct ubpf_vm *vm, struct jit_state *state, char **errmsg)
 }
 
 static void
-muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst, int32_t imm)
+muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm)
 {
     bool mul = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MUL_IMM & EBPF_ALU_OP_MASK);
     bool div = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_DIV_IMM & EBPF_ALU_OP_MASK);
@@ -637,7 +628,7 @@ muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst, int32_t imm
 
         // Save the dividend for the modulo case.
         if (mod) {
-            emit_push(state, RAX);  // Save dividend.
+            emit_push(state, RAX); // Save dividend.
         }
 
         // Save the result of the test.
@@ -690,7 +681,7 @@ muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst, int32_t imm
             emit1(state, 0xd1); /* cmove rdx,rcx */
         }
     }
-    
+
     if (dst != RDX) {
         if (mod) {
             emit_mov(state, RDX, dst);
@@ -706,7 +697,7 @@ muldivmod(struct jit_state *state, uint8_t opcode, int src, int dst, int32_t imm
 }
 
 static void
-resolve_jumps(struct jit_state *state)
+resolve_jumps(struct jit_state* state)
 {
     int i;
     for (i = 0; i < state->num_jumps; i++) {
@@ -724,13 +715,13 @@ resolve_jumps(struct jit_state *state)
         /* Assumes jump offset is at end of instruction */
         uint32_t rel = target_loc - (jump.offset_loc + sizeof(uint32_t));
 
-        uint8_t *offset_ptr = &state->buf[jump.offset_loc];
+        uint8_t* offset_ptr = &state->buf[jump.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
 }
 
 int
-ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char **errmsg)
+ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
     struct jit_state state;
     int result = -1;
@@ -738,7 +729,7 @@ ubpf_translate_x86_64(struct ubpf_vm *vm, uint8_t * buffer, size_t * size, char 
     state.offset = 0;
     state.size = *size;
     state.buf = buffer;
-    state.pc_locs = calloc(UBPF_MAX_INSTS+1, sizeof(state.pc_locs[0]));
+    state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
     state.num_jumps = 0;
 

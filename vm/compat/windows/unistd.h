@@ -12,5 +12,7 @@
 
 #define STDIN_FILENO 0
 
-int rand_r(unsigned int *seedp);
-int vasprintf(char **strp, const char *fmt, va_list ap);
+int
+rand_r(unsigned int* seedp);
+int
+vasprintf(char** strp, const char* fmt, va_list ap);
