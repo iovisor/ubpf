@@ -1,0 +1,58 @@
+# Copyright (c) Microsoft Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# This action will run doxygen to update the documentation at https://iovisor.github.io/ubpf/
+# which is a view of the gh-pages branch.  This action is done whenever the main branch is updated.
+# For docs on gh-pages see https://pages.github.com/
+#
+# The following two links discuss steps similar to this action so may be useful reading
+# to understand how the automatic update works:
+#  https://growworkinghard.altervista.org/doxygen-documentation-on-github-using-gh-pages/
+#  https://github.com/m-a-d-n-e-s-s/madness/issues/104
+
+name: Doxygen Action
+
+# Controls when the action will run. Triggers the workflow on push # events
+# but only for the main branch
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: write  # for Git to git push
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Harden Runner
+      uses: step-security/harden-runner@2e205a28d0e1da00c5f53b161f4067b052c61f34
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - name: Install doxygen
+      run: |
+        sudo apt install doxygen
+
+    - uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
+
+    - name: Clone docs
+      run: |
+        git config --global user.email 'ubpf@users.noreply.github.com'
+        git config --global user.name 'Github Action'
+        git clone --branch gh-pages https://github.com/${{github.repository}}.git docs/html
+
+    - name: Update docs
+      run: |
+        doxygen
+        cd docs/html
+        git add .
+        if [ -n "$(git status --porcelain)" ]; then
+        git commit -s -m "Updated documentation"
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git
+        git push
+        fi
