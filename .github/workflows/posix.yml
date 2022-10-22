@@ -180,7 +180,7 @@ jobs:
 
     - name: Run the local bpf_conformance tests
       run: |
-        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
+        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
         export BPF_CONFORMANCE_TEST_DIR="--test_file_directory tests"
 
         # For arm64, we need to run the tests in qemu, so use the scripts
