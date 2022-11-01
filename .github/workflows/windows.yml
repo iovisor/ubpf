@@ -80,7 +80,7 @@ jobs:
       if: inputs.upload_packages == true
       shell: bash
       run: |
-        echo ::set-output name=REL_TGZ_PACKAGE_PATH::$(ls build/*.tar.gz)
+        echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the Windows TGZ package
       if: inputs.upload_packages == true
