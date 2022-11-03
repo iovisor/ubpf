@@ -60,13 +60,13 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@cc7986c02bac29104a72998e67239bb5ee2ee110
+      uses: github/codeql-action/init@ec3cf9c605b848da5f1e41e8452719eb1ccfb9a6
       with:
         languages: 'cpp'
 
     - name: Generate the cache key
       id: cache_key
-      run: echo ::set-output name=VALUE::platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}
+      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
       uses: actions/cache@v3.0.11
@@ -280,9 +280,9 @@ jobs:
       id: package_locations
       if: inputs.upload_packages == true
       run: |
-        echo ::set-output name=REL_DEB_PACKAGE_PATH::$(ls build/*.deb)
-        echo ::set-output name=REL_RPM_PACKAGE_PATH::$(ls build/*.rpm)
-        echo ::set-output name=REL_TGZ_PACKAGE_PATH::$(ls build/*.tar.gz)
+        echo "REL_DEB_PACKAGE_PATH=$(ls build/*.deb)" >> $GITHUB_OUTPUT
+        echo "REL_RPM_PACKAGE_PATH=$(ls build/*.rpm)" >> $GITHUB_OUTPUT
+        echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the DEB package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
@@ -318,4 +318,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@cc7986c02bac29104a72998e67239bb5ee2ee110
+      uses: github/codeql-action/analyze@ec3cf9c605b848da5f1e41e8452719eb1ccfb9a6
