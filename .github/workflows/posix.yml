@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2022-present, IO Visor Project
+# SPDX-License-Identifier: Apache-2.0
 # All rights reserved.
 #
 # This source code is licensed in accordance with the terms specified in
@@ -59,7 +60,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@ec3cf9c605b848da5f1e41e8452719eb1ccfb9a6
+      uses: github/codeql-action/init@18fe527fa8b29f134bb91f32f1a5dc5abb15ed7f
       with:
         languages: 'cpp'
 
@@ -180,7 +181,7 @@ jobs:
 
     - name: Run the local bpf_conformance tests
       run: |
-        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
+        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
         export BPF_CONFORMANCE_TEST_DIR="--test_file_directory tests"
 
         # For arm64, we need to run the tests in qemu, so use the scripts
@@ -197,8 +198,10 @@ jobs:
 
     - name: Run the upstream bpf_conformance tests
       run: |
-        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/src/bpf_conformance_runner"
+        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
         export BPF_CONFORMANCE_TEST_DIR="--test_file_directory external/bpf_conformance/tests"
+        # Exclude tests that check atomic operations, as they are not supported by uBPF yet.
+        export BPF_CONFORMANCE_TEST_FILTER="--exclude_regex lock"
 
         # For arm64, we need to run the tests in qemu, so use the scripts
         if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
@@ -209,8 +212,8 @@ jobs:
           export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path build/bin/ubpf_plugin --plugin_options --interpret"
         fi
 
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_JIT}
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_JIT}
+        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
 
     - name: Generate code coverage report
       if: inputs.enable_coverage == true
@@ -315,4 +318,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@ec3cf9c605b848da5f1e41e8452719eb1ccfb9a6
+      uses: github/codeql-action/analyze@18fe527fa8b29f134bb91f32f1a5dc5abb15ed7f
