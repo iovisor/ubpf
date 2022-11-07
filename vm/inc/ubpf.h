@@ -17,6 +17,10 @@
 #ifndef UBPF_H
 #define UBPF_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <ubpf_config.h>
 
 #include <stdio.h>
@@ -259,5 +263,9 @@ ubpf_get_registers(const struct ubpf_vm* vm);
  */
 int
 ubpf_set_pointer_secret(struct ubpf_vm* vm, uint64_t secret);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
