@@ -29,6 +29,11 @@ extern "C" {
 #include <stdbool.h>
 
 /**
+ * @brief Option to disable JIT compilation
+ * #define UBPF_DISABLE_JIT
+ */
+
+/**
  * @brief Default maximum number of instructions that a program can contain.
  */
 #if !defined(UBPF_MAX_INSTS)

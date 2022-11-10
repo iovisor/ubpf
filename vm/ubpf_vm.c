@@ -81,9 +81,9 @@ ubpf_create(void)
     vm->bounds_check_enabled = true;
     vm->error_printf = fprintf;
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if !defined(UBPF_DISABLE_JIT) && (defined(__x86_64__) || defined(_M_X64))
     vm->translate = ubpf_translate_x86_64;
-#elif defined(__aarch64__) || defined(_M_ARM64)
+#elif !defined(UBPF_DISABLE_JIT) && (defined(__aarch64__) || defined(_M_ARM64))
     vm->translate = ubpf_translate_arm64;
 #else
     vm->translate = ubpf_translate_null;
