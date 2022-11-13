@@ -568,7 +568,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JEQ32_IMM:
-            if (u32(reg[inst.dst]) == inst.imm) {
+            if (u32(reg[inst.dst]) == u32(inst.imm)) {
                 pc += inst.offset;
             }
             break;
