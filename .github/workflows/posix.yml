@@ -201,7 +201,7 @@ jobs:
         export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
         export BPF_CONFORMANCE_TEST_DIR="--test_file_directory external/bpf_conformance/tests"
         # Exclude tests that check atomic operations, as they are not supported by uBPF yet.
-        export BPF_CONFORMANCE_TEST_FILTER="--exclude_regex lock"
+        export BPF_CONFORMANCE_TEST_FILTER="--exclude_regex (lock|call_local)"
 
         # For arm64, we need to run the tests in qemu, so use the scripts
         if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
