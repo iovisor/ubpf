@@ -94,7 +94,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
       upload_packages: true
 
@@ -102,14 +102,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
   
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
       scan_build: true
 
@@ -117,7 +117,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -125,7 +125,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -133,7 +133,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: RelWithDebInfo
       enable_sanitizers: true
 
@@ -142,7 +142,7 @@ jobs:
   #   uses: ./.github/workflows/posix.yml
   #   with:
   #     arch: arm64
-  #     platform: ubuntu-20.04
+  #     platform: ubuntu-22.04
   #     build_type: RelWithDebInfo
   #     enable_sanitizers: true
 
@@ -150,14 +150,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: Debug
 
   linux_debug_arm64:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: Debug
       upload_packages: true
 
@@ -165,7 +165,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: Debug
       enable_coverage: true
 
@@ -173,7 +173,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: Debug
       enable_coverage: true
 
@@ -181,7 +181,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-22.04
       build_type: Debug
       enable_sanitizers: true
 
@@ -190,7 +190,7 @@ jobs:
   #   uses: ./.github/workflows/posix.yml
   #   with:
   #     arch: arm64
-  #     platform: ubuntu-20.04
+  #     platform: ubuntu-22.04
   #     build_type: Debug
   #     enable_sanitizers: true
 
@@ -200,7 +200,7 @@ jobs:
       - macos_debug_coverage
       - linux_release_coverage
       - linux_debug_coverage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Coveralls Finished
       uses: coverallsapp/github-action@1.1.3

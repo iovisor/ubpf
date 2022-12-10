@@ -80,7 +80,7 @@ jobs:
           ccache
 
     - name: Install system dependencies (Linux)
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-22.04'
       run: |
         sudo apt-get install -y \
           ccache \
@@ -239,7 +239,7 @@ jobs:
           --target install
 
     - name: Generate the DEB package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-22.04'
       run: |
         cmake \
           -S . \
@@ -252,7 +252,7 @@ jobs:
           --target package
 
     - name: Generate the RPM package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-22.04'
       run: |
         cmake \
           -S . \
@@ -285,7 +285,7 @@ jobs:
         echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the DEB package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-22.04'
       uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
       with:
         name: linux_deb_package
@@ -293,7 +293,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the RPM package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-22.04'
       uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
       with:
         name: linux_rpm_package
@@ -301,7 +301,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the Linux TGZ package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-22.04'
       uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
       with:
         name: linux_tgz_package
