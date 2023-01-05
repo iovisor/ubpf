@@ -18,9 +18,11 @@ else()
 endif()
 
 if (UBPF_INSTALL_GIT_HOOKS AND UBPF_IS_TOP_LEVEL)
-  # Install Git pre-commit hook
-  file(COPY scripts/pre-commit scripts/commit-msg
-       DESTINATION "${PROJECT_SOURCE_DIR}/.git/hooks")
+    if (EXISTS "${PROJECT_SOURCE_DIR}/.git")
+        # Install Git pre-commit hook
+        file(COPY scripts/pre-commit scripts/commit-msg
+            DESTINATION "${PROJECT_SOURCE_DIR}/.git/hooks")
+    endif()
 endif()
 
 include("cmake/platform.cmake")
