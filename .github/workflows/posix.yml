@@ -175,7 +175,7 @@ jobs:
 
     - name: Upload scan-build report
       if: inputs.scan_build == true
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
@@ -288,7 +288,7 @@ jobs:
 
     - name: Upload the DEB package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_deb_package
         path: ${{ steps.package_locations.outputs.REL_DEB_PACKAGE_PATH }}
@@ -296,7 +296,7 @@ jobs:
 
     - name: Upload the RPM package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_rpm_package
         path: ${{ steps.package_locations.outputs.REL_RPM_PACKAGE_PATH }}
@@ -304,7 +304,7 @@ jobs:
 
     - name: Upload the Linux TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -312,7 +312,7 @@ jobs:
 
     - name: Upload the macOS TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'macos-11'
-      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: macos_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
