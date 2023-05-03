@@ -7,8 +7,8 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-project("ubpf")
 cmake_minimum_required(VERSION 3.16)
+project("ubpf")
 
 if (UBPF_INSTALL_GIT_HOOKS AND EXISTS "${PROJECT_SOURCE_DIR}/.git/hooks")
     # Install Git pre-commit hook
