@@ -96,6 +96,7 @@ void
 ubpf_destroy(struct ubpf_vm* vm)
 {
     ubpf_unload_code(vm);
+    free(vm->global_mem);
     free(vm->ext_funcs);
     free(vm->ext_func_names);
     free(vm);
@@ -1009,6 +1010,11 @@ bounds_check(
         return true;
     } else if (addr >= stack && ((char*)addr + size) <= ((char*)stack + UBPF_STACK_SIZE)) {
         /* Stack access */
+        return true;
+    } else if (
+        vm->global_mem_size != 0 && (char*)addr >= (char*)vm->global_mem &&
+        ((char*)addr + size) <= ((char*)vm->global_mem + vm->global_mem_size)) {
+        /* Global access */
         return true;
     } else {
         vm->error_printf(

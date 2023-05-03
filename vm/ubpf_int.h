@@ -33,6 +33,8 @@ struct ubpf_vm
     ext_func* ext_funcs;
     const char** ext_func_names;
     bool bounds_check_enabled;
+    char* global_mem;
+    size_t global_mem_size;
     int (*error_printf)(FILE* stream, const char* format, ...);
     int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
     int unwind_stack_extension_index;

@@ -187,4 +187,8 @@ struct ebpf_inst
 #define EBPF_OP_JSLE32_IMM (EBPF_CLS_JMP32 | EBPF_SRC_IMM | EBPF_MODE_JSLE)
 #define EBPF_OP_JSLE32_REG (EBPF_CLS_JMP32 | EBPF_SRC_REG | EBPF_MODE_JSLE)
 
+/* relocation types (for eBPF-in-ELF files) */
+#define EBPF_ELF_RELOC_64_64 1
+#define EBPF_ELF_RELOC_64_ABS64 2
+
 #endif

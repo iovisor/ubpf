@@ -151,6 +151,21 @@ ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_size, char** errms
 
     struct section* text = &sections[text_shndx];
 
+    /* Find first data section */
+    int data_shndx = 0;
+    for (i = 0; i < ehdr->e_shnum; i++) {
+        const Elf64_Shdr* shdr = sections[i].shdr;
+        if (shdr->sh_type == SHT_PROGBITS && shdr->sh_flags == (SHF_ALLOC | SHF_WRITE)) {
+            data_shndx = i;
+            break;
+        }
+    }
+
+    struct section* data_section = NULL;
+    if (data_shndx) {
+        data_section = &sections[data_shndx];
+    }
+
     /* May need to modify text for relocations, so make a copy */
     text_copy = malloc(text->size);
     if (!text_copy) {
@@ -193,11 +208,6 @@ ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_size, char** errms
             Elf64_Rel r;
             memcpy(&r, rs + j, sizeof(Elf64_Rel));
 
-            if (ELF64_R_TYPE(r.r_info) != 2) {
-                *errmsg = ubpf_error("bad relocation type %u", ELF64_R_TYPE(r.r_info));
-                goto error;
-            }
-
             uint32_t sym_idx = ELF64_R_SYM(r.r_info);
             if (sym_idx >= num_syms) {
                 *errmsg = ubpf_error("bad symbol index");
@@ -213,20 +223,56 @@ ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_size, char** errms
                 goto error;
             }
 
-            const char* sym_name = strings + sym.st_name;
+            switch (ELF64_R_TYPE(r.r_info)) {
+            case EBPF_ELF_RELOC_64_ABS64: {
+                const char* sym_name = strings + sym.st_name;
 
-            if (r.r_offset + 8 > text->size) {
-                *errmsg = ubpf_error("bad relocation offset");
+                if (r.r_offset + 8 > text->size) {
+                    *errmsg = ubpf_error("bad relocation offset");
+                    goto error;
+                }
+
+                unsigned int imm = ubpf_lookup_registered_function(vm, sym_name);
+                if (imm == -1) {
+                    *errmsg = ubpf_error("function '%s' not found", sym_name);
+                    goto error;
+                }
+
+                *(uint32_t*)(text_copy + r.r_offset + 4) = imm;
+                break;
+            }
+            case EBPF_ELF_RELOC_64_64: {
+                // *now* it is an error if there is no data section!
+                if (!data_shndx) {
+                    *errmsg = ubpf_error("data section not found (needed by a relocation)");
+                    goto error;
+                }
+
+                // if this is the first time that we've seen a relocation to the data section
+                // we'll prepare our global memory.
+                if (vm->global_mem == NULL) {
+                    vm->global_mem = (char*)malloc(data_section->size);
+                    vm->global_mem_size = data_section->size;
+
+                    memset(vm->global_mem, 0, data_section->size);
+                    memcpy(vm->global_mem, data_section->data, data_section->size);
+                }
+
+                uintptr_t relocation_target = 0;
+                uint32_t relocation_target_value = 0;
+
+                relocation_target = (uintptr_t)vm->global_mem + (uintptr_t)sym.st_value;
+                memcpy(&relocation_target_value, (void*)relocation_target, sizeof(uint32_t));
+
+                *(uint32_t*)(text_copy + r.r_offset + 4) = relocation_target;
+                *(uint32_t*)(text_copy + r.r_offset + 12) = (relocation_target >> 32);
+                break;
+            }
+            default: {
+                *errmsg = ubpf_error("bad relocation type %u", ELF64_R_TYPE(r.r_info));
                 goto error;
             }
-
-            unsigned int imm = ubpf_lookup_registered_function(vm, sym_name);
-            if (imm == -1) {
-                *errmsg = ubpf_error("function '%s' not found", sym_name);
-                goto error;
             }
-
-            *(uint32_t*)(text_copy + r.r_offset + 4) = imm;
         }
     }
 
