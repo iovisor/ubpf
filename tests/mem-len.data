@@ -1,5 +1,5 @@
 -- asm
-mov r0, r2
+mov %r0, %r2
 exit
 -- mem
 00 00 00 01

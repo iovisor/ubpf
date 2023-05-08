@@ -3,14 +3,14 @@ ja +1
 ja +32767
 ja -1
 ja -32768
-jeq r1, 0x33, +1
-jeq r1, r2, +1
-jgt r1, r2, +1
-jge r1, r2, +1
-jset r1, r2, +1
-jne r1, r2, +1
-jsgt r1, r2, +1
-jsge r1, r2, +1
+jeq %r1, 0x33, +1
+jeq %r1, %r2, +1
+jgt %r1, %r2, +1
+jge %r1, %r2, +1
+jset %r1, %r2, +1
+jne %r1, %r2, +1
+jsgt %r1, %r2, +1
+jsge %r1, %r2, +1
 call 0x1
 exit
 -- raw

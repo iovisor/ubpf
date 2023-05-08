@@ -77,7 +77,7 @@ BPF_ALU_NEG = 8
 BPF_ALU_END = 13
 
 def R(reg):
-    return "r" + str(reg)
+    return "%r" + str(reg)
 
 def I(imm):
     return "%#x" % imm

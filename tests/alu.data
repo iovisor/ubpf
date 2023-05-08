@@ -1,25 +1,25 @@
 -- asm
-add32 r1, 0x2
-add32 r9, 0xffffffff
-add32 r1, r2
-sub32 r1, r2
-mul32 r1, r2
-div32 r1, r2
-or32 r1, r2
-and32 r1, r2
-lsh32 r1, r2
-rsh32 r1, r2
-neg32 r1
-mod32 r1, r2
-xor32 r1, r2
-mov32 r1, r2
-arsh32 r1, r2
-le16 r1
-le32 r1
-le64 r1
-be16 r1
-be32 r1
-be64 r1
+add32 %r1, 0x2
+add32 %r9, 0xffffffff
+add32 %r1, %r2
+sub32 %r1, %r2
+mul32 %r1, %r2
+div32 %r1, %r2
+or32 %r1, %r2
+and32 %r1, %r2
+lsh32 %r1, %r2
+rsh32 %r1, %r2
+neg32 %r1
+mod32 %r1, %r2
+xor32 %r1, %r2
+mov32 %r1, %r2
+arsh32 %r1, %r2
+le16 %r1
+le32 %r1
+le64 %r1
+be16 %r1
+be32 %r1
+be64 %r1
 -- raw
 0x0000000200000104
 0xffffffff00000904

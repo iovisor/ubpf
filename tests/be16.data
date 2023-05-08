@@ -1,6 +1,6 @@
 -- asm
-ldxh r0, [r1]
-be16 r0
+ldxh %r0, [%r1]
+be16 %r0
 exit
 -- mem
 11 22

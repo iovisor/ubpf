@@ -1,6 +1,6 @@
 -- asm
-sth [r1+2], 0x2211
-ldxh r0, [r1+2]
+sth [%r1+2], 0x2211
+ldxh %r0, [%r1+2]
 exit
 -- mem
 aa bb ff ff cc dd

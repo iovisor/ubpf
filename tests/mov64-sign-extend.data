@@ -1,5 +1,5 @@
 -- asm
-mov r0, -10
+mov %r0, -10
 exit
 -- result
 0xFFFFFFFFFFFFFFF6

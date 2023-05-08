@@ -17,7 +17,7 @@ decnum = +Digit()
 offset = (CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)]
 imm = (-CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)][Imm]
 
-reg = Literal('r') + integer[int][Reg]
+reg = Literal('%') + Literal('r') + integer[int][Reg]
 memref = (Literal('[') + reg + Optional(offset, 0) + Literal(']'))[lambda x: MemRef(*x)]
 
 unary_alu_ops = ['neg', 'neg32', 'le16', 'le32', 'le64', 'be16', 'be32', 'be64']

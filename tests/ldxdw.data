@@ -1,5 +1,5 @@
 -- asm
-ldxdw r0, [r1+2]
+ldxdw %r0, [%r1+2]
 exit
 -- mem
 aa bb 11 22 33 44 55 66 77 88 cc dd

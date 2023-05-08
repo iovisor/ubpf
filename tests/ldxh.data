@@ -1,5 +1,5 @@
 -- asm
-ldxh r0, [r1+2]
+ldxh %r0, [%r1+2]
 exit
 -- mem
 aa bb 11 22 cc dd

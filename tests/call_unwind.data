@@ -1,7 +1,7 @@
 -- asm
-mov r1, 0
+mov %r1, 0
 call 5
-mov r0, 2
+mov %r0, 2
 exit
 -- result
 0x0

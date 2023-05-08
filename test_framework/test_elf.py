@@ -103,7 +103,7 @@ def template():
 
     # return sqrti(42*42)
     asm = """
-mov r1, 1764
+mov %r1, 1764
 call 0xffffffff
 exit
 """

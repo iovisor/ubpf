@@ -1,6 +1,6 @@
 -- asm
-ldxdw r0, [r1]
-le64 r0
+ldxdw %r0, [%r1]
+le64 %r0
 exit
 -- mem
 88 77 66 55 44 33 22 11
