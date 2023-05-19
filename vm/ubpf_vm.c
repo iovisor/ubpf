@@ -27,6 +27,8 @@
 #include <unistd.h>
 
 #define MAX_EXT_FUNCS 64
+#define SHIFT_MASK_32_BIT(X) ((X)&0x1f)
+#define SHIFT_MASK_64_BIT(X) ((X)&0x3f)
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
@@ -335,19 +337,19 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_LSH_IMM:
-            reg[inst.dst] <<= inst.imm;
+            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(inst.imm);
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_LSH_REG:
-            reg[inst.dst] <<= reg[inst.src];
+            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(reg[inst.src]);
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_RSH_IMM:
-            reg[inst.dst] = u32(reg[inst.dst]) >> inst.imm;
+            reg[inst.dst] = u32(reg[inst.dst]) >> SHIFT_MASK_32_BIT(inst.imm);
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_RSH_REG:
-            reg[inst.dst] = u32(reg[inst.dst]) >> reg[inst.src];
+            reg[inst.dst] = u32(reg[inst.dst]) >> SHIFT_MASK_32_BIT(reg[inst.src]);
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_NEG:
@@ -442,16 +444,16 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= reg[inst.src];
             break;
         case EBPF_OP_LSH64_IMM:
-            reg[inst.dst] <<= inst.imm;
+            reg[inst.dst] <<= SHIFT_MASK_64_BIT(inst.imm);
             break;
         case EBPF_OP_LSH64_REG:
-            reg[inst.dst] <<= reg[inst.src];
+            reg[inst.dst] <<= SHIFT_MASK_64_BIT(reg[inst.src]);
             break;
         case EBPF_OP_RSH64_IMM:
-            reg[inst.dst] >>= inst.imm;
+            reg[inst.dst] >>= SHIFT_MASK_64_BIT(inst.imm);
             break;
         case EBPF_OP_RSH64_REG:
-            reg[inst.dst] >>= reg[inst.src];
+            reg[inst.dst] >>= SHIFT_MASK_64_BIT(reg[inst.src]);
             break;
         case EBPF_OP_NEG64:
             reg[inst.dst] = -reg[inst.dst];
