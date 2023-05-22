@@ -1,3 +1,6 @@
+// Copyright (c) 2022 IO Visor Project
+// SPDX-License-Identifier: Apache-2.0
+
 /*
   Copyright (c) 2022-present, IO Visor Project
   All rights reserved.
