@@ -1,3 +1,6 @@
+// Copyright (c) 2015 Big Switch Networks, Inc
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * Copyright 2015 Big Switch Networks, Inc
  * Copyright 2022 Linaro Limited
@@ -37,6 +40,10 @@ struct ubpf_vm
     int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
     int unwind_stack_extension_index;
     uint64_t pointer_secret;
+    ubpf_data_relocation data_relocation_function;
+    void* data_relocation_user_data;
+    ubpf_bounds_check bounds_check_function;
+    void* bounds_check_user_data;
 #ifdef DEBUG
     uint64_t* regs;
 #endif

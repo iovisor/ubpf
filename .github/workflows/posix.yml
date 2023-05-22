@@ -1,3 +1,5 @@
+# Copyright (c) 2022-present, IO Visor Project
+# SPDX-License-Identifier: Apache-2.0
 #
 # Copyright (c) 2022-present, IO Visor Project
 # SPDX-License-Identifier: Apache-2.0
@@ -216,6 +218,19 @@ jobs:
 
         ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_JIT}
         ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
+
+    - name: Run the CTest suite
+      if: inputs.arch != 'arm64'
+      run: |
+        export CCACHE_DIR="$(pwd)/ccache"
+
+        if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
+          command_prefix="scan-build -o scan_build_report"
+        fi
+
+        ${command_prefix} cmake \
+          --build build \
+          --target test
 
     - name: Generate code coverage report
       if: inputs.enable_coverage == true

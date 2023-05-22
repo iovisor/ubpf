@@ -1,3 +1,6 @@
+// Copyright (c) 2015 Big Switch Networks, Inc
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * Copyright 2015 Big Switch Networks, Inc
  *
@@ -1012,6 +1015,11 @@ bounds_check(
     } else if (addr >= stack && ((char*)addr + size) <= ((char*)stack + UBPF_STACK_SIZE)) {
         /* Stack access */
         return true;
+    } else if (
+        vm->bounds_check_function != NULL &&
+        vm->bounds_check_function(vm->bounds_check_user_data, (uintptr_t)addr, size)) {
+        /* Registered region */
+        return true;
     } else {
         vm->error_printf(
             stderr,
@@ -1112,5 +1120,27 @@ ubpf_set_pointer_secret(struct ubpf_vm* vm, uint64_t secret)
         return -1;
     }
     vm->pointer_secret = secret;
+    return 0;
+}
+
+int
+ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation)
+{
+    if (vm->data_relocation_function != NULL) {
+        return -1;
+    }
+    vm->data_relocation_function = relocation;
+    vm->data_relocation_user_data = user_context;
+    return 0;
+}
+
+int
+ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check)
+{
+    if (vm->bounds_check_function != NULL) {
+        return -1;
+    }
+    vm->bounds_check_function = bounds_check;
+    vm->bounds_check_user_data = user_context;
     return 0;
 }

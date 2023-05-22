@@ -32,6 +32,7 @@ if(UBPF_ENABLE_TESTS)
   if (NOT UBPF_SKIP_EXTERNAL)
     add_subdirectory("external")
   endif()
+  add_subdirectory("bpf")
 endif()
 
 if(UBPF_ENABLE_PACKAGE)
