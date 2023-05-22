@@ -260,10 +260,8 @@ ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_size, char** errms
                     goto error;
                 }
 
-                const uint8_t* data = sym.st_value + map->data;
-                uint64_t size = sym.st_size;
-                uint64_t imm =
-                    vm->data_relocation_function(vm->data_relocation_user_data, data, size, sym_name, sym.st_value);
+                uint64_t imm = vm->data_relocation_function(
+                    vm->data_relocation_user_data, map->data, map->size, sym_name, sym.st_value, sym.st_size);
                 inst->imm = (uint32_t)imm;
                 inst2->imm = (uint32_t)(imm >> 32);
                 break;

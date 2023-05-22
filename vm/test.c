@@ -55,6 +55,9 @@ usage(const char* name)
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
+    fprintf(
+        stderr,
+        "  -d, --data: Change from treating R_BPF_64_64 relocations as relocations to maps to relocations to data.\n");
     fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
     fprintf(
         stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
@@ -73,21 +76,57 @@ typedef struct _map_entry
 static map_entry_t* _map_entries = NULL;
 static int _map_entries_count = 0;
 static int _map_entries_capacity = 0;
+static uint8_t* _global_data = NULL;
+static uint64_t _global_data_size = 0;
 
 uint64_t
-map_relocation(
+do_data_relocation(
     void* user_context,
     const uint8_t* map_data,
     uint64_t map_data_size,
     const char* symbol_name,
-    uint64_t symbol_offset)
+    uint64_t symbol_offset,
+    uint64_t symbol_size)
 {
-    struct bpf_map_def map_definition = *(struct bpf_map_def*)map_data;
+    (void)user_context; // unused
+    (void)symbol_name;  // unused
+    (void)symbol_size;  // unused
+    if (_global_data == NULL) {
+        _global_data = calloc(map_data_size, sizeof(uint8_t));
+        _global_data_size = map_data_size;
+        memcpy(_global_data, map_data, map_data_size);
+    }
+
+    const uint64_t* target_address = (const uint64_t*)((uint64_t)_global_data + symbol_offset);
+    return (uint64_t)target_address;
+}
+
+bool
+data_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t size)
+{
+    (void)user_context; // unused
+    if ((uint64_t)_global_data <= addr && (addr + size) <= ((uint64_t)_global_data + _global_data_size)) {
+        return true;
+    }
+    return false;
+}
+
+uint64_t
+do_map_relocation(
+    void* user_context,
+    const uint8_t* map_data,
+    uint64_t map_data_size,
+    const char* symbol_name,
+    uint64_t symbol_offset,
+    uint64_t symbol_size)
+{
+    struct bpf_map_def map_definition = *(struct bpf_map_def*)(map_data + symbol_offset);
     (void)user_context;  // unused
     (void)symbol_offset; // unused
+    (void)map_data_size; // unused
 
-    if (map_data_size < sizeof(struct bpf_map_def)) {
-        fprintf(stderr, "Invalid map size: %d\n", (int)map_data_size);
+    if (symbol_size < sizeof(struct bpf_map_def)) {
+        fprintf(stderr, "Invalid map size: %d\n", (int)symbol_size);
         return 0;
     }
 
@@ -120,7 +159,7 @@ map_relocation(
 }
 
 bool
-bounds_check_function(void* user_context, uint64_t addr, uint64_t size)
+map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t size)
 {
     (void)user_context;
     for (int index = 0; index < _map_entries_count; index++) {
@@ -143,6 +182,7 @@ main(int argc, char** argv)
         },
         {.name = "mem", .val = 'm', .has_arg = 1},
         {.name = "jit", .val = 'j'},
+        {.name = "data", .val = 'd'},
         {.name = "register-offset", .val = 'r', .has_arg = 1},
         {.name = "unload", .val = 'U'}, /* for unit test only */
         {.name = "reload", .val = 'R'}, /* for unit test only */
@@ -152,17 +192,21 @@ main(int argc, char** argv)
     bool jit = false;
     bool unload = false;
     bool reload = false;
+    bool data_relocation = false; // treat R_BPF_64_64 as relocations to maps by default.
 
     uint64_t secret = (uint64_t)rand() << 32 | (uint64_t)rand();
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jr:UR", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jdr:UR", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
             break;
         case 'j':
             jit = true;
+            break;
+        case 'd':
+            data_relocation = true;
             break;
         case 'r':
             ubpf_set_register_offset(atoi(optarg));
@@ -214,8 +258,13 @@ main(int argc, char** argv)
         return 1;
     }
 
-    ubpf_register_data_relocation(vm, NULL, map_relocation);
-    ubpf_register_data_bounds_check(vm, NULL, bounds_check_function);
+    if (data_relocation) {
+        ubpf_register_data_relocation(vm, NULL, do_data_relocation);
+        ubpf_register_data_bounds_check(vm, NULL, data_relocation_bounds_check_function);
+    } else {
+        ubpf_register_data_relocation(vm, NULL, do_map_relocation);
+        ubpf_register_data_bounds_check(vm, NULL, map_relocation_bounds_check_function);
+    }
 
     if (ubpf_set_pointer_secret(vm, secret) != 0) {
         fprintf(stderr, "Failed to set pointer secret\n");

@@ -273,14 +273,20 @@ extern "C"
      * R_BPF_64_64 relocation in the maps section of the ELF file.
      *
      * @param[in] user_context The user context that was passed to ubpf_register_data_relocation.
-     * @param[in] data Pointer to referenced data in the maps section of the ELF file.
-     * @param[in] data_size Size of the referenced data.
+     * @param[in] data Pointer to start of the map section.
+     * @param[in] data_size Size of the map section.
      * @param[in] symbol_name Name of the symbol that is referenced.
      * @param[in] symbol_offset Offset of the symbol relative to the start of the map section.
+     * @param[in] symbol_size Size of the symbol.
      * @return uint64_t The value to insert into the BPF program.
      */
     typedef uint64_t (*ubpf_data_relocation)(
-        void* user_context, const uint8_t* data, uint64_t data_size, const char* symbol_name, uint64_t symbol_offset);
+        void* user_context,
+        const uint8_t* data,
+        uint64_t data_size,
+        const char* symbol_name,
+        uint64_t symbol_offset,
+        uint64_t symbol_size);
 
     /**
      * @brief Set a relocation function for the VM.
