@@ -70,6 +70,10 @@ ubpf_compile(struct ubpf_vm* vm, char** errmsg)
 
     jitted_size = 65536;
     buffer = calloc(jitted_size, 1);
+    if (buffer == NULL) {
+        *errmsg = ubpf_error("internal uBPF error: calloc failed: %s\n", strerror(errno));
+        goto out;
+    }
 
     if (ubpf_translate(vm, buffer, &jitted_size, errmsg) < 0) {
         goto out;

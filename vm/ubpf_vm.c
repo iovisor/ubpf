@@ -340,12 +340,10 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_LSH_IMM:
-            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(inst.imm);
-            reg[inst.dst] &= UINT32_MAX;
+            reg[inst.dst] = (u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(inst.imm) & UINT32_MAX);
             break;
         case EBPF_OP_LSH_REG:
-            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(reg[inst.src]);
-            reg[inst.dst] &= UINT32_MAX;
+            reg[inst.dst] = (u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(reg[inst.src]) & UINT32_MAX);
             break;
         case EBPF_OP_RSH_IMM:
             reg[inst.dst] = u32(reg[inst.dst]) >> SHIFT_MASK_32_BIT(inst.imm);
