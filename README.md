@@ -18,6 +18,17 @@ This project aims to create an Apache-licensed library for executing eBPF progra
 This project includes an eBPF assembler, disassembler, interpreter (for all platforms),
 and JIT compiler (for x86-64 and Arm64 targets).
 
+## Checking Out
+
+Before following any of the instructions below for [building](#building-with-cmake),
+[testing](#running-the-tests), [contributing](#contributing), etc, please be
+sure to properly check out the source code which requires properly initializing submodules:
+
+```
+git submodule init
+git submodule update --recursive
+```
+
 ## Building with CMake
 Note: This works on Windows, Linux, and MacOS, provided the prerequisites are installed.
 ```
