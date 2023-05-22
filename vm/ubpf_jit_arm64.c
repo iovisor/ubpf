@@ -56,7 +56,7 @@ struct jit_state
     uint32_t exit_loc;
     uint32_t unwind_loc;
     struct jump* jumps;
-    int num_jumps;
+    unsigned int num_jumps;
     uint32_t stack_size;
 };
 
@@ -478,7 +478,7 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
      */
     unsigned count0000 = sixty_four ? 0 : 2;
     unsigned countffff = 0;
-    for (unsigned i = 0; i < (sixty_four ? 64 : 32); i += 16) {
+    for (unsigned i = 0; i < (sixty_four ? 64u : 32u); i += 16) {
         uint64_t block = (imm >> i) & 0xffff;
         if (block == 0xffff) {
             ++countffff;
@@ -491,8 +491,8 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
     bool invert = (count0000 < countffff);
     enum MoveWideOpcode op = invert ? MW_MOVN : MW_MOVZ;
     uint64_t skip_pattern = invert ? 0xffff : 0;
-    for (unsigned i = 0; i < (sixty_four ? 4 : 2); ++i) {
-        uint64_t imm16 = (imm >> (i * 16)) & 0xffff;
+    for (unsigned i = 0; i < (sixty_four ? 4u : 2u); ++i) {
+        uint32_t imm16 = (imm >> (i * 16)) & 0xffff;
         if (imm16 != skip_pattern) {
             if (invert) {
                 imm16 = ~imm16;
@@ -586,7 +586,7 @@ emit_function_epilogue(struct jit_state* state)
     }
 
     /* Restore callee-saved registers).  */
-    size_t i;
+    int32_t i;
     for (i = 0; i < _countof(callee_saved_registers); i += 2) {
         emit_loadstorepair_immediate(
             state, LSP_LDPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
@@ -865,7 +865,7 @@ to_condition(int opcode)
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
-    int i;
+    uint16_t i;
 
     emit_function_prologue(state, UBPF_STACK_SIZE);
 
@@ -1129,7 +1129,7 @@ resolve_jumps(struct jit_state* state)
 }
 
 int
-ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
+ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg)
 {
     struct jit_state state;
     int result = -1;

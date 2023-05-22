@@ -140,7 +140,7 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
             return i;
         }
     }
-    return -1;
+    return UINT32_MAX;
 }
 
 int
@@ -170,10 +170,15 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
         return -1;
     }
 
-    vm->num_insts = code_len / sizeof(vm->insts[0]);
+    if ((code_len / sizeof(vm->insts[0])) > UINT16_MAX) {
+        *errmsg = ubpf_error("code is too large");
+        return -1;
+    }
+
+    vm->num_insts = (uint16_t)(code_len / sizeof(vm->insts[0]));
 
     // Store instructions in the vm.
-    for (uint32_t i = 0; i < vm->num_insts; i++) {
+    for (uint16_t i = 0; i < vm->num_insts; i++) {
         ubpf_store_instruction(vm, i, source_inst[i]);
     }
 
@@ -184,7 +189,7 @@ void
 ubpf_unload_code(struct ubpf_vm* vm)
 {
     if (vm->jitted) {
-        munmap(vm->jitted, vm->jitted_size);
+        munmap((void*)vm->jitted, vm->jitted_size);
         vm->jitted = NULL;
         vm->jitted_size = 0;
     }
@@ -198,13 +203,13 @@ ubpf_unload_code(struct ubpf_vm* vm)
 static uint32_t
 u32(uint64_t x)
 {
-    return x;
+    return x & 0xffffffff;
 }
 
 static int32_t
 i32(uint64_t x)
 {
-    return x;
+    return x & 0xffffffff;
 }
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
@@ -243,13 +248,13 @@ ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
 
     switch (size) {
     case 1:
-        *(uint8_t*)address = value;
+        *(uint8_t*)address = value & 0xff;
         break;
     case 2:
-        *(uint16_t*)address = value;
+        *(uint16_t*)address = value & 0xffff;
         break;
     case 4:
-        *(uint32_t*)address = value;
+        *(uint32_t*)address = value & 0xffffffff;
         break;
     case 8:
         *(uint64_t*)address = value;
@@ -340,12 +345,10 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_LSH_IMM:
-            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(inst.imm);
-            reg[inst.dst] &= UINT32_MAX;
+            reg[inst.dst] = (u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(inst.imm)) & UINT32_MAX;
             break;
         case EBPF_OP_LSH_REG:
-            reg[inst.dst] = u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(reg[inst.src]);
-            reg[inst.dst] &= UINT32_MAX;
+            reg[inst.dst] = (u32(reg[inst.dst]) << SHIFT_MASK_32_BIT(reg[inst.src])) & UINT32_MAX;
             break;
         case EBPF_OP_RSH_IMM:
             reg[inst.dst] = u32(reg[inst.dst]) >> SHIFT_MASK_32_BIT(inst.imm);
@@ -402,9 +405,9 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             break;
         case EBPF_OP_BE:
             if (inst.imm == 16) {
-                reg[inst.dst] = htobe16(reg[inst.dst]);
+                reg[inst.dst] = htobe16(reg[inst.dst] && 0xffff);
             } else if (inst.imm == 32) {
-                reg[inst.dst] = htobe32(reg[inst.dst]);
+                reg[inst.dst] = htobe32(reg[inst.dst] && 0xffffffff);
             } else if (inst.imm == 64) {
                 reg[inst.dst] = htobe64(reg[inst.dst]);
             }
@@ -459,7 +462,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] >>= SHIFT_MASK_64_BIT(reg[inst.src]);
             break;
         case EBPF_OP_NEG64:
-            reg[inst.dst] = -reg[inst.dst];
+            reg[inst.dst] = -(int64_t)(reg[inst.dst]);
             break;
         case EBPF_OP_MOD64_IMM:
             reg[inst.dst] = inst.imm ? reg[inst.dst] % inst.imm : reg[inst.dst];
@@ -805,7 +808,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         return false;
     }
 
-    int i;
+    uint32_t i;
     for (i = 0; i < num_insts; i++) {
         struct ebpf_inst inst = insts[i];
         bool store = false;
@@ -947,7 +950,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 *errmsg = ubpf_error("infinite loop at PC %d", i);
                 return false;
             }
-            int new_pc = i + 1 + inst.offset;
+            uint32_t new_pc = i + 1 + inst.offset;
             if (new_pc < 0 || new_pc >= num_insts) {
                 *errmsg = ubpf_error("jump out of bounds at PC %d", i);
                 return false;
@@ -1082,11 +1085,20 @@ ubpf_get_registers(const struct ubpf_vm* vm)
 
 typedef struct _ebpf_encoded_inst
 {
+    // Suppress warning about anonymous union for MSVC.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4201)
+#endif
     union
     {
         uint64_t value;
         struct ebpf_inst inst;
     };
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 } ebpf_encoded_inst;
 
 struct ebpf_inst

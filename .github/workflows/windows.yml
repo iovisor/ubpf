@@ -54,7 +54,8 @@ jobs:
       run: |
         cmake `
           --build build `
-          --config ${{ inputs.build_type }}
+          --config ${{ inputs.build_type }} `
+          -- /p:RunCodeAnalysis=true /p:AnalysisOnExternal=false
 
     # Switch this to Docker when a Windows image is available.
     - name: Run the bpf_conformance tests (Windows)

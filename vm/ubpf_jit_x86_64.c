@@ -88,7 +88,7 @@ static int register_map[REGISTER_MAP_SIZE] = {
 #endif
 
 /* Return the x86 register for the given eBPF register */
-static int
+int
 map_register(int r)
 {
     assert(r < REGISTER_MAP_SIZE);
@@ -121,7 +121,7 @@ ubpf_set_register_offset(int x)
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
-    int i;
+    uint16_t i;
 
     /* Save platform non-volatile registers */
     for (i = 0; i < _countof(platform_nonvolatile_registers); i++) {
@@ -181,14 +181,14 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_alu32(state, 0x21, src, dst);
             break;
         case EBPF_OP_LSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 4, dst, inst.imm);
+            emit_alu32_imm8(state, 0xc1, 4, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_LSH_REG:
             emit_mov(state, src, RCX);
             emit_alu32(state, 0xd3, 4, dst);
             break;
         case EBPF_OP_RSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 5, dst, inst.imm);
+            emit_alu32_imm8(state, 0xc1, 5, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_RSH_REG:
             emit_mov(state, src, RCX);
@@ -210,7 +210,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_mov(state, src, dst);
             break;
         case EBPF_OP_ARSH_IMM:
-            emit_alu32_imm8(state, 0xc1, 7, dst, inst.imm);
+            emit_alu32_imm8(state, 0xc1, 7, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_ARSH_REG:
             emit_mov(state, src, RCX);
@@ -268,14 +268,14 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_alu64(state, 0x21, src, dst);
             break;
         case EBPF_OP_LSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 4, dst, inst.imm);
+            emit_alu64_imm8(state, 0xc1, 4, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_LSH64_REG:
             emit_mov(state, src, RCX);
             emit_alu64(state, 0xd3, 4, dst);
             break;
         case EBPF_OP_RSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 5, dst, inst.imm);
+            emit_alu64_imm8(state, 0xc1, 5, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_RSH64_REG:
             emit_mov(state, src, RCX);
@@ -297,7 +297,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_mov(state, src, dst);
             break;
         case EBPF_OP_ARSH64_IMM:
-            emit_alu64_imm8(state, 0xc1, 7, dst, inst.imm);
+            emit_alu64_imm8(state, 0xc1, 7, dst, inst.imm & 0xff);
             break;
         case EBPF_OP_ARSH64_REG:
             emit_mov(state, src, RCX);
@@ -487,7 +487,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_CALL:
             /* We reserve RCX for shifts */
             emit_mov(state, RCX_ALT, RCX);
-            emit_call(state, vm->ext_funcs[inst.imm]);
+            emit_call(state, (void*)vm->ext_funcs[inst.imm]);
             if (inst.imm == vm->unwind_stack_extension_index) {
                 emit_cmp_imm32(state, map_register(0), 0);
                 emit_jcc(state, 0x84, TARGET_PC_EXIT);
@@ -495,7 +495,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_EXIT:
             if (i != vm->num_insts - 1) {
-                emit_jmp(state, TARGET_PC_EXIT);
+                emit_jmp(state, TARGET_PC_EXIT & 0xffffffff);
             }
             break;
 
@@ -721,7 +721,7 @@ resolve_jumps(struct jit_state* state)
 }
 
 int
-ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
+ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg)
 {
     struct jit_state state;
     int result = -1;

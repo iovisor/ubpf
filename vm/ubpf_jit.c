@@ -33,11 +33,12 @@
 int
 ubpf_translate(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
-    return vm->translate(vm, buffer, size, errmsg);
+    *size = 0;
+    return vm->translate(vm, buffer, (uint32_t*)size, errmsg);
 }
 
 int
-ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
+ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg)
 {
     /* NULL JIT target - just returns an error. */
     UNUSED(vm);
@@ -67,6 +68,10 @@ ubpf_compile(struct ubpf_vm* vm, char** errmsg)
 
     jitted_size = 65536;
     buffer = calloc(jitted_size, 1);
+    if (buffer == NULL) {
+        *errmsg = ubpf_error("internal uBPF error: calloc failed: %s\n", strerror(errno));
+        goto out;
+    }
 
     if (ubpf_translate(vm, buffer, &jitted_size, errmsg) < 0) {
         goto out;
@@ -85,7 +90,7 @@ ubpf_compile(struct ubpf_vm* vm, char** errmsg)
         goto out;
     }
 
-    vm->jitted = jitted;
+    vm->jitted = (ubpf_jit_fn)jitted;
     vm->jitted_size = jitted_size;
 
 out:

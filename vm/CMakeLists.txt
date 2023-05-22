@@ -67,6 +67,16 @@ if(PLATFORM_LINUX)
   endif()
 endif()
 
+if (PLATFORM_WINDOWS)
+    target_compile_options("ubpf" PRIVATE
+        /W4
+        /WX
+    )
+    target_compile_definitions("ubpf" PRIVATE
+        "_CRT_SECURE_NO_WARNINGS"
+    )
+endif()
+
 if(UBPF_ENABLE_TESTS)
   add_executable("ubpf_test"
     test.c

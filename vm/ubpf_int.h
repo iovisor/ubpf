@@ -37,7 +37,7 @@ struct ubpf_vm
     const char** ext_func_names;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
-    int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
+    int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg);
     int unwind_stack_extension_index;
     uint64_t pointer_secret;
     ubpf_data_relocation data_relocation_function;
@@ -51,11 +51,11 @@ struct ubpf_vm
 
 /* The various JIT targets.  */
 int
-ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
+ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg);
 int
-ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
+ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg);
 int
-ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
+ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, uint32_t* size, char** errmsg);
 
 char*
 ubpf_error(const char* fmt, ...);

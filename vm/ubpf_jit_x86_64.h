@@ -70,6 +70,9 @@ struct jit_state
     int num_jumps;
 };
 
+int
+map_register(int r);
+
 static inline void
 emit_bytes(struct jit_state* state, void* data, uint32_t len)
 {
@@ -138,7 +141,7 @@ emit_modrm_and_displacement(struct jit_state* state, int r, int m, int32_t d)
         emit_modrm(state, 0x00, r, m);
     } else if (d >= -128 && d <= 127) {
         emit_modrm(state, 0x40, r, m);
-        emit1(state, d);
+        emit1(state, d & 0xff);
     } else {
         emit_modrm(state, 0x80, r, m);
         emit4(state, d);
@@ -152,7 +155,7 @@ emit_rex(struct jit_state* state, int w, int r, int x, int b)
     assert(!(r & ~1));
     assert(!(x & ~1));
     assert(!(b & ~1));
-    emit1(state, 0x40 | (w << 3) | (r << 2) | (x << 1) | b);
+    emit1(state, (0x40 | (w << 3) | (r << 2) | (x << 1) | b) & 0xff);
 }
 
 /*
@@ -188,7 +191,7 @@ static inline void
 emit_alu32(struct jit_state* state, int op, int src, int dst)
 {
     emit_basic_rex(state, 0, src, dst);
-    emit1(state, op);
+    emit1(state, op & 0xff);
     emit_modrm_reg2reg(state, src, dst);
 }
 
@@ -215,7 +218,7 @@ static inline void
 emit_alu64(struct jit_state* state, int op, int src, int dst)
 {
     emit_basic_rex(state, 1, src, dst);
-    emit1(state, op);
+    emit1(state, op & 0xff);
     emit_modrm_reg2reg(state, src, dst);
 }
 
@@ -270,7 +273,7 @@ static inline void
 emit_jcc(struct jit_state* state, int code, int32_t target_pc)
 {
     emit1(state, 0x0f);
-    emit1(state, code);
+    emit1(state, code & 0xff);
     emit_jump_offset(state, target_pc);
 }
 
@@ -297,7 +300,7 @@ static inline void
 emit_load_imm(struct jit_state* state, int dst, int64_t imm)
 {
     if (imm >= INT32_MIN && imm <= INT32_MAX) {
-        emit_alu64_imm32(state, 0xc7, 0, dst, imm);
+        emit_alu64_imm32(state, 0xc7, 0, dst, imm & 0xffffffff);
     } else {
         /* movabs $imm,dst */
         emit_basic_rex(state, 1, 0, dst);
@@ -334,9 +337,9 @@ emit_store_imm32(struct jit_state* state, enum operand_size size, int dst, int32
     if (size == S32 || size == S64) {
         emit4(state, imm);
     } else if (size == S16) {
-        emit2(state, imm);
+        emit2(state, imm & 0xffff);
     } else if (size == S8) {
-        emit1(state, imm);
+        emit1(state, imm & 0xff);
     }
 }
 
