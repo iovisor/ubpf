@@ -185,7 +185,6 @@ jobs:
         retention-days: 5
 
     - name: Run the CTest suite
-      if: inputs.arch != 'arm64'
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
