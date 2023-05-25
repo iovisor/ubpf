@@ -200,7 +200,7 @@ jobs:
       if: inputs.enable_coverage == true
       run: |
         mkdir -p coverage
-        lcov --capture --directory build --include '*' --output-file coverage/lcov.info
+        lcov --capture --directory build --include '${{env.GITHUB_WORKSPACE}}/*' --output-file coverage/lcov.info
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
