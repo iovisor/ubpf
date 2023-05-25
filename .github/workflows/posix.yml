@@ -161,7 +161,7 @@ jobs:
           -DUBPF_ENABLE_TESTS=true \
           -DUBPF_ENABLE_INSTALL=true \
           -DUBPF_SKIP_EXTERNAL=true \
-          -DBPF_CONFORMANCE_RUNNER="$(pwd)/build_bpf_conformance/bin/bpf_conformance_runner"
+          -DBPF_CONFORMANCE_RUNNER="$(pwd)/build_bpf_conformance/bin/bpf_conformance_runner" \
           ${arch_flags}
 
     - name: Build uBPF
