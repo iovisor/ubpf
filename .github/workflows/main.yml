@@ -1,3 +1,5 @@
+# Copyright (c) 2022-present, IO Visor Project
+# SPDX-License-Identifier: Apache-2.0
 #
 # Copyright (c) 2022-present, IO Visor Project
 # All rights reserved.
@@ -104,7 +106,7 @@ jobs:
       arch: arm64
       platform: ubuntu-20.04
       build_type: RelWithDebInfo
-  
+
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
     with:
@@ -121,7 +123,7 @@ jobs:
       build_type: RelWithDebInfo
       enable_coverage: true
 
-  linux_arm64_release_coverage:
+  linux_release_arm64_coverage:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
@@ -200,6 +202,9 @@ jobs:
       - macos_debug_coverage
       - linux_release_coverage
       - linux_debug_coverage
+      - linux_release_arm64_coverage
+      - linux_debug_arm64_coverage
+
     runs-on: ubuntu-20.04
     steps:
     - name: Coveralls Finished

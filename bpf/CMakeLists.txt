@@ -16,7 +16,7 @@ else()
     set(PREFIX)
 endif()
 
-if (CLANG_RETURN_CODE EQUAL 0 OR NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+if (CLANG_RETURN_CODE EQUAL 0)
     message(STATUS "Clang supports BPF target")
     set(CLANG_SUPPORTS_BPF TRUE)
 else()
