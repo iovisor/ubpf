@@ -60,8 +60,9 @@ jobs:
     - name: Run the bpf_conformance tests (Windows)
       run: |
         cd .\build\bin\${{ inputs.build_type }}
-        .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
-        .\bpf_conformance_runner.exe --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
+        $BPF_CONFORMANCE_RUNNER = "..\..\external\bpf_conformance\bin\${{ inputs.build_type }}\bpf_conformance_runner.exe
+        & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
+        & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
 
     - name: Generate the TGZ package
       run: |
