@@ -16,6 +16,7 @@ option(UBPF_ENABLE_TESTS "Set to true to enable tests")
 option(UBPF_ENABLE_PACKAGE "Set to true to enable packaging")
 option(UBPF_SKIP_EXTERNAL "Set to true to skip external projects")
 option(UBPF_INSTALL_GIT_HOOKS "Set to true to install git hooks" ON)
+option(BPF_CONFORMANCE_RUNNER "Set to use a custom bpf_conformance runner")
 
 # Note that the compile_commands.json file is only exporter when
 # using the Ninja or Makefile generator

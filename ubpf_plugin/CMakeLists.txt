@@ -28,11 +28,15 @@ file(GLOB local_files ${CMAKE_SOURCE_DIR}/tests/*.data)
 
 set(files ${external_files} ${local_files})
 
-set(BPF_CONFORMANCE_RUNNER ${CMAKE_BINARY_DIR}/external/bpf_conformance/bin/bpf_conformance_runner)
+if(NOT BPF_CONFORMANCE_RUNNER)
+    set(BPF_CONFORMANCE_RUNNER ${CMAKE_BINARY_DIR}/external/bpf_conformance/bin/bpf_conformance_runner)
+else()
+    message(STATUS "Using custom bpf_conformance_runner: ${BPF_CONFORMANCE_RUNNER}")
+endif()
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    set(PLUGIN_JIT --plugin_path aarch64_test/run-jit.sh)
-    set(PLUGIN_INTERPRET --plugin_path aarch64_test/run-interpret.sh)
+    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/run-jit.sh)
+    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/run-interpret.sh)
 else()
     set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin --plugin_options --jit)
     set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin --plugin_options --interpret)

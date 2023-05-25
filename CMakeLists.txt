@@ -33,6 +33,7 @@ if(UBPF_ENABLE_TESTS)
     add_subdirectory("external")
   endif()
   add_subdirectory("bpf")
+  add_subdirectory("aarch64_test")
 endif()
 
 if(UBPF_ENABLE_PACKAGE)

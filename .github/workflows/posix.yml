@@ -118,7 +118,7 @@ jobs:
           lcov \
           boost
 
-    # Build the bpf_conformance suite seperately as it doesn't build in arm64.
+    # Build the bpf_conformance suite separately as it doesn't build in arm64.
     - name: Configure bpf_conformance
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
@@ -161,6 +161,7 @@ jobs:
           -DUBPF_ENABLE_TESTS=true \
           -DUBPF_ENABLE_INSTALL=true \
           -DUBPF_SKIP_EXTERNAL=true \
+          -DBPF_CONFORMANCE_RUNNER="$(pwd)/build_bpf_conformance/bin/bpf_conformance_runner"
           ${arch_flags}
 
     - name: Build uBPF
@@ -182,42 +183,6 @@ jobs:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
         retention-days: 5
-
-    - name: Run the local bpf_conformance tests
-      run: |
-        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
-        export BPF_CONFORMANCE_TEST_DIR="--test_file_directory tests"
-
-        # For arm64, we need to run the tests in qemu, so use the scripts
-        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
-          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path aarch64_test/run-jit.sh"
-          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path aarch64_test/run-interpret.sh"
-        else
-          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path build/bin/ubpf_plugin --plugin_options --jit"
-          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path build/bin/ubpf_plugin --plugin_options --interpret"
-        fi
-
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_JIT}
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
-
-    - name: Run the upstream bpf_conformance tests
-      run: |
-        export BPF_CONFORMANCE_RUNNER="build_bpf_conformance/bin/bpf_conformance_runner"
-        export BPF_CONFORMANCE_TEST_DIR="--test_file_directory external/bpf_conformance/tests"
-        # Exclude tests that check atomic operations, as they are not supported by uBPF yet.
-        export BPF_CONFORMANCE_TEST_FILTER="--exclude_regex (lock|call_local)"
-
-        # For arm64, we need to run the tests in qemu, so use the scripts
-        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
-          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path aarch64_test/run-jit.sh"
-          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path aarch64_test/run-interpret.sh"
-        else
-          export BPF_CONFORMANCE_PLUGIN_JIT="--plugin_path build/bin/ubpf_plugin --plugin_options --jit"
-          export BPF_CONFORMANCE_PLUGIN_INTERPRET="--plugin_path build/bin/ubpf_plugin --plugin_options --interpret"
-        fi
-
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_JIT}
-        ${BPF_CONFORMANCE_RUNNER} ${BPF_CONFORMANCE_TEST_DIR} ${BPF_CONFORMANCE_TEST_FILTER} ${BPF_CONFORMANCE_PLUGIN_INTERPRET}
 
     - name: Run the CTest suite
       if: inputs.arch != 'arm64'

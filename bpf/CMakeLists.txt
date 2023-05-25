@@ -10,8 +10,13 @@ execute_process(
   RESULT_VARIABLE CLANG_RETURN_CODE
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    set(PREFIX qemu-aarch64 -L /usr/aarch64-linux-gnu)
+else()
+    set(PREFIX)
+endif()
 
-if (CLANG_RETURN_CODE EQUAL 0)
+if (CLANG_RETURN_CODE EQUAL 0 OR NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     message(STATUS "Clang supports BPF target")
     set(CLANG_SUPPORTS_BPF TRUE)
 else()
@@ -40,9 +45,9 @@ function(build_bpf file_name)
 
     add_custom_target(${file_name}_ELF ALL DEPENDS ${bpf_obj_file_path} SOURCES ${bpf_file_path})
 
-    add_test(NAME ${file_name}_TEST_INTERPRET COMMAND "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
+    add_test(NAME ${file_name}_TEST_INTERPRET COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
     set_tests_properties(${file_name}_TEST_INTERPRET PROPERTIES PASS_REGULAR_EXPRESSION "0x0")
-    add_test(NAME ${file_name}_TEST_JIT COMMAND "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
+    add_test(NAME ${file_name}_TEST_JIT COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
     set_tests_properties(${file_name}_TEST_JIT PROPERTIES PASS_REGULAR_EXPRESSION "0x0")
 endfunction()
 
