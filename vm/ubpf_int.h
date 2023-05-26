@@ -49,6 +49,12 @@ struct ubpf_vm
 #endif
 };
 
+struct ubpf_stack_frame
+{
+    uint16_t return_address;
+    uint64_t saved_registers[4];
+};
+
 /* The various JIT targets.  */
 int
 ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);

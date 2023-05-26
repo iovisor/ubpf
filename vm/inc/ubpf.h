@@ -40,10 +40,17 @@ extern "C"
 #endif
 
 /**
- * @brief Default stack size for the VM.
+ * @brief Default stack size for the VM. Must be divisible by 16.
  */
 #if !defined(UBPF_STACK_SIZE)
 #define UBPF_STACK_SIZE 512
+#endif
+
+/**
+ * @brief Default maximum number of nested calls in the VM.
+ */
+#if !defined(UBPF_MAX_CALL_DEPTH)
+#define UBPF_MAX_CALL_DEPTH 10
 #endif
 
     /**

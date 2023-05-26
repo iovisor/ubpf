@@ -45,7 +45,7 @@ endif()
 foreach(file ${files})
     # TODO: remove this once we have a proper implementation of interlocked operations
     # and support for calling local functions.
-    string(REGEX MATCH "(lock|call_local)" EXPECT_FAILURE "${file}")
+    string(REGEX MATCH "(lock)" EXPECT_FAILURE "${file}")
     add_test(
         NAME ${file}-JIT
         COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT}
