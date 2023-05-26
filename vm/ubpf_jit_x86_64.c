@@ -36,7 +36,6 @@
 
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT -1
-#define TARGET_PC_DIV_BY_ZERO -2
 
 static void
 muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm);
@@ -709,8 +708,6 @@ resolve_jumps(struct jit_state* state)
         int target_loc;
         if (jump.target_pc == TARGET_PC_EXIT) {
             target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_DIV_BY_ZERO) {
-            target_loc = state->div_by_zero_loc;
         } else {
             target_loc = state->pc_locs[jump.target_pc];
         }

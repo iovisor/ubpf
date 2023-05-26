@@ -67,7 +67,6 @@ struct jit_state
     uint32_t size;
     uint32_t* pc_locs;
     uint32_t exit_loc;
-    uint32_t div_by_zero_loc;
     uint32_t unwind_loc;
     struct jump* jumps;
     int num_jumps;
