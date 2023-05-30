@@ -31,6 +31,8 @@ git submodule update --recursive
 
 ## Building with CMake
 Note: This works on Windows, Linux, and MacOS, provided the prerequisites are installed.
+For a more detailed list of instructions, including list of dependencies,
+see [CI/CD steps](.github/workflows/main.yml).
 ```
 cmake -S . -B build -DUBPF_ENABLE_TESTS=true
 cmake --build build --config Debug
@@ -44,12 +46,24 @@ cmake --build build --target test --
 
 ### Linux aarch64 cross-compile
 Note: This requires qemu and the aarch64 toolchain.
+
+To install the required tools (assuming Debian derived distro). For a more
+detailed list of instructions, including list of dependencies, see
+[CI/CD steps](.github/workflows/main.yml).
+```
+sudo apt install -y \
+    g++-aarch64-linux-gnu \
+    gcc-aarch64-linux-gnu \
+    qemu-user
+```
+
+Building for aarch64.
 ```
 # Build bpf_conformance natively as a workaround to missing boost libraries on aarch64.
-cmake -G Ninja -S external/bpf_conformance -B build_bpf_conformance
-cmake --build build
+cmake -S external/bpf_conformance -B build_bpf_conformance
+cmake --build build_bpf_conformance
 # Build ubpf for aarch64
-cmake -G Ninja -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_SKIP_EXTERNAL=true \
+cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_SKIP_EXTERNAL=true \
     -DBPF_CONFORMANCE_RUNNER="$(pwd)/build_bpf_conformance/bin/bpf_conformance_runner" \
     -DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake
 cmake --build build
