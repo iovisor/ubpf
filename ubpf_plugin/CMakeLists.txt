@@ -95,4 +95,24 @@ foreach(file ${files})
     if(EXPECT_FAILURE)
         set_tests_properties(${file}-Interpreter PROPERTIES WILL_FAIL TRUE)
     endif()
+
+    if(UBPF_ELF_H_PATH AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+        add_test(
+            NAME ${file}-JIT-ELF
+            COMMAND ${BPF_CONFORMANCE_RUNNER} --elf true --test_file_path ${file} ${PLUGIN_JIT}
+        )
+
+        if(EXPECT_FAILURE)
+            set_tests_properties(${file}-JIT-ELF PROPERTIES WILL_FAIL TRUE)
+        endif()
+
+        add_test(
+            NAME ${file}-Interpreter-ELF
+            COMMAND ${BPF_CONFORMANCE_RUNNER} --elf true --test_file_path ${file} ${PLUGIN_INTERPRET}
+        )
+
+        if(EXPECT_FAILURE)
+            set_tests_properties(${file}-Interpreter-ELF PROPERTIES WILL_FAIL TRUE)
+        endif()
+    endif()
 endforeach()

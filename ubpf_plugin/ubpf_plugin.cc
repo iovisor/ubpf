@@ -101,6 +101,7 @@ stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
 int main(int argc, char **argv)
 {
     bool jit = false; // JIT == true, interpreter == false
+    bool is_elf = false;
     std::vector<std::string> args(argv, argv + argc);
     std::string program_string;
     std::string memory_string;
@@ -133,6 +134,12 @@ int main(int argc, char **argv)
         jit = false;
         args.erase(args.begin());
     }
+#if defined(UBPF_HAS_ELF_H)
+    if (args.size() > 0 && args[0] == "--elf") {
+        is_elf = true;
+        args.erase(args.begin());
+    }
+#endif
 
     if (args.size() > 0 && args[0].size() > 0)
     {
@@ -144,7 +151,7 @@ int main(int argc, char **argv)
         std::getline(std::cin, program_string);
     }
 
-    std::vector<ebpf_inst> program = bytes_to_ebpf_inst(base16_decode(program_string));
+    auto program_byte = base16_decode(program_string);
     std::vector<uint8_t> memory = base16_decode(memory_string);
 
     std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
@@ -166,11 +173,28 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (ubpf_load(vm.get(), program.data(), static_cast<uint32_t>(program.size() * sizeof(ebpf_inst)), &error) != 0)
-    {
-        std::cout << "Failed to load code: " << error << std::endl;
-        free(error);
+    if (is_elf) {
+#if defined(UBPF_HAS_ELF_H)
+        if (ubpf_load_elf(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
+        {
+            std::cerr << "Failed to load program: " << error << std::endl;
+            std::cout << "Failed to load code: " << error << std::endl;
+            free(error);
+            return 1;
+        }
+#else
+        std::cerr << "ELF support not compiled in" << std::endl;
         return 1;
+#endif
+    }
+    else {
+        if (ubpf_load(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
+        {
+            std::cerr << "Failed to load program: " << error << std::endl;
+            std::cout << "Failed to load code: " << error << std::endl;
+            free(error);
+            return 1;
+        }
     }
 
     uint64_t external_dispatcher_result;
@@ -335,7 +359,7 @@ int main(int argc, char **argv)
         // ... and make sure the results are the same.
         if (external_dispatcher_result != index_helper_result) {
             std::cerr << "Execution of the interpreted code with external and indexed helpers gave difference results: 0x"
-                      << std::hex << external_dispatcher_result 
+                      << std::hex << external_dispatcher_result
                       << " vs 0x" << std::hex << index_helper_result << "." << std::endl;
             return 1;
         }

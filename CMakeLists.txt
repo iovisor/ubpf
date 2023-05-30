@@ -16,6 +16,13 @@ include("cmake/settings.cmake")
 include("cmake/options.cmake")
 include("cmake/version.cmake")
 
+find_path(UBPF_ELF_H_PATH "elf.h" NO_CACHE)
+if(UBPF_ELF_H_PATH)
+  set(UBPF_HAS_ELF_H true)
+else()
+  message(WARNING "ubpf - elf.h was not found, disabling ELF support")
+endif()
+
 if(UBPF_ENABLE_TESTS)
   include("CTest")
 endif()
