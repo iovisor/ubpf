@@ -35,7 +35,11 @@
 #include "../bpf/bpf.h"
 
 #if defined(UBPF_HAS_ELF_H)
+#if defined(UBPF_HAS_ELF_H_COMPAT)
+#include <libelf.h>
+#else
 #include <elf.h>
+#endif
 #endif
 
 void

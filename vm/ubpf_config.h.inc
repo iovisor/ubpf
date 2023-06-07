@@ -9,3 +9,4 @@
 #pragma once
 
 #cmakedefine UBPF_HAS_ELF_H
+#cmakedefine UBPF_HAS_ELF_H_COMPAT
