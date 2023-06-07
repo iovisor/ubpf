@@ -34,7 +34,7 @@ else()
     message(STATUS "Using custom bpf_conformance_runner: ${BPF_CONFORMANCE_RUNNER}")
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL aarch64))
     set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/run-jit.sh)
     set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/run-interpret.sh)
 else()
