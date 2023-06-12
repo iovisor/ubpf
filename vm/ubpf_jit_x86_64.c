@@ -74,6 +74,7 @@ static int register_map[REGISTER_MAP_SIZE] = {
     RBP,
 };
 #else
+#define BPF_LOCAL_CALL_SUPPORTED TRUE
 #define RCX_ALT R9
 static int platform_nonvolatile_registers[] = {RBP, RBX, R13, R14, R15};
 static int platform_parameter_registers[] = {RDI, RSI, RDX, RCX, R8, R9};
@@ -180,6 +181,11 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     /* Allocate stack space */
     emit_alu64_imm32(state, 0x81, 5, RSP, ubpf_stack_configuration_delta);
 
+// TODO: https://github.com/iovisor/ubpf/issues/285
+// Windows crashes when we emit the extra call instruction and a helper function
+// calls AcquireSRWLockExclusive/ReleaseSRWLockExclusive. RCA of the crash is
+// still unknown. So, we disable the local calls for now.
+#if defined(BPF_LOCAL_CALL_SUPPORTED)
     /*
      * Use a call to set up a place where we can land after eBPF program's
      * final EXIT call. This will make JIT of BPF EXIT call easier in the
@@ -192,6 +198,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      * after the eBPF program is finished executing.
      */
     emit_jmp(state, TARGET_PC_EXIT);
+#endif
 
     for (i = 0; i < vm->num_insts; i++) {
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
@@ -547,13 +554,22 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                     emit_cmp_imm32(state, map_register(BPF_REG_0), 0);
                     emit_jcc(state, 0x84, TARGET_PC_EXIT);
                 }
-            } else if (inst.src == 1) {
-                uint32_t target_pc = i + inst.imm + 1;
+            }
+#if defined(BPF_LOCAL_CALL_SUPPORTED)
+            else if (inst.src == 1) {
+                target_pc = i + inst.imm + 1;
                 emit_local_call(state, target_pc);
             }
+#endif
             break;
         case EBPF_OP_EXIT:
+#if defined(BPF_LOCAL_CALL_SUPPORTED)
             emit_ret(state);
+#else
+            if (i != vm->num_insts - 1) {
+                emit_jmp(state, TARGET_PC_EXIT);
+            }
+#endif
             break;
 
         case EBPF_OP_LDXW:
