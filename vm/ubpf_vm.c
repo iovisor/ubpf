@@ -103,6 +103,7 @@ void
 ubpf_destroy(struct ubpf_vm* vm)
 {
     ubpf_unload_code(vm);
+    free(vm->int_funcs);
     free(vm->ext_funcs);
     free(vm->ext_func_names);
     free(vm);
@@ -174,8 +175,19 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
 
     vm->num_insts = code_len / sizeof(vm->insts[0]);
 
-    // Store instructions in the vm.
+    vm->int_funcs = (bool*)calloc(vm->num_insts, sizeof(bool));
+
     for (uint32_t i = 0; i < vm->num_insts; i++) {
+        /* Mark targets of local call instructions. They
+         * represent the beginning of local functions and
+         * the jitter may need to do something special with
+         * them.
+         */
+        if (source_inst[i].opcode == EBPF_OP_CALL && source_inst[i].src == 1) {
+            uint32_t target = i + source_inst[i].imm + 1;
+            vm->int_funcs[target] = true;
+        }
+        // Store instructions in the vm.
         ubpf_store_instruction(vm, i, source_inst[i]);
     }
 

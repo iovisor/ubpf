@@ -34,6 +34,7 @@ struct ubpf_vm
     ubpf_jit_fn jitted;
     size_t jitted_size;
     ext_func* ext_funcs;
+    bool* int_funcs;
     const char** ext_func_names;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);

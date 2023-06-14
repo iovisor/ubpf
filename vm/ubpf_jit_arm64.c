@@ -548,7 +548,7 @@ update_branch_immediate(struct jit_state* state, uint32_t offset, int32_t imm)
  *   Frame <- SP.
  */
 static void
-emit_function_prologue(struct jit_state* state, size_t ubpf_stack_size)
+emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
 {
     uint32_t register_space = _countof(callee_saved_registers) * 8 + 2 * 8;
     state->stack_size = align_stack_amount(ubpf_stack_size + register_space);
@@ -611,7 +611,7 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 }
 
 static void
-emit_function_epilogue(struct jit_state* state)
+emit_jit_epilogue(struct jit_state* state)
 {
     state->exit_loc = state->offset;
 
@@ -905,7 +905,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
     int i;
 
-    emit_function_prologue(state, UBPF_STACK_SIZE);
+    emit_jit_prologue(state, UBPF_STACK_SIZE);
 
     for (i = 0; i < vm->num_insts; i++) {
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
@@ -917,6 +917,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         uint32_t target_pc = i + inst.offset + 1;
 
         int sixty_four = is_alu64_op(&inst);
+
+        if (i == 0 || vm->int_funcs[i]) {
+            /* When we are the subject of a call, we have to properly align our
+             * stack pointer.
+             */
+            emit_addsub_immediate(state, true, AS_SUB, SP, SP, 8);
+        }
 
         if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
             emit_movewide_immediate(state, sixty_four, temp_register, (int64_t)inst.imm);
@@ -1069,6 +1076,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             break;
         case EBPF_OP_EXIT:
+            emit_addsub_immediate(state, true, AS_ADD, SP, SP, 8);
             emit_unconditonalbranch_register(state, BR_RET, R30);
             break;
 
@@ -1132,7 +1140,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
     }
 
-    emit_function_epilogue(state);
+    emit_jit_epilogue(state);
 
     return 0;
 }
