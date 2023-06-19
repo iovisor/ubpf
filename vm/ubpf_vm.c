@@ -181,6 +181,10 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     vm->num_insts = code_len / sizeof(vm->insts[0]);
 
     vm->int_funcs = (bool*)calloc(vm->num_insts, sizeof(bool));
+    if (!vm->int_funcs) {
+        *errmsg = ubpf_error("out of memory");
+        return -1;
+    }
 
     for (uint32_t i = 0; i < vm->num_insts; i++) {
         /* Mark targets of local call instructions. They
