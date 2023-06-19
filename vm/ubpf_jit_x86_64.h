@@ -352,19 +352,25 @@ emit_ret(struct jit_state* state)
 static inline void
 emit_call(struct jit_state* state, void* target)
 {
+    /*
+     * When we enter here, our stack is 16-byte aligned. Keep
+     * it that way!
+     */
+
 #if defined(_WIN32)
+    /* We have to create a little space to keep our 16-byte
+     * alignment happy
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
+
     /* Windows x64 ABI spills 5th parameter to stack */
     emit_push(state, map_register(5));
 
-    /* Windows x64 ABI requires home register space */
-    /* Allocate home register space - 4 registers */
+    /* Windows x64 ABI requires home register space.
+     * Allocate home register space - 4 registers.
+     */
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
-
-    /*
-     * Because we do not push/pop here, the invariant is maintained
-     * that the stack pointer is 16-byte aligned.
-     */
 
     /* TODO use direct call when possible */
     emit_load_imm(state, RAX, (uintptr_t)target);
@@ -380,8 +386,8 @@ emit_call(struct jit_state* state, void* target)
     emit1(state, 0xd0);
 
 #if defined(_WIN32)
-    /* Deallocate home register space + spilled register - 5 registers */
-    emit_alu64_imm32(state, 0x81, 0, RSP, 5 * sizeof(uint64_t));
+    /* Deallocate home register space + spilled register + alignment space - 5 registers */
+    emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 1 + 1) * sizeof(uint64_t));
 #endif
 }
 
