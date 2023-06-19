@@ -38,7 +38,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@29b1f65c5e92e24fe6b6647da1eaabe529cec70f
+      uses: github/codeql-action/init@6c089f53dd51dc3fc7e599c3cb5356453a52ca9e
       with:
         languages: 'cpp'
 
@@ -63,6 +63,8 @@ jobs:
         $BPF_CONFORMANCE_RUNNER = "..\..\external\bpf_conformance\bin\${{ inputs.build_type }}\bpf_conformance_runner.exe"
         & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
         & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
+        & $BPF_CONFORMANCE_RUNNER --exclude lock_ --test_file_directory ..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
+        & $BPF_CONFORMANCE_RUNNER --exclude lock_ --test_file_directory ..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
 
     - name: Generate the TGZ package
       run: |
@@ -93,4 +95,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@29b1f65c5e92e24fe6b6647da1eaabe529cec70f
+      uses: github/codeql-action/analyze@6c089f53dd51dc3fc7e599c3cb5356453a52ca9e

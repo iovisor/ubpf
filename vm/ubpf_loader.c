@@ -29,7 +29,11 @@
 #include "ubpf_int.h"
 
 #if defined(UBPF_HAS_ELF_H)
+#if defined(UBPF_HAS_ELF_H_COMPAT)
+#include <libelf.h>
+#else
 #include <elf.h>
+#endif
 #endif
 
 #define MAX_SECTIONS 32

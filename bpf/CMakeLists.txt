@@ -1,27 +1,29 @@
 # Copyright (c) Microsoft Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-find_program(clang_path "clang" REQUIRED)
+function(clang_validator correct clang_path)
+    execute_process(
+        COMMAND echo "int main() { return 0;}"
+        COMMAND ${clang_path} --target=bpf -x c - -c -o /dev/null
+        ERROR_QUIET OUTPUT_QUIET
+        RESULT_VARIABLE CLANG_RETURN_CODE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
 
-execute_process(
-  COMMAND echo "int main() { return 0;}"
-  COMMAND ${clang_path} --target=bpf -x c - -c -o /dev/null
-  ERROR_QUIET OUTPUT_QUIET
-  RESULT_VARIABLE CLANG_RETURN_CODE
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    if (CLANG_RETURN_CODE EQUAL 0)
+        set(${correct} true PARENT_SCOPE)
+    else()
+        set(${correct} false PARENT_SCOPE)
+    endif()
+
+endfunction()
+
+find_program(clang_path "clang" VALIDATOR clang_validator NO_CACHE HINTS ${UBPF_ALTERNATE_LLVM_PATH})
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL aarch64))
     set(PREFIX qemu-aarch64 -L /usr/aarch64-linux-gnu)
 else()
     set(PREFIX)
-endif()
-
-if (CLANG_RETURN_CODE EQUAL 0)
-    message(STATUS "Clang supports BPF target")
-    set(CLANG_SUPPORTS_BPF TRUE)
-else()
-    message(WARNING "Clang does not support BPF target, skipping BPF tests")
-    set(CLANG_SUPPORTS_BPF FALSE)
 endif()
 
 function(build_bpf file_name)
@@ -51,6 +53,9 @@ function(build_bpf file_name)
     set_tests_properties(${file_name}_TEST_JIT PROPERTIES PASS_REGULAR_EXPRESSION "0x0")
 endfunction()
 
-if (CLANG_SUPPORTS_BPF)
+if (NOT ${clang_path} STREQUAL "clang_path-NOTFOUND")
+    message(WARNING "Clang supports BPF target")
     build_bpf(map)
+else()
+    message(WARNING "Clang does not support BPF target, skipping BPF tests")
 endif()

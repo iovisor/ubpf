@@ -18,6 +18,8 @@
  */
 
 #define _GNU_SOURCE
+#include "ebpf.h"
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -101,6 +103,7 @@ void
 ubpf_destroy(struct ubpf_vm* vm)
 {
     ubpf_unload_code(vm);
+    free(vm->int_funcs);
     free(vm->ext_funcs);
     free(vm->ext_func_names);
     free(vm);
@@ -172,8 +175,19 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
 
     vm->num_insts = code_len / sizeof(vm->insts[0]);
 
-    // Store instructions in the vm.
+    vm->int_funcs = (bool*)calloc(vm->num_insts, sizeof(bool));
+
     for (uint32_t i = 0; i < vm->num_insts; i++) {
+        /* Mark targets of local call instructions. They
+         * represent the beginning of local functions and
+         * the jitter may need to do something special with
+         * them.
+         */
+        if (source_inst[i].opcode == EBPF_OP_CALL && source_inst[i].src == 1) {
+            uint32_t target = i + source_inst[i].imm + 1;
+            vm->int_funcs[target] = true;
+        }
+        // Store instructions in the vm.
         ubpf_store_instruction(vm, i, source_inst[i]);
     }
 
@@ -267,6 +281,10 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t* reg;
     uint64_t _reg[16];
     uint64_t stack[(UBPF_STACK_SIZE + 7) / 8];
+    struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
+        0,
+    };
+    uint64_t ras_index = 0;
 
     if (!insts) {
         /* Code must be loaded before we can execute */
@@ -781,15 +799,52 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_EXIT:
+            if (ras_index > 0) {
+                ras_index--;
+                pc = stack_frames[ras_index].return_address;
+                reg[BPF_REG_6] = stack_frames[ras_index].saved_registers[0];
+                reg[BPF_REG_7] = stack_frames[ras_index].saved_registers[1];
+                reg[BPF_REG_8] = stack_frames[ras_index].saved_registers[2];
+                reg[BPF_REG_9] = stack_frames[ras_index].saved_registers[3];
+                break;
+            }
             *bpf_return_value = reg[0];
             return 0;
         case EBPF_OP_CALL:
-            reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
-            // Unwind the stack if unwind extension returns success.
-            if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
-                *bpf_return_value = reg[0];
-                return 0;
+            // Differentiate between local and external calls -- assume that the
+            // program was assembled with the same endianess as the host machine.
+            if (inst.src == 0) {
+                // Handle call by address to external function.
+                reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
+                // Unwind the stack if unwind extension returns success.
+                if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
+                    *bpf_return_value = reg[0];
+                    return 0;
+                }
+            } else if (inst.src == 1) {
+                if (ras_index >= UBPF_MAX_CALL_DEPTH) {
+                    vm->error_printf(
+                        stderr,
+                        "uBPF error: number of nested functions calls (%lu) exceeds max (%lu) at PC %u\n",
+                        ras_index + 1,
+                        UBPF_MAX_CALL_DEPTH,
+                        cur_pc);
+                    return -1;
+                }
+                stack_frames[ras_index].saved_registers[0] = reg[BPF_REG_6];
+                stack_frames[ras_index].saved_registers[1] = reg[BPF_REG_7];
+                stack_frames[ras_index].saved_registers[2] = reg[BPF_REG_8];
+                stack_frames[ras_index].saved_registers[3] = reg[BPF_REG_9];
+                stack_frames[ras_index].return_address = pc;
+                ras_index++;
+                pc += inst.imm;
+                break;
+            } else if (inst.src == 2) {
+                // Calling external function by BTF ID is not yet supported.
+                return -1;
             }
+            // Because we have already validated, we can assume that the type code is
+            // valid.
             break;
         }
     }
@@ -956,12 +1011,27 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             break;
 
         case EBPF_OP_CALL:
-            if (inst.imm < 0 || inst.imm >= MAX_EXT_FUNCS) {
-                *errmsg = ubpf_error("invalid call immediate at PC %d", i);
+            if (inst.src == 0) {
+                if (inst.imm < 0 || inst.imm >= MAX_EXT_FUNCS) {
+                    *errmsg = ubpf_error("invalid call immediate at PC %d", i);
+                    return false;
+                }
+                if (!vm->ext_funcs[inst.imm]) {
+                    *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
+                    return false;
+                }
+            } else if (inst.src == 1) {
+                int call_target = i + (inst.imm + 1);
+                if (call_target < 0 || call_target > num_insts) {
+                    *errmsg =
+                        ubpf_error("call to local function (at PC %d) is out of bounds (target: %d)", i, call_target);
+                    return false;
+                }
+            } else if (inst.src == 2) {
+                *errmsg = ubpf_error("call to external function by BTF ID (at PC %d) is not supported", i);
                 return false;
-            }
-            if (!vm->ext_funcs[inst.imm]) {
-                *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
+            } else {
+                *errmsg = ubpf_error("call (at PC %d) contains invalid type value", i);
                 return false;
             }
             break;

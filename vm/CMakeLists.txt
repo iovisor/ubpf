@@ -1,3 +1,6 @@
+# Copyright (c) 2022-present, IO Visor Project
+# SPDX-License-Identifier: Apache-2.0
+
 #
 # Copyright (c) 2022-present, IO Visor Project
 # All rights reserved.
@@ -12,7 +15,11 @@ include("GNUInstallDirs")
 find_path(UBPF_ELF_H_PATH "elf.h" NO_CACHE)
 if(UBPF_ELF_H_PATH)
   set(UBPF_HAS_ELF_H true)
-
+elseif(PLATFORM_MACOS)
+  message(WARNING "ubpf - using compat ELF support for macOS.")
+  set(UBPF_ELF_H_PATH_COMPAT "${PROJECT_SOURCE_DIR}/compat/macOS/")
+  set(UBPF_HAS_ELF_H_COMPAT true)
+  set(UBPF_HAS_ELF_H true)
 else()
   message(WARNING "ubpf - elf.h was not found, disabling ELF support")
 endif()
@@ -49,6 +56,7 @@ target_include_directories("ubpf" PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  $<BUILD_INTERFACE:${UBPF_ELF_H_PATH_COMPAT}>
 )
 
 set_target_properties("ubpf" PROPERTIES

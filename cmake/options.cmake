@@ -18,6 +18,10 @@ option(UBPF_SKIP_EXTERNAL "Set to true to skip external projects")
 option(UBPF_INSTALL_GIT_HOOKS "Set to true to install git hooks" ON)
 option(BPF_CONFORMANCE_RUNNER "Set to use a custom bpf_conformance runner")
 
+if(PLATFORM_MACOS)
+  option(UBPF_ALTERNATE_LLVM_PATH "Set to the path for an alternate (non-Apple) LLVM that supports BPF")
+endif()
+
 # Note that the compile_commands.json file is only exporter when
 # using the Ninja or Makefile generator
 set(CMAKE_EXPORT_COMPILE_COMMANDS true CACHE BOOL "Set to true to generate the compile_commands.json file (forced on)" FORCE)

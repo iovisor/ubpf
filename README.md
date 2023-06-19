@@ -30,13 +30,64 @@ git submodule update --recursive
 ```
 
 ## Building with CMake
-Note: This works on Windows, Linux, and MacOS, provided the prerequisites are installed.
+A build system for compiling and testing ubpf is generated for Windows, Linux and macOS platforms using [`cmake`](https://cmake.org/):
+
 ```
 cmake -S . -B build -DUBPF_ENABLE_TESTS=true
 cmake --build build --config Debug
 ```
 
+In order to prepare your system to successfully generate the build system using CMake, follow the platform-specific instructions below.
+
+### Windows
+
+Building, compiling and testing on Windows requires an installation of Visual Studio (*not* VS Code -- the MSVC compiler is necessary!).
+
+> Note: There are free-to-use versions of Visual Studio for individual developers. These versions are known as the [community version](https://visualstudio.microsoft.com/vs/community/).
+
+You *can* build, compile and test uBPF using [VS Code but Visual Studio is still required](https://code.visualstudio.com/docs/cpp/config-msvc).
+
+The other requirement is that you have [`nuget.exe`](https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools) in your `PATH`. You can determine if your host meets this criteria by testing whether
+
+```console
+> nuget.exe
+```
+
+produces output about how to execute the program. With `nuget.exe` installed, the `cmake` configuration system will download all the required developer libraries as it configures the build system.
+
+### macOS
+First, make sure that you have the XCode Command Line Tools installed:
+
+```console
+$ xcode-select -install
+```
+
+Installing the XCode Command Linux Tools will install Apple's version of the Clang compiler and other developer-support tools.
+
+uBpf requires that your host have several support libraries installed. The easiest way to configure your host to meet these requirements,
+
+1. Install [homebrew](https://brew.sh/)
+2. Install [boost](https://www.boost.org/):
+```console
+$ brew install boost
+```
+3. Install [LLVM](https://llvm.org/) (and related tools):
+```console
+$ brew install llvm cmake
+$ brew install clang-format
+```
+
+Installing LLVM from Homebrew is optional for developing and using uBPF on macOS. It is required if you plan on compiling/creating eBPF programs by compiling LLVM and storing them in ELF files. If you *do* install LLVM from Homebrew, add `-DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin` to the `cmake` configuration command:
+
+```console
+cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin
+```
+
+### Linux
+TBD
+
 ## Running the tests
+
 ### Linux and MacOS
 ```
 cmake --build build --target test --

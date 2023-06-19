@@ -34,18 +34,23 @@ else()
     message(STATUS "Using custom bpf_conformance_runner: ${BPF_CONFORMANCE_RUNNER}")
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL aarch64))
     set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/run-jit.sh)
     set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/run-interpret.sh)
 else()
-    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin --plugin_options --jit)
-    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin --plugin_options --interpret)
+    if(PLATFORM_WINDOWS)
+        set(PLATFORM_EXECUTABLE_EXTENSION ".exe")
+    else()
+        set(PLATFORM_EXECUTABLE_EXTENSION "")
+    endif()
+    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --jit)
+    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret)
 endif()
 
 foreach(file ${files})
     # TODO: remove this once we have a proper implementation of interlocked operations
     # and support for calling local functions.
-    string(REGEX MATCH "(lock|call_local)" EXPECT_FAILURE "${file}")
+    string(REGEX MATCH "(lock)" EXPECT_FAILURE "${file}")
     add_test(
         NAME ${file}-JIT
         COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT}

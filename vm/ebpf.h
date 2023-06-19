@@ -33,6 +33,22 @@ struct ebpf_inst
     int32_t imm;
 };
 
+enum bpf_register
+{
+    BPF_REG_0 = 0,
+    BPF_REG_1,
+    BPF_REG_2,
+    BPF_REG_3,
+    BPF_REG_4,
+    BPF_REG_5,
+    BPF_REG_6,
+    BPF_REG_7,
+    BPF_REG_8,
+    BPF_REG_9,
+    BPF_REG_10,
+    _BPF_REG_MAX,
+};
+
 #define EBPF_CLS_MASK 0x07
 #define EBPF_ALU_OP_MASK 0xf0
 #define EBPF_JMP_OP_MASK 0xf0
