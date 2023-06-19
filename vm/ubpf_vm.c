@@ -152,6 +152,11 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
+    if (UBPF_STACK_SIZE % sizeof(uint64_t) != 0) {
+        *errmsg = ubpf_error("UBPF_STACK_SIZE must be a multiple of 8");
+        return -1;
+    }
+
     if (vm->insts) {
         *errmsg = ubpf_error(
             "code has already been loaded into this VM. Use ubpf_unload_code() if you need to reuse this VM");
@@ -287,7 +292,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t* stack = NULL;
     struct ubpf_stack_frame* stack_frames = NULL;
 
-    stack = calloc((UBPF_STACK_SIZE + 7) / 8, sizeof(uint64_t));
+    stack = calloc(UBPF_STACK_SIZE);
     if (!stack) {
         return -1;
     }
@@ -299,7 +304,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     }
 
 #else
-    uint64_t stack[(UBPF_STACK_SIZE + 7) / 8];
+    uint64_t stack[UBPF_STACK_SIZE / sizeof(uint64_t)];
     struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
         0,
     };
