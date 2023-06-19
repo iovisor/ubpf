@@ -323,7 +323,7 @@ enum UnconditionalBranchOpcode
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (register).  */
 static void
-emit_unconditonalbranch_register(struct jit_state* state, enum UnconditionalBranchOpcode op, enum Registers rn)
+emit_unconditionalbranch_register(struct jit_state* state, enum UnconditionalBranchOpcode op, enum Registers rn)
 {
     emit_instruction(state, op | (rn << 5));
 }
@@ -582,7 +582,7 @@ emit_call(struct jit_state* state, uintptr_t func)
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
 
     emit_movewide_immediate(state, true, temp_register, func);
-    emit_unconditonalbranch_register(state, BR_BLR, temp_register);
+    emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
     enum Registers dest = map_register(0);
@@ -631,7 +631,7 @@ emit_jit_epilogue(struct jit_state* state)
     }
     emit_loadstorepair_immediate(state, LSP_LDPX, R29, R30, SP, 0);
     emit_addsub_immediate(state, true, AS_ADD, SP, SP, state->stack_size);
-    emit_unconditonalbranch_register(state, BR_RET, R30);
+    emit_unconditionalbranch_register(state, BR_RET, R30);
 }
 
 static bool
@@ -1077,7 +1077,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_EXIT:
             emit_addsub_immediate(state, true, AS_ADD, SP, SP, 8);
-            emit_unconditonalbranch_register(state, BR_RET, R30);
+            emit_unconditionalbranch_register(state, BR_RET, R30);
             break;
 
         case EBPF_OP_STXW:
