@@ -292,7 +292,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t* stack = NULL;
     struct ubpf_stack_frame* stack_frames = NULL;
 
-    stack = calloc(UBPF_STACK_SIZE);
+    stack = calloc(UBPF_STACK_SIZE, 1);
     if (!stack) {
         return -1;
     }
