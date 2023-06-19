@@ -874,7 +874,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     }
 
 #if defined(NTDDI_VERSION) && defined(WINNT)
-    free(ubpf_stack_frame);
+    free(stack_frames);
     free(stack);
 #endif
 }
