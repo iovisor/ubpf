@@ -157,7 +157,7 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
 static void
 divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm);
 
-static uint32_t inline align_stack_amount(uint32_t amount) { return (amount + 15) & ~15U; }
+static uint32_t inline align_to(uint32_t amount, uint64_t boundary) { return (amount + (boundary - 1 )) & ~(boundary - 1); }
 
 static void
 emit_bytes(struct jit_state* state, void* data, uint32_t len)
@@ -546,12 +546,14 @@ update_branch_immediate(struct jit_state* state, uint32_t offset, int32_t imm)
  *   ubpf_stack_size bytes of UBPF stack
  *   Callee saved registers
  *   Frame <- SP.
+ * Precondition: The runtime stack pointer is 16-byte aligned.
+ * Postcondition:  The runtime stack pointer is 16-byte aligned.
  */
 static void
 emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
 {
     uint32_t register_space = _countof(callee_saved_registers) * 8 + 2 * 8;
-    state->stack_size = align_stack_amount(ubpf_stack_size + register_space);
+    state->stack_size = align_to(ubpf_stack_size + register_space, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, state->stack_size);
 
     /* Set up frame */
@@ -577,7 +579,7 @@ emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
 static void
 emit_call(struct jit_state* state, uintptr_t func)
 {
-    uint32_t stack_movement = align_stack_amount(8);
+    uint32_t stack_movement = align_to(8, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
 
@@ -597,7 +599,7 @@ emit_call(struct jit_state* state, uintptr_t func)
 static void
 emit_local_call(struct jit_state* state, uint32_t target_pc)
 {
-    uint32_t stack_movement = align_stack_amount(40);
+    uint32_t stack_movement = align_to(40, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
     emit_loadstorepair_immediate(state, LSP_STPX, map_register(6), map_register(7), SP, 8);
@@ -918,13 +920,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         int sixty_four = is_alu64_op(&inst);
 
-        if (i == 0 || vm->int_funcs[i]) {
-            /* When we are the subject of a call, we have to properly align our
-             * stack pointer.
-             */
-            emit_addsub_immediate(state, true, AS_SUB, SP, SP, 8);
-        }
-
         if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
             emit_movewide_immediate(state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
@@ -1076,7 +1071,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             break;
         case EBPF_OP_EXIT:
-            emit_addsub_immediate(state, true, AS_ADD, SP, SP, 8);
             emit_unconditionalbranch_register(state, BR_RET, R30);
             break;
 
