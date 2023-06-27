@@ -290,7 +290,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t* reg;
     uint64_t _reg[16];
     uint64_t ras_index = 0;
-    int return_value;
+    int return_value = -1;
 
 // Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
 #if defined(NTDDI_VERSION) && defined(WINNT)
@@ -300,13 +300,13 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     stack = calloc(UBPF_STACK_SIZE, 1);
     if (!stack) {
         return_value = -1;
-        goto exit;
+        goto cleanup;
     }
 
     stack_frames = calloc(UBPF_MAX_CALL_DEPTH, sizeof(struct ubpf_stack_frame));
     if (!stack_frames) {
         return_value = -1;
-        goto exit;
+        goto cleanup;
     }
 
 #else
