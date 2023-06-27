@@ -290,6 +290,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t* reg;
     uint64_t _reg[16];
     uint64_t ras_index = 0;
+    int return_value;
 
 // Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
 #if defined(NTDDI_VERSION) && defined(WINNT)
@@ -298,13 +299,14 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 
     stack = calloc(UBPF_STACK_SIZE, 1);
     if (!stack) {
-        return -1;
+        return_value = -1;
+        goto exit;
     }
 
     stack_frames = calloc(UBPF_MAX_CALL_DEPTH, sizeof(struct ubpf_stack_frame));
     if (!stack_frames) {
-        free(stack);
-        return -1;
+        return_value = -1;
+        goto exit;
     }
 
 #else
@@ -538,13 +540,15 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 #define BOUNDS_CHECK_LOAD(size)                                                                                 \
     do {                                                                                                        \
         if (!bounds_check(vm, (char*)reg[inst.src] + inst.offset, size, "load", cur_pc, mem, mem_len, stack)) { \
-            return -1;                                                                                          \
+            return_value = -1;                                                                                  \
+            goto cleanup;                                                                                       \
         }                                                                                                       \
     } while (0)
 #define BOUNDS_CHECK_STORE(size)                                                                                 \
     do {                                                                                                         \
         if (!bounds_check(vm, (char*)reg[inst.dst] + inst.offset, size, "store", cur_pc, mem, mem_len, stack)) { \
-            return -1;                                                                                           \
+            return_value = -1;                                                                                   \
+            goto cleanup;                                                                                        \
         }                                                                                                        \
     } while (0)
 
@@ -837,7 +841,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                 break;
             }
             *bpf_return_value = reg[0];
-            return 0;
+            return_value = 0;
+            goto cleanup;
         case EBPF_OP_CALL:
             // Differentiate between local and external calls -- assume that the
             // program was assembled with the same endianess as the host machine.
@@ -847,7 +852,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                 // Unwind the stack if unwind extension returns success.
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];
-                    return 0;
+                    return_value = 0;
+                    goto cleanup;
                 }
             } else if (inst.src == 1) {
                 if (ras_index >= UBPF_MAX_CALL_DEPTH) {
@@ -857,7 +863,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                         ras_index + 1,
                         UBPF_MAX_CALL_DEPTH,
                         cur_pc);
-                    return -1;
+                    return_value = -1;
+                    goto cleanup;
                 }
                 stack_frames[ras_index].saved_registers[0] = reg[BPF_REG_6];
                 stack_frames[ras_index].saved_registers[1] = reg[BPF_REG_7];
@@ -869,7 +876,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                 break;
             } else if (inst.src == 2) {
                 // Calling external function by BTF ID is not yet supported.
-                return -1;
+                return_value = -1;
+                goto cleanup;
             }
             // Because we have already validated, we can assume that the type code is
             // valid.
@@ -877,10 +885,12 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
         }
     }
 
+cleanup:
 #if defined(NTDDI_VERSION) && defined(WINNT)
     free(stack_frames);
     free(stack);
 #endif
+    return return_value;
 }
 
 static bool
