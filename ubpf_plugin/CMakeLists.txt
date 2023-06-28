@@ -47,10 +47,22 @@ else()
     set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret)
 endif()
 
+# Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
+list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
+# TODO: remove this once we have a proper implementation of interlocked operations
+# and support for calling local functions.
+list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
+
 foreach(file ${files})
-    # TODO: remove this once we have a proper implementation of interlocked operations
-    # and support for calling local functions.
-    string(REGEX MATCH "(lock)" EXPECT_FAILURE "${file}")
+    unset(EXPECT_FAILURE)
+    foreach(to_fail ${TESTS_EXPECTED_TO_FAIL})
+        if(NOT EXPECT_FAILURE)
+            string(REGEX MATCH "${to_fail}" EXPECT_FAILURE "${file}")
+            if(EXPECT_FAILURE)
+                message(STATUS "Expecting ${file} test to fail.")
+            endif()
+        endif()
+    endforeach()
     add_test(
         NAME ${file}-JIT
         COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT}
