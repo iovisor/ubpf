@@ -98,34 +98,19 @@ cmake --build build --target test --
 ctest --test-dir build
 ```
 
-## Building with make (Linux)
-Run `make -C vm` to build the VM. This produces a static library `libubpf.a`
-and a simple executable used by the testsuite. After building the
-library you can install using `make -C vm install` via either root or
-sudo.
+## Contributing
 
-## Running the tests (Linux)
-To run the tests, you first need to build the vm code then use nosetests to execute the tests. Note: The tests have some dependencies that need to be present. See the [.travis.yml](https://github.com/iovisor/ubpf/blob/master/.travis.yml) for details.
+We *love* contributions!
 
-### Before running the test (assuming Debian derived distro)
-```
-sudo apt-get update
-sudo apt-get -y install python python-pip python-setuptools python-wheel python-nose
-python2 -m pip install --upgrade "pip<21.0"
-python2 -m pip install -r requirements.txt
-python2 -m pip install cpp-coveralls
-```
+### Preparing Code Contributions
 
-### Running the test
-```
-make -C vm COVERAGE=1
-nosetests -v   # run tests
-```
+We aim to maintain code coverage with every code change. The CI/CD pipeline will verify this invariant as part of the contribution process. However, you can calculate code coverage locally by
 
-### After running the test
-```
+```console
 coveralls --gcov-options '\-lp' -i $PWD/vm/ubpf_vm.c -i $PWD/vm/ubpf_jit_x86_64.c -i $PWD/vm/ubpf_loader.c
 ```
+
+We also aim to maintain a consistent code format. The pre-commit git hooks configured for the uBPF repository will guarantee that code changes match the format we expect. In order for those hooks to work effectively, you must have `clang-format` installed and available on your system.
 
 ## Compiling C to eBPF
 
@@ -135,11 +120,6 @@ You'll need [Clang 3.7](http://llvm.org/releases/download.html#3.7.0).
 
 You can then pass the contents of `prog.o` to `ubpf_load_elf`, or to the stdin of
 the `vm/test` binary.
-
-## Contributing
-
-Please fork the project on GitHub and open a pull request. You can run all the
-tests with `nosetests`.
 
 ## License
 
