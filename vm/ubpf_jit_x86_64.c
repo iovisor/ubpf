@@ -48,18 +48,21 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
 /*
  * There are two common x86-64 calling conventions, as discussed at
  * https://en.wikipedia.org/wiki/X86_calling_conventions#x86-64_calling_conventions
+ *
+ * Please Note: R12 is special and we are *not* using it. As a result, it is omitted
+ * from the list of non-volatile registers for both platforms (even though it is, in
+ * fact, non-volatile).
+ *
+ * BPF R0-R4 are "volatile"
+ * BPF R5-R10 are "non-volatile"
+ * In general, we attempt to map BPF volatile registers to x64 volatile and BPF non-
+ * volatile to x64 non-volatile.
  */
 
 #if defined(_WIN32)
-static int platform_nonvolatile_registers[] = {RBP, RBX, RDI, RSI, R12, R13, R14, R15};
+static int platform_nonvolatile_registers[] = {RBP, RBX, RDI, RSI, R13, R14, R15};
 static int platform_parameter_registers[] = {RCX, RDX, R8, R9};
 #define RCX_ALT R10
-// Register assignments:
-// BPF R0-R4 are "volatile"
-// BPF R5-R10 are "non-volatile"
-// Map BPF volatile registers to x64 volatile and map BPF non-volatile to
-// x64 non-volatile.
-// Avoid R12 as we don't support encoding modrm modifier for using R12.
 static int register_map[REGISTER_MAP_SIZE] = {
     RAX,
     R10,
@@ -167,13 +170,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     }
 
     /*
-     * Copy stack pointer to R10. We will also use RBP to restore
-     * the stack pointer after execution.
-     */
-    emit_mov(state, RSP, map_register(BPF_REG_10));
-
-    uint64_t ubpf_stack_configuration_delta = UBPF_STACK_SIZE;
-    /*
      * Assuming that the stack is 16-byte aligned right before
      * the call insn that brought us to this code, when
      * we start executing the jit'd code, we need to regain a 16-byte
@@ -184,11 +180,16 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      * to a 16-byte alignment.
      */
     if (!(_countof(platform_nonvolatile_registers) % 2)) {
-        ubpf_stack_configuration_delta += 0x8;
+        emit_alu64_imm32(state, 0x81, 5, RSP, 0x8);
     }
 
+    /*
+     * Set BPF R10 (the way to access the frame in eBPF) to match RSP.
+     */
+    emit_mov(state, RSP, map_register(BPF_REG_10));
+
     /* Allocate stack space */
-    emit_alu64_imm32(state, 0x81, 5, RSP, ubpf_stack_configuration_delta);
+    emit_alu64_imm32(state, 0x81, 5, RSP, UBPF_STACK_SIZE);
 
 #if defined(_WIN32)
     /* Windows x64 ABI requires home register space */
@@ -645,8 +646,12 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         emit_mov(state, map_register(BPF_REG_0), RAX);
     }
 
-    /* Deallocate stack space by restoring RSP from RBP. */
+    /* Deallocate stack space by restoring RSP from BPF R10. */
     emit_mov(state, map_register(BPF_REG_10), RSP);
+
+    if (!(_countof(platform_nonvolatile_registers) % 2)) {
+        emit_alu64_imm32(state, 0x81, 0, RSP, 0x8);
+    }
 
     /* Restore platform non-volatile registers */
     for (i = 0; i < _countof(platform_nonvolatile_registers); i++) {
