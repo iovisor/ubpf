@@ -65,6 +65,7 @@ usage(const char* name)
     fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
     fprintf(
         stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
+    fprintf(stderr, "  -s, --main-function NAME: Consider the symbol NAME to be the eBPF program's entry point");
 }
 
 typedef struct _map_entry
@@ -190,9 +191,11 @@ main(int argc, char** argv)
         {.name = "register-offset", .val = 'r', .has_arg = 1},
         {.name = "unload", .val = 'U'}, /* for unit test only */
         {.name = "reload", .val = 'R'}, /* for unit test only */
+        {.name = "main-function", .val = 's', .has_arg = 1},
         {0}};
 
     const char* mem_filename = NULL;
+    const char* main_function_name = NULL;
     bool jit = false;
     bool unload = false;
     bool reload = false;
@@ -201,10 +204,13 @@ main(int argc, char** argv)
     uint64_t secret = (uint64_t)rand() << 32 | (uint64_t)rand();
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jdr:UR", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jdr:URs:", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
+            break;
+        case 's':
+            main_function_name = optarg;
             break;
         case 'j':
             jit = true;
@@ -290,7 +296,7 @@ main(int argc, char** argv)
 load:
 #if defined(UBPF_HAS_ELF_H)
     if (elf) {
-        rv = ubpf_load_elf(vm, code, code_len, &errmsg);
+        rv = ubpf_load_elf_ex(vm, code, code_len, main_function_name, &errmsg);
     } else {
 #endif
         rv = ubpf_load(vm, code, code_len, &errmsg);

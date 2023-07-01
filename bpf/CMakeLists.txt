@@ -26,8 +26,20 @@ else()
     set(PREFIX)
 endif()
 
-function(build_bpf file_name)
+function(build_bpf file_name expected_result optimize)
     message(STATUS "Building BPF ${file_name}")
+
+    set(optimize_flags "-O0")
+    if(${optimize})
+        set(optimize_flags "-O2")
+    endif()
+
+    # An optional parameter sets the name of the section containing main()
+    # The test program assumes that it is in .text unless otherwise specified.
+    set(main_section_name_param)
+    if(${ARGC} EQUAL 4)
+        list(APPEND main_section_name_param "--main-function" "${ARGV3}")
+    endif()
 
     set(bpf_file_name ${file_name}.bpf.c)
     set(bpf_file_path ${CMAKE_CURRENT_SOURCE_DIR}/${bpf_file_name})
@@ -40,22 +52,28 @@ function(build_bpf file_name)
 
     add_custom_command(
         OUTPUT ${bpf_obj_file_path}
-        COMMAND ${clang_path} -g -O2 -target bpf -c ${bpf_file_path} -o ${bpf_obj_file_path}
+        COMMAND ${clang_path} -g ${optimize_flags} -target bpf -c ${bpf_file_path} -o ${bpf_obj_file_path}
         DEPENDS ${bpf_file_path}
         COMMENT "Building BPF object ${bpf_obj_file_path}"
     )
 
     add_custom_target(${file_name}_ELF ALL DEPENDS ${bpf_obj_file_path} SOURCES ${bpf_file_path})
 
-    add_test(NAME ${file_name}_TEST_INTERPRET COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
-    set_tests_properties(${file_name}_TEST_INTERPRET PROPERTIES PASS_REGULAR_EXPRESSION "0x0")
-    add_test(NAME ${file_name}_TEST_JIT COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" "${bpf_obj_file_path}")
-    set_tests_properties(${file_name}_TEST_JIT PROPERTIES PASS_REGULAR_EXPRESSION "0x0")
+    add_test(NAME ${file_name}_TEST_INTERPRET COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" ${main_section_name_param} "${bpf_obj_file_path}")
+    set_tests_properties(${file_name}_TEST_INTERPRET PROPERTIES PASS_REGULAR_EXPRESSION ${expected_result})
+    add_test(NAME ${file_name}_TEST_JIT COMMAND ${PREFIX} "${CMAKE_BINARY_DIR}/bin/ubpf_test" ${main_section_name_param} "${bpf_obj_file_path}")
+    set_tests_properties(${file_name}_TEST_JIT PROPERTIES PASS_REGULAR_EXPRESSION ${expected_result})
 endfunction()
 
 if (NOT ${clang_path} STREQUAL "clang_path-NOTFOUND")
     message(WARNING "Clang supports BPF target")
-    build_bpf(map)
+    # Note that the regular expressions test whether the final bit of outcome matches
+    # the expected values. That is because the loader may give warnings about unhandled
+    # relocation types.
+    # Also note: We use this odd regex (instead of [\n\r]{1,2}) because CMake does not
+    # appear to like that syntax.
+    build_bpf(map "0x0[\n\r]*[\n\r]*$" true)
+    build_bpf(rel_64_32 "0xe[\n\r]*[\n\r]*$" false "main")
 else()
     message(WARNING "Clang does not support BPF target, skipping BPF tests")
 endif()

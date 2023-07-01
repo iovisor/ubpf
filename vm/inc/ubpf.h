@@ -175,6 +175,31 @@ extern "C"
      */
     int
     ubpf_load_elf(struct ubpf_vm* vm, const void* elf, size_t elf_len, char** errmsg);
+
+    /**
+     * @brief Load code from an ELF file with extra parameters for extended control.
+
+     * This must be done before calling ubpf_exec or ubpf_compile and after
+     * registering all functions.
+     *
+     * 'elf' should point to a copy of an ELF file in memory and 'elf_len' should
+     * be the size in bytes of that buffer.
+     *
+     * The ELF file must be 64-bit little-endian with a single text section
+     * containing the eBPF bytecodes. This is compatible with the output of
+     * Clang.
+     *
+     * @param[in] vm The VM to load the code into.
+     * @param[in] elf A pointer to a copy of an ELF file in memory.
+     * @param[in] elf_len The size of the ELF file.
+     * @param[in] main_function_name The name of the eBPF program's main function.
+     *            execution will start here.
+     * @param[out] errmsg The error message, if any. This should be freed by the caller.
+     * @retval 0 Success.
+     * @retval -1 Failure.
+     */
+    int
+    ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_len, const char* main_section_name, char** errmsg);
 #endif
 
     /**
