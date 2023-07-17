@@ -58,7 +58,13 @@ struct jump
 {
     uint32_t offset_loc;
     uint32_t target_pc;
+    uint32_t target_offset;
 };
+
+/* Special values for target_pc in struct jump */
+#define TARGET_PC_EXIT -1
+#define TARGET_PC_DIV_BY_ZERO -2
+#define TARGET_PC_RETPOLINE -3
 
 struct jit_state
 {
@@ -69,6 +75,7 @@ struct jit_state
     uint32_t exit_loc;
     uint32_t div_by_zero_loc;
     uint32_t unwind_loc;
+    uint32_t retpoline_loc;
     struct jump* jumps;
     int num_jumps;
 };
@@ -110,7 +117,7 @@ emit8(struct jit_state* state, uint64_t x)
 }
 
 static inline void
-emit_jump_offset(struct jit_state* state, int32_t target_pc)
+emit_jump_target_address(struct jit_state* state, int32_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
@@ -119,6 +126,17 @@ emit_jump_offset(struct jit_state* state, int32_t target_pc)
     jump->offset_loc = state->offset;
     jump->target_pc = target_pc;
     emit4(state, 0);
+}
+
+static inline void
+emit_jump_target_offset(struct jit_state* state, uint32_t jump_loc, uint32_t jump_state_offset)
+{
+    if (state->num_jumps == UBPF_MAX_INSTS) {
+        return;
+    }
+    struct jump* jump = &state->jumps[state->num_jumps++];
+    jump->offset_loc = jump_loc;
+    jump->target_offset = jump_state_offset;
 }
 
 static inline void
@@ -274,7 +292,7 @@ emit_jcc(struct jit_state* state, int code, int32_t target_pc)
 {
     emit1(state, 0x0f);
     emit1(state, code);
-    emit_jump_offset(state, target_pc);
+    emit_jump_target_address(state, target_pc);
 }
 
 /* Load [src + offset] into dst */
@@ -350,6 +368,13 @@ emit_ret(struct jit_state* state)
 }
 
 static inline void
+emit_jmp(struct jit_state* state, uint32_t target_pc)
+{
+    emit1(state, 0xe9);
+    emit_jump_target_address(state, target_pc);
+}
+
+static inline void
 emit_call(struct jit_state* state, void* target)
 {
     /*
@@ -372,8 +397,12 @@ emit_call(struct jit_state* state, void* target)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
 
-    /* TODO use direct call when possible */
     emit_load_imm(state, RAX, (uintptr_t)target);
+#ifndef UBPF_DISABLE_RETPOLINES
+    emit1(state, 0xe8); // e8 is the opcode for a CALL
+    emit_jump_target_address(state, TARGET_PC_RETPOLINE);
+#else
+    /* TODO use direct call when possible */
     /* callq *%rax */
     emit1(state, 0xff);
     // ModR/M byte: b11010000b = xd
@@ -384,18 +413,12 @@ emit_call(struct jit_state* state, void* target)
     //                    ^
     //                    rax is register 0
     emit1(state, 0xd0);
+#endif
 
 #if defined(_WIN32)
     /* Deallocate home register space + spilled register + alignment space - 5 registers */
     emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 1 + 1) * sizeof(uint64_t));
 #endif
-}
-
-static inline void
-emit_jmp(struct jit_state* state, uint32_t target_pc)
-{
-    emit1(state, 0xe9);
-    emit_jump_offset(state, target_pc);
 }
 
 #endif

@@ -27,6 +27,10 @@ on:
         required: false
         type: boolean
 
+      disable_retpolines:
+        required: false
+        type: boolean
+
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
@@ -48,6 +52,7 @@ jobs:
           -S . `
           -B build `
           -DUBPF_ENABLE_TESTS=true `
+          -DUBPF_DISABLE_RETPOLINES=${{ inputs.disable_retpolines }} `
           -DUBPF_ENABLE_INSTALL=true
 
     - name: Build uBPF

@@ -9,6 +9,7 @@
 if(PLATFORM_LINUX OR PLATFORM_MACOS)
   option(UBPF_ENABLE_COVERAGE "Set to true to enable coverage flags")
   option(UBPF_ENABLE_SANITIZERS "Set to true to enable the address and undefined sanitizers")
+  option(UBPF_DISABLE_RETPOLINES "Disable retpoline security on indirect calls and jumps")
 endif()
 
 option(UBPF_ENABLE_INSTALL "Set to true to enable the install targets")

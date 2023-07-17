@@ -51,6 +51,10 @@ on:
         required: false
         type: boolean
 
+      disable_retpolines:
+        required: false
+        type: boolean
+
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
@@ -68,7 +72,7 @@ jobs:
 
     - name: Generate the cache key
       id: cache_key
-      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}" >> $GITHUB_OUTPUT
+      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
       uses: actions/cache@v3.3.1
@@ -158,6 +162,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
           -DUBPF_ENABLE_COVERAGE=${{ inputs.enable_coverage }} \
           -DUBPF_ENABLE_SANITIZERS=${{ inputs.enable_sanitizers }} \
+          -DUBPF_DISABLE_RETPOLINES=${{ inputs.disable_retpolines }} \
           -DUBPF_ENABLE_TESTS=true \
           -DUBPF_ENABLE_INSTALL=true \
           -DUBPF_SKIP_EXTERNAL=true \

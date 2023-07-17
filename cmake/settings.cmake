@@ -30,6 +30,12 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       )
     endif()
 
+    if(UBPF_DISABLE_RETPOLINES)
+      target_compile_definitions("ubpf_settings" INTERFACE
+        UBPF_DISABLE_RETPOLINES
+      )
+    endif()
+
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
       target_compile_definitions("ubpf_settings" INTERFACE
         DEBUG

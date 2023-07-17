@@ -36,10 +36,6 @@
 #define _countof(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-/* Special values for target_pc in struct jump */
-#define TARGET_PC_EXIT -1
-#define TARGET_PC_DIV_BY_ZERO -2
-
 static void
 muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm);
 
@@ -120,7 +116,7 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
     emit1(state, 0xe8); // e8 is the opcode for a CALL
-    emit_jump_offset(state, target_pc);
+    emit_jump_target_address(state, target_pc);
 #if defined(_WIN32)
     /* Deallocate home register space - 4 registers */
     emit_alu64_imm32(state, 0x81, 0, RSP, 4 * sizeof(uint64_t));
@@ -129,6 +125,75 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_pop(state, map_register(BPF_REG_8));
     emit_pop(state, map_register(BPF_REG_7));
     emit_pop(state, map_register(BPF_REG_6));
+}
+
+static uint32_t
+emit_retpoline(struct jit_state* state)
+{
+    uint32_t retpoline_target = state->offset;
+
+    /*
+     * When we enter, the return value is on the top of the stack and means (by invariant
+     * [see emit_call]) that we are not 16-byte aligned. Regain that alignment.
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
+
+    /*
+     * Using retpolines to mitigate spectre/meltdown. Adapting the approach
+     * from
+     * https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/technical-documentation/retpoline-branch-target-injection-mitigation.html
+     */
+
+    /* jmp label2 */
+    emit1(state, 0xe9);
+    uint32_t label2_jump_offset = state->offset;
+    emit4(state, 0x00);
+
+    /* label0: */
+    /* call label1 */
+    uint32_t label0 = state->offset;
+    emit1(state, 0xe8);
+    uint32_t label1_call_offset = state->offset;
+    emit4(state, 0x00);
+
+    /* capture_ret_spec: */
+    /* pause */
+    uint32_t capture_ret_spec = state->offset;
+    emit1(state, 0xf3);
+    emit1(state, 0x90);
+    /* jmp  capture_ret_spec */
+    emit1(state, 0xe9);
+    emit_jump_target_offset(state, state->offset, capture_ret_spec);
+    emit4(state, 0x00);
+
+    /* label1: */
+    /* mov rax, (rsp) */
+    uint32_t label1 = state->offset;
+    emit1(state, 0x48);
+    emit1(state, 0x89);
+    emit1(state, 0x04);
+    emit1(state, 0x24);
+
+    /* ret */
+    emit1(state, 0xc3);
+
+    /* label2: */
+    /* call label0 */
+    uint32_t label2 = state->offset;
+    emit1(state, 0xe8);
+    emit_jump_target_offset(state, state->offset, label0);
+    emit4(state, 0x00);
+
+    /*
+     * Before leaving this mini-function, restore the proper alignment (see above).
+     */
+    emit_alu64_imm32(state, 0x81, 0, RSP, sizeof(uint64_t));
+    emit_ret(state);
+
+    emit_jump_target_offset(state, label1_call_offset, label1);
+    emit_jump_target_offset(state, label2_jump_offset, label2);
+
+    return retpoline_target;
 }
 
 /* For testing, this changes the mapping between x86 and eBPF registers */
@@ -660,6 +725,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     emit1(state, 0xc3); /* ret */
 
+    state->retpoline_loc = emit_retpoline(state);
+
     return 0;
 }
 
@@ -795,10 +862,14 @@ resolve_jumps(struct jit_state* state)
         struct jump jump = state->jumps[i];
 
         int target_loc;
-        if (jump.target_pc == TARGET_PC_EXIT) {
+        if (jump.target_offset != 0) {
+            target_loc = jump.target_offset;
+        } else if (jump.target_pc == TARGET_PC_EXIT) {
             target_loc = state->exit_loc;
         } else if (jump.target_pc == TARGET_PC_DIV_BY_ZERO) {
             target_loc = state->div_by_zero_loc;
+        } else if (jump.target_pc == TARGET_PC_RETPOLINE) {
+            target_loc = state->retpoline_loc;
         } else {
             target_loc = state->pc_locs[jump.target_pc];
         }
