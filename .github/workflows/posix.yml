@@ -66,7 +66,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@46ed16ded91731b2df79a2893d3aea8e9f03b5c4
+      uses: github/codeql-action/init@489225d82a57396c6f426a40e66d461b16b3461d
       with:
         languages: 'cpp'
 
@@ -209,7 +209,7 @@ jobs:
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
-      uses: coverallsapp/github-action@v2.2.0
+      uses: coverallsapp/github-action@v2.2.1
       with:
         github-token: ${{ secrets.github_token }}
         flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
@@ -304,4 +304,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@46ed16ded91731b2df79a2893d3aea8e9f03b5c4
+      uses: github/codeql-action/analyze@489225d82a57396c6f426a40e66d461b16b3461d
