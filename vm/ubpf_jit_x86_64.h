@@ -63,7 +63,6 @@ struct jump
 
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT -1
-#define TARGET_PC_DIV_BY_ZERO -2
 #define TARGET_PC_RETPOLINE -3
 
 struct jit_state
@@ -73,7 +72,6 @@ struct jit_state
     uint32_t size;
     uint32_t* pc_locs;
     uint32_t exit_loc;
-    uint32_t div_by_zero_loc;
     uint32_t unwind_loc;
     uint32_t retpoline_loc;
     struct jump* jumps;

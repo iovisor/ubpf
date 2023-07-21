@@ -866,8 +866,6 @@ resolve_jumps(struct jit_state* state)
             target_loc = jump.target_offset;
         } else if (jump.target_pc == TARGET_PC_EXIT) {
             target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_DIV_BY_ZERO) {
-            target_loc = state->div_by_zero_loc;
         } else if (jump.target_pc == TARGET_PC_RETPOLINE) {
             target_loc = state->retpoline_loc;
         } else {
