@@ -26,13 +26,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
 
       target_compile_options("ubpf_settings" INTERFACE
-        -g  
-      )
-    endif()
-
-    if(UBPF_DISABLE_RETPOLINES)
-      target_compile_definitions("ubpf_settings" INTERFACE
-        UBPF_DISABLE_RETPOLINES
+        -g
       )
     endif()
 
