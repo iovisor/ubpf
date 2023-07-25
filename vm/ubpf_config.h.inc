@@ -8,5 +8,6 @@
 
 #pragma once
 
+#cmakedefine UBPF_DISABLE_RETPOLINES
 #cmakedefine UBPF_HAS_ELF_H
 #cmakedefine UBPF_HAS_ELF_H_COMPAT
