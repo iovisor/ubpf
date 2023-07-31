@@ -180,6 +180,12 @@ emit_retpoline(struct jit_state* state)
     /* label2: */
     /* call label0 */
     uint32_t label2 = state->offset;
+#if defined(_WIN32)
+    /*
+     * Make sure that *every* call in Windows has the home space.
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
+#endif
     emit1(state, 0xe8);
     emit_jump_target_offset(state, state->offset, label0);
     emit4(state, 0x00);
@@ -187,6 +193,9 @@ emit_retpoline(struct jit_state* state)
     /*
      * Before leaving this mini-function, restore the proper alignment (see above).
      */
+#if defined(_WIN32)
+    emit_alu64_imm32(state, 0x81, 0, RSP, 4 * sizeof(uint64_t));
+#endif
     emit_alu64_imm32(state, 0x81, 0, RSP, sizeof(uint64_t));
     emit_ret(state);
 
