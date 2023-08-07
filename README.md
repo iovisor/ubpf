@@ -2,8 +2,8 @@
 
 Userspace eBPF VM
 
-[![Build Status](https://travis-ci.org/iovisor/ubpf.svg?branch=master)](https://travis-ci.org/iovisor/ubpf)
-[![Coverage Status](https://coveralls.io/repos/iovisor/ubpf/badge.svg?branch=master&service=github)](https://coveralls.io/github/iovisor/ubpf?branch=master)
+[![Main](https://github.com/iovisor/ubpf/actions/workflows/main.yml/badge.svg)](https://github.com/iovisor/ubpf/actions/workflows/main.yml)
+[![Coverage Status](https://coveralls.io/repos/iovisor/ubpf/badge.svg?branch=main&service=github)](https://coveralls.io/github/iovisor/ubpf?branch=main)
 
 ## About
 
