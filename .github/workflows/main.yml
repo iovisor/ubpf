@@ -322,7 +322,9 @@ jobs:
   finish:
     needs:
       - macos_release_coverage
+      - macos_release_coverage_no_retpolines
       - macos_debug_coverage
+      - macos_debug_coverage_no_retpolines
       - linux_release_coverage
       - linux_debug_coverage
       - linux_release_arm64_coverage
