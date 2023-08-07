@@ -130,13 +130,6 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 static uint32_t
 emit_retpoline(struct jit_state* state)
 {
-    uint32_t retpoline_target = state->offset;
-
-    /*
-     * When we enter, the return value is on the top of the stack and means (by invariant
-     * [see emit_call]) that we are not 16-byte aligned. Regain that alignment.
-     */
-    emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
 
     /*
      * Using retpolines to mitigate spectre/meltdown. Adapting the approach
@@ -144,14 +137,9 @@ emit_retpoline(struct jit_state* state)
      * https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/technical-documentation/retpoline-branch-target-injection-mitigation.html
      */
 
-    /* jmp label2 */
-    emit1(state, 0xe9);
-    uint32_t label2_jump_offset = state->offset;
-    emit4(state, 0x00);
-
     /* label0: */
     /* call label1 */
-    uint32_t label0 = state->offset;
+    uint32_t retpoline_target = state->offset;
     emit1(state, 0xe8);
     uint32_t label1_call_offset = state->offset;
     emit4(state, 0x00);
@@ -177,30 +165,7 @@ emit_retpoline(struct jit_state* state)
     /* ret */
     emit1(state, 0xc3);
 
-    /* label2: */
-    /* call label0 */
-    uint32_t label2 = state->offset;
-#if defined(_WIN32)
-    /*
-     * Make sure that *every* call in Windows has the home space.
-     */
-    emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
-#endif
-    emit1(state, 0xe8);
-    emit_jump_target_offset(state, state->offset, label0);
-    emit4(state, 0x00);
-
-    /*
-     * Before leaving this mini-function, restore the proper alignment (see above).
-     */
-#if defined(_WIN32)
-    emit_alu64_imm32(state, 0x81, 0, RSP, 4 * sizeof(uint64_t));
-#endif
-    emit_alu64_imm32(state, 0x81, 0, RSP, sizeof(uint64_t));
-    emit_ret(state);
-
     emit_jump_target_offset(state, label1_call_offset, label1);
-    emit_jump_target_offset(state, label2_jump_offset, label2);
 
     return retpoline_target;
 }
