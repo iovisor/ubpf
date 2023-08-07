@@ -202,7 +202,13 @@ jobs:
           --target test
 
     - name: Generate code coverage report
-      if: inputs.enable_coverage == true
+      if: inputs.enable_coverage == true && inputs.platform == 'macos-11'
+      run: |
+        mkdir -p coverage
+        lcov --capture --directory build --include '${{env.GITHUB_WORKSPACE}}/*' --output-file coverage/lcov.info --ignore-errors inconsistent
+
+    - name: Generate code coverage report
+      if: inputs.enable_coverage == true && inputs.platform != 'macos-11'
       run: |
         mkdir -p coverage
         lcov --capture --directory build --include '${{env.GITHUB_WORKSPACE}}/*' --output-file coverage/lcov.info
