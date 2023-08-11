@@ -1,0 +1,7 @@
+-- asm
+lddw %r0, 0xFFFFFFFFFFFFFF0F
+mov %r1, 0xFFFFFFFFFFFFFFFF
+sdiv %r0, %r1
+exit
+-- result
+0xf1

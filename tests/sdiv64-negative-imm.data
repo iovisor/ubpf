@@ -1,0 +1,6 @@
+-- asm
+lddw %r0, 0xFFFFFFFFFFFFFF0F
+sdiv %r0, -5
+exit
+-- result
+0x30
