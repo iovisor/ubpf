@@ -867,6 +867,11 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
     state.num_jumps = 0;
 
+    if (!state.pc_locs || !state.jumps) {
+        *errmsg = ubpf_error("Out of memory");
+        goto out;
+    }
+
     if (translate(vm, &state, errmsg) < 0) {
         goto out;
     }
