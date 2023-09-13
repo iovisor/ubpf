@@ -86,7 +86,7 @@ jobs:
           ccache
 
     - name: Install system dependencies (Linux)
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         sudo apt-get update
 
@@ -98,7 +98,7 @@ jobs:
           libboost-dev \
           libboost-program-options-dev \
           libboost-filesystem-dev \
-          libbpf-dev
+          libelf-dev
 
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           sudo apt-get install -y \
@@ -111,6 +111,11 @@ jobs:
             gcc-aarch64-linux-gnu \
             qemu-user
         fi
+
+    - name: Build/install libbpf From Source
+      if: inputs.platform == 'ubuntu-latest'
+      run: ./.github/scripts/build-libbpf.sh
+      shell: bash
 
     - name: Install system dependencies (macOS)
       if: inputs.platform == 'macos-11'
@@ -231,7 +236,7 @@ jobs:
           --target install
 
     - name: Generate the DEB package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         cmake \
           -S . \
@@ -244,7 +249,7 @@ jobs:
           --target package
 
     - name: Generate the RPM package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         cmake \
           -S . \
@@ -277,7 +282,7 @@ jobs:
         echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the DEB package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_deb_package
@@ -285,7 +290,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the RPM package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_rpm_package
@@ -293,7 +298,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the Linux TGZ package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
       uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
       with:
         name: linux_tgz_package
