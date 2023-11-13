@@ -7,14 +7,9 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
+include(ExternalProject)
 cmake_minimum_required(VERSION 3.16)
 project("ubpf")
-
-if (UBPF_INSTALL_GIT_HOOKS AND EXISTS "${PROJECT_SOURCE_DIR}/.git/hooks")
-    # Install Git pre-commit hook
-    file(COPY scripts/pre-commit scripts/commit-msg
-        DESTINATION "${PROJECT_SOURCE_DIR}/.git/hooks")
-endif()
 
 include("cmake/platform.cmake")
 include("cmake/settings.cmake")
@@ -30,7 +25,11 @@ add_subdirectory("vm")
 if(UBPF_ENABLE_TESTS)
   add_subdirectory("ubpf_plugin")
   if (NOT UBPF_SKIP_EXTERNAL)
-    add_subdirectory("external")
+    ExternalProject_Add(Conformance GIT_REPOSITORY "https://github.com/Alan-Jowett/bpf_conformance.git"
+        GIT_SUBMODULES_RECURSE true
+        GIT_TAG main
+        INSTALL_COMMAND ""
+        BINARY_DIR ${CMAKE_BINARY_DIR}/external/)
   endif()
   add_subdirectory("bpf")
   add_subdirectory("aarch64_test")

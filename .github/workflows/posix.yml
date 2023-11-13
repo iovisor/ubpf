@@ -127,24 +127,6 @@ jobs:
           lcov \
           boost
 
-    # Build the bpf_conformance suite separately as it doesn't build in arm64.
-    - name: Configure bpf_conformance
-      run: |
-        export CCACHE_DIR="$(pwd)/ccache"
-
-        cmake \
-          -G Ninja \
-          -S external/bpf_conformance \
-          -B build_bpf_conformance
-
-    - name: Build bpf_conformance
-      run: |
-        export CCACHE_DIR="$(pwd)/ccache"
-
-        cmake \
-          --build build_bpf_conformance \
-          --config ${{ inputs.build_type }}
-
     - name: Configure uBPF
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
@@ -170,8 +152,6 @@ jobs:
           -DUBPF_DISABLE_RETPOLINES=${{ inputs.disable_retpolines }} \
           -DUBPF_ENABLE_TESTS=true \
           -DUBPF_ENABLE_INSTALL=true \
-          -DUBPF_SKIP_EXTERNAL=true \
-          -DBPF_CONFORMANCE_RUNNER="$(pwd)/build_bpf_conformance/bin/bpf_conformance_runner" \
           ${arch_flags}
 
     - name: Build uBPF
