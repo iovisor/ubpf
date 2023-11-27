@@ -60,13 +60,13 @@ jobs:
     runs-on: ${{ inputs.platform }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@0ba4244466797eb048eb91a6cd43d5c03ca8bd05
+      uses: github/codeql-action/init@407ffafae6a767df3e0230c3df91b6443ae8df75
       with:
         languages: 'cpp'
 
@@ -75,7 +75,7 @@ jobs:
       run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@v3.3.1
+      uses: actions/cache@v3.3.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -86,7 +86,7 @@ jobs:
           ccache
 
     - name: Install system dependencies (Linux)
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         sudo apt-get update
 
@@ -98,7 +98,7 @@ jobs:
           libboost-dev \
           libboost-program-options-dev \
           libboost-filesystem-dev \
-          libbpf-dev
+          libelf-dev
 
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           sudo apt-get install -y \
@@ -111,6 +111,11 @@ jobs:
             gcc-aarch64-linux-gnu \
             qemu-user
         fi
+
+    - name: Build/install libbpf From Source
+      if: inputs.platform == 'ubuntu-latest'
+      run: ./.github/scripts/build-libbpf.sh
+      shell: bash
 
     - name: Install system dependencies (macOS)
       if: inputs.platform == 'macos-11'
@@ -183,7 +188,7 @@ jobs:
 
     - name: Upload scan-build report
       if: inputs.scan_build == true
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
@@ -215,7 +220,7 @@ jobs:
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
-      uses: coverallsapp/github-action@v2.2.1
+      uses: coverallsapp/github-action@v2.2.3
       with:
         github-token: ${{ secrets.github_token }}
         flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
@@ -231,7 +236,7 @@ jobs:
           --target install
 
     - name: Generate the DEB package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         cmake \
           -S . \
@@ -244,7 +249,7 @@ jobs:
           --target package
 
     - name: Generate the RPM package
-      if: inputs.platform == 'ubuntu-20.04'
+      if: inputs.platform == 'ubuntu-latest'
       run: |
         cmake \
           -S . \
@@ -277,24 +282,24 @@ jobs:
         echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the DEB package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: linux_deb_package
         path: ${{ steps.package_locations.outputs.REL_DEB_PACKAGE_PATH }}
         retention-days: 5
 
     - name: Upload the RPM package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: linux_rpm_package
         path: ${{ steps.package_locations.outputs.REL_RPM_PACKAGE_PATH }}
         retention-days: 5
 
     - name: Upload the Linux TGZ package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-20.04'
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: linux_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -302,7 +307,7 @@ jobs:
 
     - name: Upload the macOS TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'macos-11'
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: macos_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -310,4 +315,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@0ba4244466797eb048eb91a6cd43d5c03ca8bd05
+      uses: github/codeql-action/analyze@407ffafae6a767df3e0230c3df91b6443ae8df75

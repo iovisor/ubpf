@@ -167,7 +167,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       upload_packages: true
 
@@ -175,14 +175,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
 
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       scan_build: true
 
@@ -190,7 +190,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       disable_retpolines: true
 
@@ -198,7 +198,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -206,7 +206,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       enable_coverage: true
       disable_retpolines: true
@@ -215,7 +215,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -223,7 +223,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
 
@@ -231,7 +231,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
       disable_retpolines: true
@@ -241,7 +241,7 @@ jobs:
   #   uses: ./.github/workflows/posix.yml
   #   with:
   #     arch: arm64
-  #     platform: ubuntu-20.04
+  #     platform: ubuntu-latest
   #     build_type: RelWithDebInfo
   #     enable_sanitizers: true
 
@@ -249,14 +249,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
 
   linux_debug_no_retpolines:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       disable_retpolines: true
 
@@ -264,7 +264,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       upload_packages: true
 
@@ -272,7 +272,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       enable_coverage: true
 
@@ -280,7 +280,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       enable_coverage: true
       disable_retpolines: true
@@ -289,7 +289,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: arm64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       enable_coverage: true
 
@@ -297,7 +297,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       enable_sanitizers: true
 
@@ -305,7 +305,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: ubuntu-20.04
+      platform: ubuntu-latest
       build_type: Debug
       enable_sanitizers: true
       disable_retpolines: true
@@ -315,7 +315,7 @@ jobs:
   #   uses: ./.github/workflows/posix.yml
   #   with:
   #     arch: arm64
-  #     platform: ubuntu-20.04
+  #     platform: ubuntu-latest
   #     build_type: Debug
   #     enable_sanitizers: true
 
@@ -330,10 +330,10 @@ jobs:
       - linux_release_arm64_coverage
       - linux_debug_arm64_coverage
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Coveralls Finished
-      uses: coverallsapp/github-action@v2.2.1
+      uses: coverallsapp/github-action@v2.2.3
       with:
         github-token: ${{ secrets.github_token }}
         parallel-finished: true
