@@ -23,13 +23,13 @@ target_link_libraries(
     ubpf_settings
 )
 
-file(GLOB external_files ${CMAKE_SOURCE_DIR}/external/bpf_conformance/tests/*.data)
+file(GLOB external_files ${CMAKE_SOURCE_DIR}/external/tests/*.data)
 file(GLOB local_files ${CMAKE_SOURCE_DIR}/tests/*.data)
 
 set(files ${external_files} ${local_files})
 
 if(NOT BPF_CONFORMANCE_RUNNER)
-    set(BPF_CONFORMANCE_RUNNER ${CMAKE_BINARY_DIR}/external/bpf_conformance/bin/bpf_conformance_runner)
+    set(BPF_CONFORMANCE_RUNNER ${CMAKE_BINARY_DIR}/external/bin/bpf_conformance_runner)
 else()
     message(STATUS "Using custom bpf_conformance_runner: ${BPF_CONFORMANCE_RUNNER}")
 endif()
