@@ -1,6 +1,11 @@
 # Copyright (c) Microsoft Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+if (UBPF_SKIP_EXTERNAL)
+    message(WARNING "Skipping configuration of tests that require external package support.")
+    return()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 
 file(COPY ${CMAKE_SOURCE_DIR}/tests DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -9,6 +14,8 @@ add_executable(
     ubpf_plugin
     ubpf_plugin.cc
 )
+
+add_dependencies(ubpf_plugin Conformance-build)
 
 target_include_directories("ubpf_plugin" PRIVATE
     "${CMAKE_SOURCE_DIR}/vm"

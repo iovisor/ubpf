@@ -21,16 +21,16 @@ if(UBPF_ENABLE_TESTS)
 endif()
 
 add_subdirectory("vm")
+    ExternalProject_Add(Conformance
+        INSTALL_COMMAND ""
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/bpf_conformance
+				BINARY_DIR ${CMAKE_BINARY_DIR}/external/bpf_conformance
+        EXCLUDE_FROM_ALL true
+        STEP_TARGETS build)
 
 if(UBPF_ENABLE_TESTS)
   add_subdirectory("ubpf_plugin")
   if (NOT UBPF_SKIP_EXTERNAL)
-    ExternalProject_Add(Conformance GIT_REPOSITORY "https://github.com/Alan-Jowett/bpf_conformance.git"
-        GIT_SUBMODULES_RECURSE true
-        GIT_TAG main
-        INSTALL_COMMAND ""
-        BINARY_DIR ${CMAKE_BINARY_DIR}/external/bpf_conformance
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/bpf_conformance)
   endif()
   add_subdirectory("bpf")
   add_subdirectory("aarch64_test")
