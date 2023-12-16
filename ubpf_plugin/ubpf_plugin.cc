@@ -115,6 +115,11 @@ int main(int argc, char **argv)
 
     std::vector<ebpf_inst> program = bytes_to_ebpf_inst(base16_decode(program_string));
     std::vector<uint8_t> memory = base16_decode(memory_string);
+    uint8_t *memory_ptr{nullptr};
+
+    if (memory.size() != 0) {
+        memory_ptr = memory.data();
+    }
 
     std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
     char* error = nullptr;
@@ -159,11 +164,11 @@ int main(int argc, char **argv)
             free(error);
             return 1;
         }
-        actual_result = fn(memory.data(), memory.size());
+        actual_result = fn(memory_ptr, memory.size());
     }
     else
     {
-        if (ubpf_exec(vm.get(), memory.data(), memory.size(), &actual_result) != 0)
+        if (ubpf_exec(vm.get(), memory_ptr, memory.size(), &actual_result) != 0)
         {
             std::cerr << "Failed to execute program" << std::endl;
             return 1;
