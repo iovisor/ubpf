@@ -155,7 +155,7 @@ map_register(int r)
 static void
 emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm);
 static void
-divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm);
+divmod(struct jit_state* state, uint16_t opcode, bool signedness, int rd, int rn, int rm);
 
 static uint32_t inline align_to(uint32_t amount, uint64_t boundary) { return (amount + (boundary - 1 )) & ~(boundary - 1); }
 
@@ -424,7 +424,8 @@ emit_dataprocessing_onesource(
 
 enum DP2Opcode
 {
-    //   S                 opcode|
+    // Remember: These literals are written in big-endian (i.e., bit 31
+    //           is on the left)!
     DP2_UDIV = 0x1ac00800U, // 0001_1010_1100_0000_0000_1000_0000_0000
     DP2_SDIV = 0x1ac00c00U, // 0001_1010_1100_0000_0000_1100_0000_0000
     DP2_LSLV = 0x1ac02000U, // 0001_1010_1100_0000_0010_0000_0000_0000
@@ -920,7 +921,16 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         int sixty_four = is_alu64_op(&inst);
 
+        /*
+         * If this instruction calls for an immediate, the first
+         * thing that we will do is put that immediate in to a register.
+         * From then on, we will consider the operation as if it
+         * were register-based. Sneaky.
+         */
         if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
+            //                                                        Sign extension happens here
+            //                                                        (as it should, per the ISA).
+            //                                                        \/
             emit_movewide_immediate(state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
             opcode = to_reg_op(opcode);
@@ -956,7 +966,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_MOD_REG:
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_REG:
-            divmod(state, opcode, dst, dst, src);
+            divmod(state, opcode, inst.offset != 0, dst, dst, src);
             break;
         case EBPF_OP_OR_REG:
         case EBPF_OP_AND_REG:
@@ -1126,6 +1136,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_LSH64_IMM:
         case EBPF_OP_RSH64_IMM:
         case EBPF_OP_ARSH64_IMM:
+            // The immediate operations should have been converted ... see above.
             *errmsg = ubpf_error("Unexpected instruction at PC %d: opcode %02x, immediate %08x", i, opcode, inst.imm);
             return -1;
         default:
@@ -1140,16 +1151,17 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 }
 
 static void
-divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm)
+divmod(struct jit_state* state, uint16_t opcode, bool signedness, int rd, int rn, int rm)
 {
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool sixty_four = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
     enum Registers div_dest = mod ? temp_div_register : rd;
+    enum DP2Opcode s_or_udiv_operation = signedness ? DP2_SDIV : DP2_UDIV;
 
-    /* Do not need to treet divide by zero as special because the UDIV instruction already
+    /* Do not need to treat divide by zero as special because the UDIV instruction already
      * returns 0 when dividing by zero.
      */
-    emit_dataprocessing_twosource(state, sixty_four, DP2_UDIV, div_dest, rn, rm);
+    emit_dataprocessing_twosource(state, sixty_four, s_or_udiv_operation, div_dest, rn, rm);
     if (mod) {
         emit_dataprocessing_threesource(state, sixty_four, DP3_MSUB, rd, rm, div_dest, rn);
     }

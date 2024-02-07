@@ -30,6 +30,7 @@
 #include <endian.h>
 #include "ubpf_int.h"
 #include <unistd.h>
+#include <stdint.h>
 
 #define MAX_EXT_FUNCS 64
 #define SHIFT_MASK_32_BIT(X) ((X)&0x1f)
@@ -230,6 +231,18 @@ i32(uint64_t x)
     return x;
 }
 
+static uint64_t
+u64(uint64_t x)
+{
+    return x;
+}
+
+static int64_t
+i64(uint64_t x)
+{
+    return x;
+}
+
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
 inline static uint64_t
@@ -364,11 +377,19 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_DIV_IMM:
-            reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
+            if (inst.offset != 0) {
+                reg[inst.dst] = i32(inst.imm) ? i32(reg[inst.dst]) / i32(inst.imm) : 0;
+            } else {
+                reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
+            }
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_DIV_REG:
-            reg[inst.dst] = reg[inst.src] ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
+            if (inst.offset != 0) {
+                reg[inst.dst] = reg[inst.src] ? i32(reg[inst.dst]) / i32(reg[inst.src]) : 0;
+            } else {
+                reg[inst.dst] = reg[inst.src] ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
+            }
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_OR_IMM:
@@ -475,10 +496,18 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] *= reg[inst.src];
             break;
         case EBPF_OP_DIV64_IMM:
-            reg[inst.dst] = inst.imm ? reg[inst.dst] / inst.imm : 0;
+            if (inst.offset != 0) {
+                reg[inst.dst] = inst.imm ? i64(reg[inst.dst]) / i64(inst.imm) : 0;
+            } else {
+                reg[inst.dst] = inst.imm ? u64(reg[inst.dst]) / u64(inst.imm) : 0;
+            }
             break;
         case EBPF_OP_DIV64_REG:
-            reg[inst.dst] = reg[inst.src] ? reg[inst.dst] / reg[inst.src] : 0;
+            if (inst.offset != 0) {
+                reg[inst.dst] = reg[inst.src] ? i64(reg[inst.dst]) / i64(reg[inst.src]) : 0;
+            } else {
+                reg[inst.dst] = reg[inst.src] ? u64(reg[inst.dst]) / u64(reg[inst.src]) : 0;
+            }
             break;
         case EBPF_OP_OR64_IMM:
             reg[inst.dst] |= inst.imm;

@@ -37,7 +37,7 @@
 #endif
 
 static void
-muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm);
+muldivmod(struct jit_state* state, uint8_t opcode, uint8_t offset, int src, int dst, int32_t imm);
 
 #define REGISTER_MAP_SIZE 11
 
@@ -285,7 +285,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV_REG:
         case EBPF_OP_MOD_IMM:
         case EBPF_OP_MOD_REG:
-            muldivmod(state, inst.opcode, src, dst, inst.imm);
+            muldivmod(state, inst.opcode, inst.offset, src, dst, inst.imm);
             break;
         case EBPF_OP_OR_IMM:
             emit_alu32_imm32(state, 0x81, 1, dst, inst.imm);
@@ -372,7 +372,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_IMM:
         case EBPF_OP_MOD64_REG:
-            muldivmod(state, inst.opcode, src, dst, inst.imm);
+            muldivmod(state, inst.opcode, inst.offset, src, dst, inst.imm);
             break;
         case EBPF_OP_OR64_IMM:
             emit_alu64_imm32(state, 0x81, 1, dst, inst.imm);
@@ -705,13 +705,14 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 }
 
 static void
-muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm)
+muldivmod(struct jit_state* state, uint8_t opcode, uint8_t offset, int src, int dst, int32_t imm)
 {
     bool mul = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MUL_IMM & EBPF_ALU_OP_MASK);
     bool div = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_DIV_IMM & EBPF_ALU_OP_MASK);
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool is64 = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
     bool reg = (opcode & EBPF_SRC_REG) == EBPF_SRC_REG;
+    bool isSigned = offset != 0;
 
     // Short circuit for imm == 0.
     if (!reg && imm == 0) {
@@ -777,12 +778,24 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
         emit_alu32(state, 0x31, RDX, RDX);
     }
 
+    // If we are doing a signed operation (of either 64 or 32 bit width),
+    // we are responsible for appropriately setting _x_dx because _x_dx:_x_cx
+    // is the divisor. For an unsigned operation, we know that _x_dx is 0, but
+    // we need to do better when it is a signed operation.
+    // See, e.g., https://www.felixcloutier.com/x86/div.
+    if (isSigned) {
+        if (is64) {
+            emit_rex(state, 1, 0, 0, 0);
+        }
+        emit1(state, 0x99);
+    }
+
     if (is64) {
         emit_rex(state, 1, 0, 0, 0);
     }
 
-    // Multiply or divide.
-    emit_alu32(state, 0xf7, mul ? 4 : 6, RCX);
+    // (signed) multiply or divide.
+    emit_alu32(state, 0xf7, isSigned + (mul ? 4 : 6), RCX);
 
     // Division operation stores the remainder in RDX and the quotient in RAX.
     if (div || mod) {

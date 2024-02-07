@@ -1,0 +1,7 @@
+-- asm
+mov %r0, 0xc
+lsh %r0, 32
+sdiv %r0, 0xffffffffc
+exit
+-- result
+0xfffffffd00000000
