@@ -24,6 +24,16 @@
 #include <ubpf.h>
 #include "ebpf.h"
 
+#define MAX_EXT_FUNCS 64
+
+#ifndef UNREFERENCED_PARAMETER
+#define UNREFERENCED_PARAMETER(p) (void)p
+#endif
+
+#ifndef MAYBE_UNREFERENCED_PARAMETER
+#define MAYBE_UNREFERENCED_PARAMETER(p) (void)p
+#endif
+
 struct ebpf_inst;
 typedef uint64_t (*ext_func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
 
@@ -66,8 +76,11 @@ ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** er
 
 char*
 ubpf_error(const char* fmt, ...);
+
 unsigned int
-ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
+ubpf_lookup_registered_function_by_name(struct ubpf_vm* vm, const char* name);
+ext_func
+ubpf_lookup_registered_function_by_id(struct ubpf_vm* vm, unsigned int idx);
 
 /**
  * @brief Fetch the instruction at the given index.

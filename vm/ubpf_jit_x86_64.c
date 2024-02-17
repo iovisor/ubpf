@@ -25,9 +25,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <inttypes.h>
 #include <sys/mman.h>
-#include <errno.h>
 #include <assert.h>
 #include "ubpf_int.h"
 #include "ubpf_jit_x86_64.h"
@@ -81,7 +79,7 @@ static int register_map[REGISTER_MAP_SIZE] = {
     RDI,
     RSI,
     RDX,
-    R9,
+    R9, // In the SystemV ABI, this *should* be RCX. See RCX_ALT (above).
     R8,
     RBX,
     R13,
@@ -97,6 +95,402 @@ map_register(int r)
 {
     assert(r < _BPF_REG_MAX);
     return register_map[r % _BPF_REG_MAX];
+}
+
+static inline void
+emit_bytes(struct jit_state* state, void* data, uint32_t len)
+{
+    assert(state->offset <= state->size - len);
+    if ((state->offset + len) > state->size) {
+        state->offset = state->size;
+        return;
+    }
+    memcpy(state->buf + state->offset, data, len);
+    state->offset += len;
+}
+
+static inline void
+emit1(struct jit_state* state, uint8_t x)
+{
+    emit_bytes(state, &x, sizeof(x));
+}
+
+static inline void
+emit2(struct jit_state* state, uint16_t x)
+{
+    emit_bytes(state, &x, sizeof(x));
+}
+
+static inline void
+emit4(struct jit_state* state, uint32_t x)
+{
+    emit_bytes(state, &x, sizeof(x));
+}
+
+static inline void
+emit8(struct jit_state* state, uint64_t x)
+{
+    emit_bytes(state, &x, sizeof(x));
+}
+
+static inline void
+emit_jump_target_address(struct jit_state* state, int32_t target_pc)
+{
+    if (state->num_jumps == UBPF_MAX_INSTS) {
+        return;
+    }
+    struct jump* jump = &state->jumps[state->num_jumps++];
+    jump->offset_loc = state->offset;
+    jump->target_pc = target_pc;
+    emit4(state, 0);
+}
+
+static inline void
+emit_jump_target_offset(struct jit_state* state, uint32_t jump_loc, uint32_t jump_state_offset)
+{
+    if (state->num_jumps == UBPF_MAX_INSTS) {
+        return;
+    }
+    struct jump* jump = &state->jumps[state->num_jumps++];
+    jump->offset_loc = jump_loc;
+    jump->target_offset = jump_state_offset;
+}
+
+static inline void
+emit_modrm(struct jit_state* state, int mod, int r, int m)
+{
+    assert(!(mod & ~0xc0));
+    emit1(state, (mod & 0xc0) | ((r & 7) << 3) | (m & 7));
+}
+
+static inline void
+emit_modrm_reg2reg(struct jit_state* state, int r, int m)
+{
+    emit_modrm(state, 0xc0, r, m);
+}
+
+static inline void
+emit_modrm_and_displacement(struct jit_state* state, int r, int m, int32_t d)
+{
+    if (d == 0 && (m & 7) != RBP) {
+        emit_modrm(state, 0x00, r, m);
+    } else if (d >= -128 && d <= 127) {
+        emit_modrm(state, 0x40, r, m);
+        emit1(state, d);
+    } else {
+        emit_modrm(state, 0x80, r, m);
+        emit4(state, d);
+    }
+}
+
+static inline void
+emit_rex(struct jit_state* state, int w, int r, int x, int b)
+{
+    assert(!(w & ~1));
+    assert(!(r & ~1));
+    assert(!(x & ~1));
+    assert(!(b & ~1));
+    emit1(state, 0x40 | (w << 3) | (r << 2) | (x << 1) | b);
+}
+
+/*
+ * Emits a REX prefix with the top bit of src and dst.
+ * Skipped if no bits would be set.
+ */
+static inline void
+emit_basic_rex(struct jit_state* state, int w, int src, int dst)
+{
+    if (w || (src & 8) || (dst & 8)) {
+        emit_rex(state, w, !!(src & 8), 0, !!(dst & 8));
+    }
+}
+
+static inline void
+emit_push(struct jit_state* state, int r)
+{
+    emit_basic_rex(state, 0, 0, r);
+    emit1(state, 0x50 | (r & 7));
+}
+
+static inline void
+emit_pop(struct jit_state* state, int r)
+{
+    emit_basic_rex(state, 0, 0, r);
+    emit1(state, 0x58 | (r & 7));
+}
+
+/* REX prefix and ModRM byte */
+/* We use the MR encoding when there is a choice */
+/* 'src' is often used as an opcode extension */
+static inline void
+emit_alu32(struct jit_state* state, int op, int src, int dst)
+{
+    emit_basic_rex(state, 0, src, dst);
+    emit1(state, op);
+    emit_modrm_reg2reg(state, src, dst);
+}
+
+/* REX prefix, ModRM byte, and 32-bit immediate */
+static inline void
+emit_alu32_imm32(struct jit_state* state, int op, int src, int dst, int32_t imm)
+{
+    emit_alu32(state, op, src, dst);
+    emit4(state, imm);
+}
+
+/* REX prefix, ModRM byte, and 8-bit immediate */
+static inline void
+emit_alu32_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
+{
+    emit_alu32(state, op, src, dst);
+    emit1(state, imm);
+}
+
+/* REX.W prefix and ModRM byte */
+/* We use the MR encoding when there is a choice */
+/* 'src' is often used as an opcode extension */
+static inline void
+emit_alu64(struct jit_state* state, int op, int src, int dst)
+{
+    emit_basic_rex(state, 1, src, dst);
+    emit1(state, op);
+    emit_modrm_reg2reg(state, src, dst);
+}
+
+/* REX.W prefix, ModRM byte, and 32-bit immediate */
+static inline void
+emit_alu64_imm32(struct jit_state* state, int op, int src, int dst, int32_t imm)
+{
+    emit_alu64(state, op, src, dst);
+    emit4(state, imm);
+}
+
+/* REX.W prefix, ModRM byte, and 8-bit immediate */
+static inline void
+emit_alu64_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
+{
+    emit_alu64(state, op, src, dst);
+    emit1(state, imm);
+}
+
+/* Register to register mov */
+static inline void
+emit_mov(struct jit_state* state, int src, int dst)
+{
+    emit_alu64(state, 0x89, src, dst);
+}
+
+static inline void
+emit_cmp_imm32(struct jit_state* state, int dst, int32_t imm)
+{
+    emit_alu64_imm32(state, 0x81, 7, dst, imm);
+}
+
+static inline void
+emit_cmp32_imm32(struct jit_state* state, int dst, int32_t imm)
+{
+    emit_alu32_imm32(state, 0x81, 7, dst, imm);
+}
+
+static inline void
+emit_cmp(struct jit_state* state, int src, int dst)
+{
+    emit_alu64(state, 0x39, src, dst);
+}
+
+static inline void
+emit_cmp32(struct jit_state* state, int src, int dst)
+{
+    emit_alu32(state, 0x39, src, dst);
+}
+
+static inline void
+emit_jcc(struct jit_state* state, int code, int32_t target_pc)
+{
+    emit1(state, 0x0f);
+    emit1(state, code);
+    emit_jump_target_address(state, target_pc);
+}
+
+/* Load [src + offset] into dst */
+static inline void
+emit_load(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
+{
+    emit_basic_rex(state, size == S64, dst, src);
+
+    if (size == S8 || size == S16) {
+        /* movzx */
+        emit1(state, 0x0f);
+        emit1(state, size == S8 ? 0xb6 : 0xb7);
+    } else if (size == S32 || size == S64) {
+        /* mov */
+        emit1(state, 0x8b);
+    }
+
+    emit_modrm_and_displacement(state, dst, src, offset);
+}
+
+/* Load sign-extended immediate into register */
+static inline void
+emit_load_imm(struct jit_state* state, int dst, int64_t imm)
+{
+    if (imm >= INT32_MIN && imm <= INT32_MAX) {
+        emit_alu64_imm32(state, 0xc7, 0, dst, imm);
+    } else {
+        /* movabs $imm,dst */
+        emit_basic_rex(state, 1, 0, dst);
+        emit1(state, 0xb8 | (dst & 7));
+        emit8(state, imm);
+    }
+}
+
+/* Store register src to [dst + offset] */
+static inline void
+emit_store(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
+{
+    if (size == S16) {
+        emit1(state, 0x66); /* 16-bit override */
+    }
+    int rexw = size == S64;
+    if (rexw || src & 8 || dst & 8 || size == S8) {
+        emit_rex(state, rexw, !!(src & 8), 0, !!(dst & 8));
+    }
+    emit1(state, size == S8 ? 0x88 : 0x89);
+    emit_modrm_and_displacement(state, src, dst, offset);
+}
+
+/* Store immediate to [dst + offset] */
+static inline void
+emit_store_imm32(struct jit_state* state, enum operand_size size, int dst, int32_t offset, int32_t imm)
+{
+    if (size == S16) {
+        emit1(state, 0x66); /* 16-bit override */
+    }
+    emit_basic_rex(state, size == S64, 0, dst);
+    emit1(state, size == S8 ? 0xc6 : 0xc7);
+    emit_modrm_and_displacement(state, 0, dst, offset);
+    if (size == S32 || size == S64) {
+        emit4(state, imm);
+    } else if (size == S16) {
+        emit2(state, imm);
+    } else if (size == S8) {
+        emit1(state, imm);
+    }
+}
+
+static inline void
+emit_ret(struct jit_state* state)
+{
+    emit1(state, 0xc3);
+}
+
+static inline void
+emit_jmp(struct jit_state* state, uint32_t target_pc)
+{
+    emit1(state, 0xe9);
+    emit_jump_target_address(state, target_pc);
+}
+
+static inline void
+emit_call_through_rax(struct jit_state* state)
+{
+    /*
+     * Caller is responsible for handling stack alignment.
+     */
+#ifndef UBPF_DISABLE_RETPOLINES
+    emit1(state, 0xe8); // e8 is the opcode for a CALL
+    emit_jump_target_address(state, TARGET_PC_RETPOLINE);
+#else
+    /* TODO use direct call when possible */
+    /* callq *%rax */
+    emit1(state, 0xff);
+    // ModR/M byte: b11010000b = xd
+    //               ^
+    //               register-direct addressing.
+    //                 ^
+    //                 opcode extension (2)
+    //                    ^
+    //                    rax is register 0
+    emit1(state, 0xd0);
+#endif
+}
+
+static inline void
+emit_win32_create_home(struct jit_state* state)
+{
+    (void)state;
+#if defined(_WIN32)
+    /* We have to create a little space to keep our 16-byte
+     * alignment happy
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
+
+    /* Windows x64 ABI spills 5th parameter to stack */
+    emit_push(state, map_register(5));
+
+    /* Windows x64 ABI requires home register space.
+     * Allocate home register space - 4 registers.
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
+#endif
+}
+
+static inline void
+emit_win32_destroy_home(struct jit_state* state)
+{
+    MAYBE_UNREFERENCED_PARAMETER(state);
+#if defined(_WIN32)
+    /* Deallocate home register space + spilled register + alignment space - 5 registers */
+    emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 1 + 1) * sizeof(uint64_t));
+#endif
+}
+
+static inline void
+emit_call(struct jit_state* state, void* target)
+{
+    /*
+     * When we enter here, our stack is 16-byte aligned. Keep
+     * it that way!
+     */
+    emit_win32_create_home(state);
+
+    emit_load_imm(state, RAX, (uintptr_t)target);
+    emit_call_through_rax(state);
+
+    emit_win32_destroy_home(state);
+}
+
+static inline void
+emit_callx(struct jit_state* state, struct ubpf_vm* vm, int src)
+{
+
+    emit_win32_create_home(state);
+
+    emit_push(state, RDI);
+    emit_push(state, RSI);
+    emit_push(state, RDX);
+    emit_push(state, RCX);
+    emit_push(state, R8);
+    emit_push(state, R9);
+    emit_push(state, R10);
+    emit_push(state, R11);
+
+    emit_load_imm(state, RDI, (uint64_t)vm);
+    emit_mov(state, src, RSI);
+
+    emit_call(state, ubpf_lookup_registered_function_by_id);
+
+    emit_pop(state, R11);
+    emit_pop(state, R10);
+    emit_pop(state, R9);
+    emit_pop(state, R8);
+    emit_pop(state, RCX);
+    emit_pop(state, RDX);
+    emit_pop(state, RSI);
+    emit_pop(state, RDI);
+
+    emit_call_through_rax(state);
+    emit_win32_destroy_home(state);
 }
 
 static inline void
@@ -125,6 +519,16 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_pop(state, map_register(BPF_REG_8));
     emit_pop(state, map_register(BPF_REG_7));
     emit_pop(state, map_register(BPF_REG_6));
+}
+
+static uint32_t
+emit_helper_trampoline(struct jit_state* state, struct ubpf_vm* vm)
+{
+    uint32_t helper_trampoline_start = state->offset;
+    for (int i = 0; i < MAX_EXT_FUNCS; i++) {
+        emit8(state, (uint64_t)vm->ext_funcs[i]);
+    }
+    return helper_trampoline_start;
 }
 
 static uint32_t
@@ -606,6 +1010,11 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_CALL:
             /* We reserve RCX for shifts */
             if (inst.src == 0) {
+                // Move the RCX_ALT register (which holds BPF_REG_4) to RCX
+                // so that the SystemV ABI calling convention is maintained.
+                // That is the only one of the BPF-to-native register mappings
+                // that needs to take place to make the BPF calling convention
+                // match the SystemV ABI calling convention.
                 emit_mov(state, RCX_ALT, RCX);
                 emit_call(state, vm->ext_funcs[inst.imm]);
                 if (inst.imm == vm->unwind_stack_extension_index) {
@@ -616,6 +1025,11 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 target_pc = i + inst.imm + 1;
                 emit_local_call(state, target_pc);
             }
+            break;
+        case EBPF_OP_CALLX:
+            // See comments above.
+            emit_mov(state, RCX_ALT, RCX);
+            emit_callx(state, vm, map_register(inst.dst));
             break;
         case EBPF_OP_EXIT:
             /* On entry to every local function we add an additional 8 bytes.
@@ -700,6 +1114,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     emit1(state, 0xc3); /* ret */
 
     state->retpoline_loc = emit_retpoline(state);
+
+    state->helper_trampoline_loc = emit_helper_trampoline(state, vm);
 
     return 0;
 }
@@ -854,6 +1270,28 @@ resolve_jumps(struct jit_state* state)
     }
 }
 
+static void
+resolve_loads(struct jit_state* state)
+{
+    int i;
+    for (i = 0; i < state->num_loads; i++) {
+        struct load load = state->loads[i];
+
+        int target_loc;
+        if (load.target_pc == TARGET_PC_HELPERS) {
+            target_loc = state->helper_trampoline_loc;
+        } else {
+            assert(false);
+        }
+
+        /* Assumes load offset is at end of instruction */
+        uint32_t rel = target_loc - (load.offset_loc + sizeof(uint32_t));
+
+        uint8_t* offset_ptr = &state->buf[load.offset_loc];
+        memcpy(offset_ptr, &rel, sizeof(uint32_t));
+    }
+}
+
 int
 ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
@@ -865,9 +1303,11 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
     state.buf = buffer;
     state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
+    state.loads = calloc(UBPF_MAX_INSTS, sizeof(state.loads[0]));
     state.num_jumps = 0;
+    state.num_loads = 0;
 
-    if (!state.pc_locs || !state.jumps) {
+    if (!state.pc_locs || !state.jumps || !state.loads) {
         *errmsg = ubpf_error("Out of memory");
         goto out;
     }
@@ -881,12 +1321,18 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
         goto out;
     }
 
+    if (state.num_loads == UBPF_MAX_INSTS) {
+        *errmsg = ubpf_error("Excessive number of load targets");
+        goto out;
+    }
+
     if (state.offset == state.size) {
         *errmsg = ubpf_error("Target buffer too small");
         goto out;
     }
 
     resolve_jumps(&state);
+    resolve_loads(&state);
     result = 0;
 
     *size = state.offset;
@@ -894,5 +1340,6 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
 out:
     free(state.pc_locs);
     free(state.jumps);
+    free(state.loads);
     return result;
 }

@@ -1,0 +1,15 @@
+# Copyright (c) Big Switch Networks, Inc
+# SPDX-License-Identifier: Apache-2.0
+-- asm
+mov %r1, 1
+mov %r2, 2
+mov %r3, 3
+mov %r4, 4
+mov %r5, 5
+mov %r6, 0
+call %r6
+exit
+-- result
+0x0102030405
+-- no register offset
+call instruction

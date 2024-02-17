@@ -26,8 +26,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <stdarg.h>
-#include <inttypes.h>
 #include "ubpf_int.h"
 
 #if defined(UBPF_HAS_ELF_H)
@@ -377,8 +375,8 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
             }
 
             struct ebpf_inst* applies_to_inst =
-                (struct
-                 ebpf_inst*)(source_function->linked_data + (relocation.r_offset - source_function->native_section_start));
+                (struct ebpf_inst*)(source_function->linked_data +
+                                    (relocation.r_offset - source_function->native_section_start));
             uint64_t applies_to_inst_index =
                 source_function->landed + ((relocation.r_offset - source_function->native_section_start) / 8);
 
@@ -461,7 +459,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     // Note: This is a uBPF specific relocation type and is not part of the ELF specification.
                     // It is used to perform resolution from helper function name to helper function id.
                     const char* section_name = strtab_data + relo_sym.st_name;
-                    unsigned int imm = ubpf_lookup_registered_function(vm, section_name);
+                    unsigned int imm = ubpf_lookup_registered_function_by_name(vm, section_name);
                     if (imm == -1) {
                         *errmsg = ubpf_error("function '%s' not found", section_name);
                         goto error;

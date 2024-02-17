@@ -19,21 +19,18 @@
 
 #define _GNU_SOURCE
 #include "ebpf.h"
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <inttypes.h>
 #include <sys/mman.h>
 #include <endian.h>
 #include "ubpf_int.h"
 #include <unistd.h>
 
-#define MAX_EXT_FUNCS 64
-#define SHIFT_MASK_32_BIT(X) ((X)&0x1f)
-#define SHIFT_MASK_64_BIT(X) ((X)&0x3f)
+#define SHIFT_MASK_32_BIT(X) ((X) & 0x1f)
+#define SHIFT_MASK_64_BIT(X) ((X) & 0x3f)
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
@@ -122,19 +119,17 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
     return 0;
 }
 
-int
-ubpf_set_unwind_function_index(struct ubpf_vm* vm, unsigned int idx)
+ext_func
+ubpf_lookup_registered_function_by_id(struct ubpf_vm* vm, unsigned int idx)
 {
-    if (vm->unwind_stack_extension_index != -1) {
-        return -1;
+    if (idx >= MAX_EXT_FUNCS) {
+        return NULL;
     }
-
-    vm->unwind_stack_extension_index = idx;
-    return 0;
+    return vm->ext_funcs[idx];
 }
 
 unsigned int
-ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
+ubpf_lookup_registered_function_by_name(struct ubpf_vm* vm, const char* name)
 {
     int i;
     for (i = 0; i < MAX_EXT_FUNCS; i++) {
@@ -144,6 +139,17 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
         }
     }
     return -1;
+}
+
+int
+ubpf_set_unwind_function_index(struct ubpf_vm* vm, unsigned int idx)
+{
+    if (vm->unwind_stack_extension_index != -1) {
+        return -1;
+    }
+
+    vm->unwind_stack_extension_index = idx;
+    return 0;
 }
 
 int
@@ -843,6 +849,17 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             *bpf_return_value = reg[0];
             return_value = 0;
             goto cleanup;
+        case EBPF_OP_CALLX: {
+            int32_t target = reg[inst.dst];
+            if (target < 0 || target >= MAX_EXT_FUNCS) {
+                vm->error_printf(
+                    stderr, "uBPF error: target of indirect call is out of bounds (%d) at PC %u\n", target, cur_pc);
+                return_value = -1;
+                goto cleanup;
+            }
+            reg[0] = vm->ext_funcs[target](reg[1], reg[2], reg[3], reg[4], reg[5]);
+            break;
+        }
         case EBPF_OP_CALL:
             // Differentiate between local and external calls -- assume that the
             // program was assembled with the same endianess as the host machine.
@@ -1075,6 +1092,15 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 return false;
             } else {
                 *errmsg = ubpf_error("call (at PC %d) contains invalid type value", i);
+                return false;
+            }
+            break;
+
+        case EBPF_OP_CALLX:
+            // Because the value of the target of the call is in the register, there is not much
+            // that we can check here, really!
+            if (inst.dst >= _BPF_REG_MAX) {
+                *errmsg = ubpf_error("call through register (at PC %d) contains invalid register (%d)", i, inst.dst);
                 return false;
             }
             break;

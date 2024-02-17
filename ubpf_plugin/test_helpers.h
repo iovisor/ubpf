@@ -5,10 +5,12 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <string.h>
 
-#if !defined(UNREFERENCED_PARAMETER)
-#define UNREFERENCED_PARAMETER(P) (void)(P)
-#endif
+extern "C"
+{
+#include "ubpf_int.h"
+}
 
 static uint64_t
 gather_bytes(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)

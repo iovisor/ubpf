@@ -50,8 +50,8 @@ else()
     else()
         set(PLATFORM_EXECUTABLE_EXTENSION "")
     endif()
-    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --jit)
-    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret)
+    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --jit --include_groups callx)
+    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret --include_groups callx)
 endif()
 
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
@@ -59,6 +59,10 @@ list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
 # TODO: remove this once we have a proper implementation of interlocked operations
 # and support for calling local functions.
 list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
+
+if(PLATFORM_MACOS)
+    list(APPEND TESTS_EXPECTED_TO_FAIL "callx.*")
+endif()
 
 foreach(file ${files})
     unset(EXPECT_FAILURE)
