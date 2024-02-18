@@ -1277,7 +1277,7 @@ resolve_loads(struct jit_state* state)
     for (i = 0; i < state->num_loads; i++) {
         struct load load = state->loads[i];
 
-        int target_loc;
+        int target_loc = 0;
         if (load.target_pc == TARGET_PC_HELPERS) {
             target_loc = state->helper_trampoline_loc;
         } else {
