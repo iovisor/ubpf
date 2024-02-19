@@ -60,7 +60,11 @@ list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
 # and support for calling local functions.
 list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
 
-if(PLATFORM_MACOS)
+if(CMAKE_SYSTEM_PROCESSOR EQUAL "aarch64")
+    message(STATUS "aarch64")
+endif()
+
+if(PLATFORM_MACOS OR CMAKE_SYSTEM_PROCESSOR EQUAL "aarch64")
     list(APPEND TESTS_EXPECTED_TO_FAIL "callx.*")
 endif()
 

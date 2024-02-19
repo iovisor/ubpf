@@ -466,6 +466,9 @@ emit_callx(struct jit_state* state, struct ubpf_vm* vm, int src)
 
     emit_win32_create_home(state);
 
+    // Because we are going to make a call, we have to preserve
+    // volatile registers. It's great news that the number of
+    // volatile registers maintains 16-byte stack alignment!
     emit_push(state, RDI);
     emit_push(state, RSI);
     emit_push(state, RDX);
@@ -475,11 +478,15 @@ emit_callx(struct jit_state* state, struct ubpf_vm* vm, int src)
     emit_push(state, R10);
     emit_push(state, R11);
 
+    // The first argument (RDI) to ubpf_lookup_registered_function_by_id
+    // is the VM. The second (RSI) is the ID of the helper function to call.
     emit_load_imm(state, RDI, (uint64_t)vm);
     emit_mov(state, src, RSI);
 
     emit_call(state, ubpf_lookup_registered_function_by_id);
+    // Result is in RAX. Perfect!
 
+    // Get 'em back!
     emit_pop(state, R11);
     emit_pop(state, R10);
     emit_pop(state, R9);
@@ -489,6 +496,7 @@ emit_callx(struct jit_state* state, struct ubpf_vm* vm, int src)
     emit_pop(state, RSI);
     emit_pop(state, RDI);
 
+    // Voila!
     emit_call_through_rax(state);
     emit_win32_destroy_home(state);
 }
