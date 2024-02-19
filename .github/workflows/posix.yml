@@ -174,10 +174,6 @@ jobs:
         path: ${{github.workspace}}/scan_build_report
         retention-days: 5
 
-    - name: tmate
-      if: inputs.platform == 'macos-11'
-      uses: mxschmitt/action-tmate@v3
-
     - name: Run the CTest suite
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
