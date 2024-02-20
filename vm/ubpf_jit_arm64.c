@@ -23,14 +23,11 @@
  */
 
 #define _GNU_SOURCE
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
-#include <inttypes.h>
 #include <sys/mman.h>
-#include <errno.h>
 #include <assert.h>
 #include "ubpf_int.h"
 
@@ -597,8 +594,58 @@ emit_call(struct jit_state* state, uintptr_t func)
 }
 
 static void
+emit_callx(struct jit_state* state, struct ubpf_vm* vm, enum Registers rd)
+{
+    uint32_t stack_movement = align_to(8 * 8, 16);
+    // Make room on the stack.
+    emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
+
+    // Stash away the frame pointer.
+    emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
+
+    // Now, because we are going to call someone else, we have to protect our
+    // volatile registers.
+    emit_loadstorepair_immediate(state, LSP_STPX, R0, R1, SP, 8);
+    emit_loadstorepair_immediate(state, LSP_STPX, R2, R3, SP, 24);
+    emit_loadstorepair_immediate(state, LSP_STPX, R4, R5, SP, 40);
+
+    emit_movewide_immediate(state, true, R0, (uint64_t)vm);
+    emit_logical_register(state, true, LOG_ORR, R1, RZ, rd);
+
+    emit_movewide_immediate(state, true, temp_register, (uint64_t)ubpf_lookup_registered_function_by_id);
+    emit_unconditionalbranch_register(state, BR_BLR, temp_register);
+
+    // The result of the function call is the address of the function to call. So, simply
+    // move that to temp_register for a future call.
+    emit_logical_register(state, true, LOG_ORR, temp_register, RZ, R0);
+
+    // We can restore the saved volatile registers -- just don't bring out the frame
+    // pointer yet!
+    emit_loadstorepair_immediate(state, LSP_LDPX, R0, R1, SP, 8);
+    emit_loadstorepair_immediate(state, LSP_LDPX, R2, R3, SP, 24);
+    emit_loadstorepair_immediate(state, LSP_LDPX, R4, R5, SP, 40);
+
+    // Call the function in the rd register.
+    emit_unconditionalbranch_register(state, BR_BLR, temp_register);
+
+    // Put the result in the BPF R0 register.
+    enum Registers dest = map_register(0);
+    if (dest != R0) {
+        emit_logical_register(state, true, LOG_ORR, dest, RZ, R0);
+    }
+
+    // Restore the frame pointer.
+    emit_loadstore_immediate(state, LS_LDRX, R30, SP, 0);
+
+    // Give back the stack space.
+    emit_addsub_immediate(state, true, AS_ADD, SP, SP, stack_movement);
+}
+
+static void
 emit_local_call(struct jit_state* state, uint32_t target_pc)
 {
+    // When we call a function, we assume that we are going to have to
+    // handle the callee-savedness on their behalf.
     uint32_t stack_movement = align_to(40, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
@@ -1055,6 +1102,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_JSET32_REG:
             emit_logical_register(state, sixty_four, LOG_ANDS, RZ, dst, src);
             emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
+            break;
+        case EBPF_OP_CALLX:
+            emit_callx(state, vm, dst);
             break;
         case EBPF_OP_CALL:
             if (inst.src == 0) {

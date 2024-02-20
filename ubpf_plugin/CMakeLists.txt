@@ -60,10 +60,6 @@ list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
 # and support for calling local functions.
 list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
 
-if(CMAKE_SYSTEM_PROCESSOR EQUAL "aarch64")
-    list(APPEND TESTS_EXPECTED_TO_FAIL "callx.*")
-endif()
-
 foreach(file ${files})
     unset(EXPECT_FAILURE)
     foreach(to_fail ${TESTS_EXPECTED_TO_FAIL})
@@ -90,9 +86,5 @@ foreach(file ${files})
 
     if(EXPECT_FAILURE)
         set_tests_properties(${file}-Interpreter PROPERTIES WILL_FAIL TRUE)
-        string(REGEX MATCH "callx.*" IS_CALLX "${file}")
-        if(CMAKE_SYSTEM_PROCESSOR EQUAL "aarch64" AND IS_CALLX)
-            set_tests_properties(${file}-Interpreter PROPERTIES WILL_FAIL FALSE)
-        endif()
     endif()
 endforeach()
