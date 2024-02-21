@@ -404,7 +404,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_DIV_REG:
-            reg[inst.dst] = reg[inst.src] ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
+            reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_OR_IMM:
