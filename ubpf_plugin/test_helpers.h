@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+#include "ubpf.h"
 #include <cmath>
 #include <cstdint>
 #include <map>
@@ -75,12 +76,11 @@ unwind(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
     return a;
 }
 
-static std::map<uint32_t, uint64_t (*)(uint64_t r1, uint64_t r2, uint64_t r3, uint64_t r4, uint64_t r5)>
-    helper_functions = {
-        {0, gather_bytes},
-        {1, memfrob},
-        {2, no_op},
-        {3, sqrti},
-        {4, strcmp_ext},
-        {5, unwind},
+static std::map<uint32_t, external_function_t> helper_functions = {
+    {0, gather_bytes},
+    {1, memfrob},
+    {2, no_op},
+    {3, sqrti},
+    {4, strcmp_ext},
+    {5, unwind},
 };

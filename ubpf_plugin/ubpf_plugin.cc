@@ -21,6 +21,12 @@ extern "C"
 
 #include "test_helpers.h"
 
+static
+external_function_t test_helpers_lookup(unsigned int index, void *cookie) {
+    std::map<uint32_t, external_function_t> *helper_functions = (std::map<uint32_t, external_function_t> *)cookie;
+    return (*helper_functions)[index];
+}
+
 /**
  * @brief Read in a string of hex bytes and return a vector of bytes.
  *
@@ -130,14 +136,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    for (auto &[key, value] : helper_functions)
-    {
-        if (ubpf_register(vm.get(), key, "unnamed", reinterpret_cast<void *>(value)) != 0)
-        {
-            std::cerr << "Failed to register helper function" << std::endl;
-            return 1;
-        }
-    }
+    ubpf_register_external_lookup_handler(vm.get(), test_helpers_lookup, (void*)&helper_functions);
 
     if (ubpf_set_unwind_function_index(vm.get(), 5) != 0)
     {

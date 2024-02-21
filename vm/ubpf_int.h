@@ -46,6 +46,8 @@ struct ubpf_vm
     ext_func* ext_funcs;
     bool* int_funcs;
     const char** ext_func_names;
+    external_lookup_handler_t ext_funcs_lookup_handler;
+    void* ext_funcs_lookup_cookie;
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
     int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
@@ -79,8 +81,12 @@ ubpf_error(const char* fmt, ...);
 
 unsigned int
 ubpf_lookup_registered_function_by_name(struct ubpf_vm* vm, const char* name);
+
 ext_func
-ubpf_lookup_registered_function_by_id(struct ubpf_vm* vm, unsigned int idx);
+ubpf_lookup_registered_function_by_id(const struct ubpf_vm* vm, unsigned int idx);
+
+bool
+ubpf_validate_registered_function_by_id(const struct ubpf_vm* vm, unsigned int idx);
 
 /**
  * @brief Fetch the instruction at the given index.

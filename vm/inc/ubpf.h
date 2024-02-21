@@ -99,6 +99,23 @@ extern "C"
     ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...));
 
     /**
+     * @brief Opaque type for a uBPF external helper function.
+     */
+    typedef uint64_t (*external_function_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
+    /**
+     * @brief Cast helper function pointer to match expected type.
+     * This function exists to cast a pointer to a uBPF external helper function
+     * to the complete form (i.e., external_function_t) even if the external helper
+     * does not take/need all five parameters.
+     *
+     * @param[in] fn The function to cast to external_function_t type.
+     * @retval fn casted to external_function_t.
+     */
+    external_function_t
+    as_external_function(void* fn);
+
+    /**
      * @brief Register an external function.
      * The immediate field of a CALL instruction is an index into an array of
      * functions registered by the user. This API associates a function with
@@ -112,7 +129,26 @@ extern "C"
      * @retval -1 Failure.
      */
     int
-    ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, void* fn);
+    ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, external_function_t fn);
+
+    /**
+     * @brief Opaque type for a the type of function that can be registered to do on-the-fly helper function lookup.
+     */
+    typedef external_function_t (*external_lookup_handler_t)(unsigned int, void*);
+
+    /**
+     * @brief Register an external function lookup handler.
+     * Register a function that the VM will invoke in order to find the helper function
+     * associated with a particular index.
+     *
+     * @param[in] vm The VM on which to register the lookup handler.
+     * @param[in] handler A pointer to the function that will be invoked to perform the lookup.
+     * @param[in] cookie An opaque, void pointer that will be passed to the handler when lookup is needed.
+     * @retval 0 Success.
+     * @retval -1 Failure.
+     */
+    int
+    ubpf_register_external_lookup_handler(struct ubpf_vm* vm, external_lookup_handler_t handler, void* cookie);
 
     /**
      * @brief Load code into a VM.

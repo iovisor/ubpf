@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 
+#include "ubpf.h"
 #define _GNU_SOURCE
 #include "ebpf.h"
 #include <stdio.h>
@@ -107,8 +108,21 @@ ubpf_destroy(struct ubpf_vm* vm)
 }
 
 int
-ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
+ubpf_register_external_lookup_handler(struct ubpf_vm* vm, external_lookup_handler_t handler, void* cookie)
 {
+    vm->ext_funcs_lookup_handler = handler;
+    vm->ext_funcs_lookup_cookie = cookie;
+
+    return 0;
+}
+
+int
+ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_function_t fn)
+{
+    if (vm->ext_funcs_lookup_handler != NULL) {
+        return -1;
+    }
+
     if (idx >= MAX_EXT_FUNCS) {
         return -1;
     }
@@ -119,9 +133,25 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
     return 0;
 }
 
-ext_func
-ubpf_lookup_registered_function_by_id(struct ubpf_vm* vm, unsigned int idx)
+external_function_t
+as_external_function(void* f)
 {
+    return (external_function_t)f;
+}
+
+bool
+ubpf_validate_registered_function_by_id(const struct ubpf_vm* vm, unsigned int idx)
+{
+    return ubpf_lookup_registered_function_by_id(vm, idx) != NULL;
+}
+
+ext_func
+ubpf_lookup_registered_function_by_id(const struct ubpf_vm* vm, unsigned int idx)
+{
+    if (vm->ext_funcs_lookup_handler != NULL) {
+        return vm->ext_funcs_lookup_handler(idx, vm->ext_funcs_lookup_cookie);
+    }
+
     if (idx >= MAX_EXT_FUNCS) {
         return NULL;
     }
@@ -857,7 +887,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                 return_value = -1;
                 goto cleanup;
             }
-            reg[0] = vm->ext_funcs[target](reg[1], reg[2], reg[3], reg[4], reg[5]);
+            external_function_t ext = ubpf_lookup_registered_function_by_id(vm, target);
+            reg[0] = ext(reg[1], reg[2], reg[3], reg[4], reg[5]);
             break;
         }
         case EBPF_OP_CALL:
@@ -865,7 +896,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             // program was assembled with the same endianess as the host machine.
             if (inst.src == 0) {
                 // Handle call by address to external function.
-                reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
+                external_function_t ext = ubpf_lookup_registered_function_by_id(vm, inst.imm);
+                reg[0] = ext(reg[1], reg[2], reg[3], reg[4], reg[5]);
                 // Unwind the stack if unwind extension returns success.
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];
@@ -1076,7 +1108,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                     *errmsg = ubpf_error("invalid call immediate at PC %d", i);
                     return false;
                 }
-                if (!vm->ext_funcs[inst.imm]) {
+                if (!ubpf_validate_registered_function_by_id(vm, inst.imm)) {
                     *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
                     return false;
                 }
