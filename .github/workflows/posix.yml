@@ -154,10 +154,6 @@ jobs:
           -DUBPF_ENABLE_INSTALL=true \
           ${arch_flags}
 
-    - name: tmate
-      if: inputs.platform == 'ubuntu-latest'
-      uses: mxschmitt/action-tmate@v3
-
     - name: Build uBPF
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
