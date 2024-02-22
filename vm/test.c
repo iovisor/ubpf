@@ -18,9 +18,10 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE
+
 #include <ubpf_config.h>
 
-#define _GNU_SOURCE
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdbool.h>

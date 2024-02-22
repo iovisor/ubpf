@@ -20,6 +20,8 @@
 #ifndef UBPF_H
 #define UBPF_H
 
+#define _GNU_SOURCE
+
 #ifdef __cplusplus
 extern "C"
 {

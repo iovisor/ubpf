@@ -18,9 +18,10 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE
+
 #include "ebpf.h"
 #include <stdint.h>
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>

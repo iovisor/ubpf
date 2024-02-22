@@ -21,6 +21,8 @@
 #ifndef UBPF_INT_H
 #define UBPF_INT_H
 
+#define _GNU_SOURCE
+
 #include <ubpf.h>
 #include "ebpf.h"
 

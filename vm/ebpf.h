@@ -20,6 +20,8 @@
 #ifndef EBPF_H
 #define EBPF_H
 
+#define _GNU_SOURCE
+
 #include <stdint.h>
 
 /* eBPF definitions */
