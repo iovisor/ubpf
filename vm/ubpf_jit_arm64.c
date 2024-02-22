@@ -22,7 +22,9 @@
  * [ArmARM-A H.a]: https://developer.arm.com/documentation/ddi0487/ha
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <stdlib.h>
 #include <stdbool.h>

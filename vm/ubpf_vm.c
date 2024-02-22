@@ -17,7 +17,9 @@
  * limitations under the License.
  */
 
-#undef _GNU_SOURCE
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
 #include "ubpf.h"
 #include "ebpf.h"
