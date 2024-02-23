@@ -6,6 +6,7 @@
 // value of %r0 at the end of execution.
 // The program is intended to be used with the bpf conformance test suite.
 
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -20,6 +21,16 @@ extern "C"
 }
 
 #include "test_helpers.h"
+
+uint64_t test_helpers_dispatcher(void *cookie, unsigned int idx, uint64_t p0, uint64_t p1,uint64_t p2,uint64_t p3, uint64_t p4) {
+    UNREFERENCED_PARAMETER(cookie);
+    return helper_functions[idx](p0, p1, p2, p3, p4);
+}
+
+bool test_helpers_validater(unsigned int idx, void *cookie) {
+    UNREFERENCED_PARAMETER(cookie);
+    return helper_functions.contains(idx);
+}
 
 /**
  * @brief Read in a string of hex bytes and return a vector of bytes.
@@ -130,14 +141,18 @@ int main(int argc, char **argv)
         return 1;
     }
 
+/*
     for (auto &[key, value] : helper_functions)
     {
-        if (ubpf_register(vm.get(), key, "unnamed", reinterpret_cast<void *>(value)) != 0)
+        if (ubpf_register(vm.get(), key, "unnamed", value) != 0)
         {
             std::cerr << "Failed to register helper function" << std::endl;
             return 1;
         }
     }
+*/
+
+    ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater, NULL);
 
     if (ubpf_set_unwind_function_index(vm.get(), 5) != 0)
     {

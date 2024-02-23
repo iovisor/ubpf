@@ -33,9 +33,15 @@ struct ubpf_vm
     uint16_t num_insts;
     ubpf_jit_fn jitted;
     size_t jitted_size;
+
     ext_func* ext_funcs;
     bool* int_funcs;
     const char** ext_func_names;
+
+    external_function_dispatcher_t dispatcher;
+    external_function_validate_t dispatcher_validate;
+    void* dispatcher_cookie;
+
     bool bounds_check_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
     int (*translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg);
@@ -68,6 +74,9 @@ char*
 ubpf_error(const char* fmt, ...);
 unsigned int
 ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name);
+uint64_t
+ubpf_dispatch_to_external_helper(
+    uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, const struct ubpf_vm* vm, unsigned int idx);
 
 /**
  * @brief Fetch the instruction at the given index.

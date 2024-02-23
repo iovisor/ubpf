@@ -516,14 +516,26 @@ bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
 static void
 register_functions(struct ubpf_vm* vm)
 {
-    ubpf_register(vm, 0, "gather_bytes", gather_bytes);
-    ubpf_register(vm, 1, "memfrob", memfrob);
-    ubpf_register(vm, 2, "trash_registers", trash_registers);
-    ubpf_register(vm, 3, "sqrti", sqrti);
-    ubpf_register(vm, 4, "strcmp_ext", strcmp);
-    ubpf_register(vm, 5, "unwind", unwind);
+    ubpf_register(vm, 0, "gather_bytes", as_external_function_t(gather_bytes));
+    ubpf_register(vm, 1, "memfrob", as_external_function_t(memfrob));
+    ubpf_register(vm, 2, "trash_registers", as_external_function_t(trash_registers));
+    ubpf_register(vm, 3, "sqrti", as_external_function_t(sqrti));
+    ubpf_register(vm, 4, "strcmp_ext", as_external_function_t(strcmp));
+    ubpf_register(vm, 5, "unwind", as_external_function_t(unwind));
     ubpf_set_unwind_function_index(vm, 5);
-    ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_lookup_elem, "bpf_map_lookup_elem", bpf_map_lookup_elem_impl);
-    ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_update_elem, "bpf_map_update_elem", bpf_map_update_elem_impl);
-    ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_delete_elem, "bpf_map_delete_elem", bpf_map_delete_elem_impl);
+    ubpf_register(
+        vm,
+        (unsigned int)(uintptr_t)bpf_map_lookup_elem,
+        "bpf_map_lookup_elem",
+        as_external_function_t(bpf_map_lookup_elem_impl));
+    ubpf_register(
+        vm,
+        (unsigned int)(uintptr_t)bpf_map_update_elem,
+        "bpf_map_update_elem",
+        as_external_function_t(bpf_map_update_elem_impl));
+    ubpf_register(
+        vm,
+        (unsigned int)(uintptr_t)bpf_map_delete_elem,
+        "bpf_map_delete_elem",
+        as_external_function_t(bpf_map_delete_elem_impl));
 }

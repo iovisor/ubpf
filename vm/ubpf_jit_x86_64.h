@@ -28,6 +28,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "ubpf.h"
+#include "ubpf_int.h"
+
 #define RAX 0
 #define RCX 1
 #define RDX 2
@@ -373,7 +376,7 @@ emit_jmp(struct jit_state* state, uint32_t target_pc)
 }
 
 static inline void
-emit_call(struct jit_state* state, void* target)
+emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
 {
     /*
      * When we enter here, our stack is 16-byte aligned. Keep
@@ -395,7 +398,17 @@ emit_call(struct jit_state* state, void* target)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
 
-    emit_load_imm(state, RAX, (uintptr_t)target);
+    // Save r9 -- I need it for a parameter!
+    emit_push(state, R9);
+
+    // Before it's a parameter, use it for a push.
+    emit_load_imm(state, R9, idx);
+    emit_push(state, R9);
+
+    emit_load_imm(state, R9, (uint64_t)vm);
+
+    emit_load_imm(state, RAX, (uintptr_t)ubpf_dispatch_to_external_helper);
+
 #ifndef UBPF_DISABLE_RETPOLINES
     emit1(state, 0xe8); // e8 is the opcode for a CALL
     emit_jump_target_address(state, TARGET_PC_RETPOLINE);
@@ -412,6 +425,12 @@ emit_call(struct jit_state* state, void* target)
     //                    rax is register 0
     emit1(state, 0xd0);
 #endif
+
+    // The result is in RAX. Nothing to do there.
+    // Just rationalize the stack!
+
+    emit_pop(state, R9); // First one is a throw away (it's where our parameter was!)
+    emit_pop(state, R9); // This one is real!
 
 #if defined(_WIN32)
     /* Deallocate home register space + spilled register + alignment space - 5 registers */

@@ -16,24 +16,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #define _GNU_SOURCE
+
+#include "ubpf.h"
 #include "ebpf.h"
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <inttypes.h>
 #include <sys/mman.h>
 #include <endian.h>
 #include "ubpf_int.h"
 #include <unistd.h>
 
 #define MAX_EXT_FUNCS 64
-#define SHIFT_MASK_32_BIT(X) ((X)&0x1f)
-#define SHIFT_MASK_64_BIT(X) ((X)&0x3f)
+#define SHIFT_MASK_32_BIT(X) ((X) & 0x1f)
+#define SHIFT_MASK_64_BIT(X) ((X) & 0x3f)
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
@@ -109,9 +108,19 @@ ubpf_destroy(struct ubpf_vm* vm)
     free(vm);
 }
 
-int
-ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
+external_function_t
+as_external_function_t(void* f)
 {
+    return (external_function_t)f;
+};
+
+int
+ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_function_t fn)
+{
+    if (vm->dispatcher != NULL) {
+        return -1;
+    }
+
     if (idx >= MAX_EXT_FUNCS) {
         return -1;
     }
@@ -119,6 +128,16 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, void* fn)
     vm->ext_funcs[idx] = (ext_func)fn;
     vm->ext_func_names[idx] = name;
 
+    return 0;
+}
+
+int
+ubpf_register_external_dispatcher(
+    struct ubpf_vm* vm, external_function_dispatcher_t dispatcher, external_function_validate_t validater, void* cookie)
+{
+    vm->dispatcher = dispatcher;
+    vm->dispatcher_validate = validater;
+    vm->dispatcher_cookie = cookie;
     return 0;
 }
 
@@ -143,6 +162,31 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
             return i;
         }
     }
+    return -1;
+}
+
+bool
+ubpf_validate_external_helper(const struct ubpf_vm* vm, unsigned int idx)
+{
+    if (vm->dispatcher_validate) {
+        return vm->dispatcher_validate(idx, vm->dispatcher_cookie);
+    }
+
+    return vm->ext_funcs[idx] != NULL;
+}
+
+uint64_t
+ubpf_dispatch_to_external_helper(
+    uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, const struct ubpf_vm* vm, unsigned int idx)
+{
+    if (vm->dispatcher != NULL) {
+        return vm->dispatcher(vm->dispatcher_cookie, idx, p0, p1, p2, p3, p4);
+    }
+
+    if (vm->ext_funcs[idx] != NULL) {
+        return vm->ext_funcs[idx](p0, p1, p2, p3, p4);
+    }
+
     return -1;
 }
 
@@ -848,7 +892,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             // program was assembled with the same endianess as the host machine.
             if (inst.src == 0) {
                 // Handle call by address to external function.
-                reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
+                // reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
+                reg[0] = ubpf_dispatch_to_external_helper(reg[1], reg[2], reg[3], reg[4], reg[5], vm, inst.imm);
                 // Unwind the stack if unwind extension returns success.
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];
@@ -1059,7 +1104,8 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                     *errmsg = ubpf_error("invalid call immediate at PC %d", i);
                     return false;
                 }
-                if (!vm->ext_funcs[inst.imm]) {
+                if ((vm->dispatcher != NULL && !vm->dispatcher_validate(inst.imm, vm->dispatcher_cookie)) ||
+                    (vm->dispatcher == NULL && !vm->ext_funcs[inst.imm])) {
                     *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
                     return false;
                 }

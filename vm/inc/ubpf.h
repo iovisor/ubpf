@@ -98,6 +98,11 @@ extern "C"
     void
     ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...));
 
+    typedef uint64_t (*external_function_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
+    external_function_t
+    as_external_function_t(void* f);
+
     /**
      * @brief Register an external function.
      * The immediate field of a CALL instruction is an index into an array of
@@ -112,7 +117,19 @@ extern "C"
      * @retval -1 Failure.
      */
     int
-    ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, void* fn);
+    ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, external_function_t fn);
+
+    typedef uint64_t (*external_function_dispatcher_t)(
+        void*, unsigned int, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
+    typedef bool (*external_function_validate_t)(unsigned int, void*);
+
+    int
+    ubpf_register_external_dispatcher(
+        struct ubpf_vm* vm,
+        external_function_dispatcher_t dispatcher,
+        external_function_validate_t validater,
+        void* cookie);
 
     /**
      * @brief Load code into a VM.

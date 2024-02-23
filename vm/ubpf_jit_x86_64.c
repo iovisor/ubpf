@@ -18,16 +18,15 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE
+
 #include "ebpf.h"
 #include <stdint.h>
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <inttypes.h>
 #include <sys/mman.h>
-#include <errno.h>
 #include <assert.h>
 #include "ubpf_int.h"
 #include "ubpf_jit_x86_64.h"
@@ -607,7 +606,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             /* We reserve RCX for shifts */
             if (inst.src == 0) {
                 emit_mov(state, RCX_ALT, RCX);
-                emit_call(state, vm->ext_funcs[inst.imm]);
+                emit_call(state, vm, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_cmp_imm32(state, map_register(BPF_REG_0), 0);
                     emit_jcc(state, 0x84, TARGET_PC_EXIT);
