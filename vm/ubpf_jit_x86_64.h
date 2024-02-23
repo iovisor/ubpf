@@ -376,7 +376,7 @@ emit_jmp(struct jit_state* state, uint32_t target_pc)
 }
 
 static inline void
-emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
+emit_dispatched_external_helper_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
 {
     /*
      * When we enter here, our stack is 16-byte aligned. Keep
@@ -389,6 +389,12 @@ emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
      */
     emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
 
+    emit_load_imm(state, RAX, idx);
+    emit_push(state, RAX);
+
+    emit_load_imm(state, RAX, (uint64_t)vm);
+    emit_push(state, RAX);
+
     /* Windows x64 ABI spills 5th parameter to stack */
     emit_push(state, map_register(5));
 
@@ -396,8 +402,7 @@ emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
      * Allocate home register space - 4 registers.
      */
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
-#endif
-
+#else
     // Save r9 -- I need it for a parameter!
     emit_push(state, R9);
 
@@ -406,6 +411,7 @@ emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
     emit_push(state, R9);
 
     emit_load_imm(state, R9, (uint64_t)vm);
+#endif
 
     emit_load_imm(state, RAX, (uintptr_t)ubpf_dispatch_to_external_helper);
 
@@ -429,12 +435,12 @@ emit_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
     // The result is in RAX. Nothing to do there.
     // Just rationalize the stack!
 
+#if defined(_WIN32)
+    /* Deallocate home register space + 3 spilled parameters + alignment space */
+    emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 3 + 1) * sizeof(uint64_t));
+#else
     emit_pop(state, R9); // First one is a throw away (it's where our parameter was!)
     emit_pop(state, R9); // This one is real!
-
-#if defined(_WIN32)
-    /* Deallocate home register space + spilled register + alignment space - 5 registers */
-    emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 1 + 1) * sizeof(uint64_t));
 #endif
 }
 
