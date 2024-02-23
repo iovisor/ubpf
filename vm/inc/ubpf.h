@@ -135,7 +135,7 @@ extern "C"
      * @brief The type of an external helper dispatcher function.
      */
     typedef uint64_t (*external_function_dispatcher_t)(
-        void* cookie, unsigned int index, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+        uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, unsigned int index, void* cookie);
 
     /**
      * @brief The type of an external helper validation function.

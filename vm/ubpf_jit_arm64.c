@@ -41,11 +41,12 @@
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT ~UINT32_C(0)
 #define TARGET_PC_ENTER (~UINT32_C(0) & 0x0101)
+#define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0x1010)
 
 // This is guaranteed to be an illegal A64 instruction.
 #define BAD_OPCODE ~UINT32_C(0)
 
-struct jump
+struct patchable_relative
 {
     uint32_t offset_loc;
     uint32_t target_pc;
@@ -59,9 +60,12 @@ struct jit_state
     uint32_t* pc_locs;
     uint32_t exit_loc;
     uint32_t entry_loc;
+    uint32_t dispatcher_loc;
     uint32_t unwind_loc;
-    struct jump* jumps;
+    struct patchable_relative* jumps;
+    struct patchable_relative* loads;
     int num_jumps;
+    int num_loads;
     uint32_t stack_size;
 };
 
@@ -231,6 +235,7 @@ enum LoadStoreOpcode
     // sz    V   op
     LS_STRB = 0x00000000U,   // 0000_0000_0000_0000_0000_0000_0000_0000
     LS_LDRB = 0x00400000U,   // 0000_0000_0100_0000_0000_0000_0000_0000
+    LS_LDRL = 0x50000000U,   // 0000_0000_0100_0000_0000_0000_0000_0000
     LS_LDRSBX = 0x00800000U, // 0000_0000_1000_0000_0000_0000_0000_0000
     LS_LDRSBW = 0x00c00000U, // 0000_0000_1100_0000_0000_0000_0000_0000
     LS_STRH = 0x40000000U,   // 0100_0000_0000_0000_0000_0000_0000_0000
@@ -262,6 +267,14 @@ emit_loadstore_register(
 {
     const uint32_t reg_op_base = 0x38206800U;
     emit_instruction(state, op | reg_op_base | (rm << 16) | (rn << 5) | rt);
+}
+
+static void
+emit_loadstore_literal(
+    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt)
+{
+    const uint32_t reg_op_base = 0x08000000U;
+    emit_instruction(state, op | reg_op_base | rt);
 }
 
 enum LoadStorePairOpcode
@@ -344,10 +357,22 @@ note_jump(struct jit_state* state, uint32_t target_pc)
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
     }
-    struct jump* jump = &state->jumps[state->num_jumps++];
+    struct patchable_relative* jump = &state->jumps[state->num_jumps++];
     jump->offset_loc = state->offset;
     jump->target_pc = target_pc;
 }
+
+static void
+note_load(struct jit_state* state, uint32_t target_pc)
+{
+    if (state->num_loads == UBPF_MAX_INSTS) {
+        return;
+    }
+    struct patchable_relative* load = &state->loads[state->num_loads++];
+    load->offset_loc = state->offset;
+    load->target_pc = target_pc;
+}
+
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
 static void
@@ -542,6 +567,16 @@ update_branch_immediate(struct jit_state* state, uint32_t offset, int32_t imm)
     memcpy(state->buf + offset, &instr, sizeof(uint32_t));
 }
 
+static void
+update_load_literal(struct jit_state* state, uint32_t instr_offset, int32_t target_offset)
+{
+    uint32_t instr;
+    target_offset = (0x7FFFF & target_offset) << 5;
+    memcpy(&instr, state->buf + instr_offset, sizeof(uint32_t));
+    instr |= target_offset;
+    memcpy(state->buf + instr_offset, &instr, sizeof(uint32_t));
+}
+
 /* Generate the function prologue.
  *
  * We set the stack to look like:
@@ -594,7 +629,8 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     emit_movewide_immediate(state, true, R6, idx);
 
     // Call!
-    emit_movewide_immediate(state, true, temp_register, (uint64_t)ubpf_dispatch_to_external_helper);
+    note_load(state, TARGET_PC_EXTERNAL_DISPATCHER);
+    emit_loadstore_literal(state, LS_LDRL, TARGET_PC_EXTERNAL_DISPATCHER);
     emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
@@ -645,6 +681,21 @@ emit_jit_epilogue(struct jit_state* state)
     emit_loadstorepair_immediate(state, LSP_LDPX, R29, R30, SP, 0);
     emit_addsub_immediate(state, true, AS_ADD, SP, SP, state->stack_size);
     emit_unconditionalbranch_register(state, BR_RET, R30);
+}
+
+static uint32_t
+emit_dispatched_external_helper_address(struct jit_state *state, uint64_t dispatcher_addr)
+{
+    int adjustment = state->offset % 4;
+    uint8_t byte = 0;
+    if (adjustment) {
+        for (int i = 0; i<adjustment; i++) {
+            emit_bytes(state, &byte, 1);
+        }
+    }
+    uint32_t helper_address = state->offset;
+    emit_bytes(state, &dispatcher_addr, sizeof(uint64_t));
+    return helper_address;
 }
 
 static bool
@@ -1147,6 +1198,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     emit_jit_epilogue(state);
 
+    state->dispatcher_loc =  emit_dispatched_external_helper_address(state, (uint64_t)vm->dispatcher);
+
     return 0;
 }
 
@@ -1170,7 +1223,7 @@ static void
 resolve_jumps(struct jit_state* state)
 {
     for (unsigned i = 0; i < state->num_jumps; ++i) {
-        struct jump jump = state->jumps[i];
+        struct patchable_relative jump = state->jumps[i];
 
         int32_t target_loc;
         if (jump.target_pc == TARGET_PC_EXIT) {
@@ -1186,6 +1239,28 @@ resolve_jumps(struct jit_state* state)
     }
 }
 
+static void
+resolve_loads(struct jit_state* state)
+{
+    for (unsigned i = 0; i < state->num_loads; ++i) {
+        struct patchable_relative jump = state->loads[i];
+
+        int32_t target_loc;
+        if (jump.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+            target_loc = state->dispatcher_loc;
+        } else {
+            target_loc = -1;
+        }
+
+        int32_t rel = target_loc - jump.offset_loc;
+        assert(rel % 4 == 0);
+        // TODO: MAKE A SHIFT.
+        rel /= 4;
+        update_load_literal(state, jump.offset_loc, rel);
+    }
+}
+
+
 int
 ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
 {
@@ -1197,7 +1272,9 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** e
     state.buf = buffer;
     state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
+    state.loads = calloc(UBPF_MAX_INSTS, sizeof(state.loads[0]));
     state.num_jumps = 0;
+    state.num_loads = 0;
 
     if (!state.pc_locs || !state.jumps) {
         *errmsg = ubpf_error("Out of memory");
@@ -1219,6 +1296,7 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** e
     }
 
     resolve_jumps(&state);
+    resolve_loads(&state);
     result = 0;
 
     *size = state.offset;
@@ -1226,5 +1304,6 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** e
 out:
     free(state.pc_locs);
     free(state.jumps);
+    free(state.loads);
     return result;
 }

@@ -57,7 +57,7 @@ enum operand_size
     S64,
 };
 
-struct jump
+struct patchable_relative
 {
     uint32_t offset_loc;
     uint32_t target_pc;
@@ -67,6 +67,7 @@ struct jump
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT -1
 #define TARGET_PC_RETPOLINE -3
+#define TARGET_PC_EXTERNAL_DISPATCHER -4
 
 struct jit_state
 {
@@ -77,8 +78,11 @@ struct jit_state
     uint32_t exit_loc;
     uint32_t unwind_loc;
     uint32_t retpoline_loc;
-    struct jump* jumps;
+    uint32_t dispatcher_loc;
+    struct patchable_relative* jumps;
+    struct patchable_relative* loads;
     int num_jumps;
+    int num_loads;
 };
 
 static inline void
@@ -123,7 +127,7 @@ emit_jump_target_address(struct jit_state* state, int32_t target_pc)
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
     }
-    struct jump* jump = &state->jumps[state->num_jumps++];
+    struct patchable_relative* jump = &state->jumps[state->num_jumps++];
     jump->offset_loc = state->offset;
     jump->target_pc = target_pc;
     emit4(state, 0);
@@ -135,7 +139,7 @@ emit_jump_target_offset(struct jit_state* state, uint32_t jump_loc, uint32_t jum
     if (state->num_jumps == UBPF_MAX_INSTS) {
         return;
     }
-    struct jump* jump = &state->jumps[state->num_jumps++];
+    struct patchable_relative* jump = &state->jumps[state->num_jumps++];
     jump->offset_loc = jump_loc;
     jump->target_offset = jump_state_offset;
 }
@@ -328,6 +332,22 @@ emit_load_imm(struct jit_state* state, int dst, int64_t imm)
     }
 }
 
+/* Load sign-extended immediate into register */
+static inline void
+emit_load_relative(struct jit_state* state, int target_pc)
+{
+    if (state->num_loads == UBPF_MAX_INSTS) {
+        return;
+    }
+    emit1(state, 0x48);
+    emit1(state, 0x8b);
+    emit1(state, 0x05);
+    struct patchable_relative* load = &state->loads[state->num_loads++];
+    load->offset_loc = state->offset;
+    load->target_pc = target_pc;
+    emit4(state, 0);
+}
+
 /* Store register src to [dst + offset] */
 static inline void
 emit_store(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
@@ -407,13 +427,13 @@ emit_dispatched_external_helper_call(struct jit_state* state, const struct ubpf_
     emit_push(state, R9);
 
     // Before it's a parameter, use it for a push.
-    emit_load_imm(state, R9, idx);
+    emit_load_imm(state, R9, (uint64_t)vm->dispatcher_cookie);
     emit_push(state, R9);
 
-    emit_load_imm(state, R9, (uint64_t)vm);
+    emit_load_imm(state, R9, (uint64_t)idx);
 #endif
 
-    emit_load_imm(state, RAX, (uintptr_t)ubpf_dispatch_to_external_helper);
+    emit_load_relative(state, TARGET_PC_EXTERNAL_DISPATCHER);
 
 #ifndef UBPF_DISABLE_RETPOLINES
     emit1(state, 0xe8); // e8 is the opcode for a CALL

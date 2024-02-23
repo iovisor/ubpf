@@ -22,7 +22,7 @@ extern "C"
 
 #include "test_helpers.h"
 
-uint64_t test_helpers_dispatcher(void *cookie, unsigned int idx, uint64_t p0, uint64_t p1,uint64_t p2,uint64_t p3, uint64_t p4) {
+uint64_t test_helpers_dispatcher(uint64_t p0, uint64_t p1,uint64_t p2,uint64_t p3, uint64_t p4, unsigned int idx, void* cookie) {
     UNREFERENCED_PARAMETER(cookie);
     return helper_functions[idx](p0, p1, p2, p3, p4);
 }

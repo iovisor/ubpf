@@ -64,6 +64,13 @@ ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const
         vm->error_printf = fprintf;
 }
 
+static uint64_t
+ubpf_default_external_dispatcher(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, unsigned int index, void* cookie)
+{
+    struct ubpf_vm *vm = (struct ubpf_vm*)cookie;
+    return vm->ext_funcs[index](arg1, arg2, arg3, arg4, arg5);
+}
+
 struct ubpf_vm*
 ubpf_create(void)
 {
@@ -95,6 +102,11 @@ ubpf_create(void)
     vm->translate = ubpf_translate_null;
 #endif
     vm->unwind_stack_extension_index = -1;
+
+    // By default, we will set an internal function to be the dispatcher.
+    // If the user wants to override it, that's great (see ubpf_register_external_dispatcher).
+    vm->dispatcher = ubpf_default_external_dispatcher;
+    vm->dispatcher_cookie = vm;
     return vm;
 }
 
@@ -113,6 +125,7 @@ as_external_function_t(void* f)
 {
     return (external_function_t)f;
 };
+
 
 int
 ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_function_t fn)
@@ -138,6 +151,8 @@ ubpf_register_external_dispatcher(
     vm->dispatcher = dispatcher;
     vm->dispatcher_validate = validater;
     vm->dispatcher_cookie = cookie;
+
+    /* TODO: If the code is already JIT'd, update the dispatcher's address. */
     return 0;
 }
 
@@ -173,21 +188,6 @@ ubpf_validate_external_helper(const struct ubpf_vm* vm, unsigned int idx)
     }
 
     return vm->ext_funcs[idx] != NULL;
-}
-
-uint64_t
-ubpf_dispatch_to_external_helper(
-    uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, const struct ubpf_vm* vm, unsigned int idx)
-{
-    if (vm->dispatcher != NULL) {
-        return vm->dispatcher(vm->dispatcher_cookie, idx, p0, p1, p2, p3, p4);
-    }
-
-    if (vm->ext_funcs[idx] != NULL) {
-        return vm->ext_funcs[idx](p0, p1, p2, p3, p4);
-    }
-
-    return -1;
 }
 
 int
@@ -893,7 +893,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             if (inst.src == 0) {
                 // Handle call by address to external function.
                 // reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
-                reg[0] = ubpf_dispatch_to_external_helper(reg[1], reg[2], reg[3], reg[4], reg[5], vm, inst.imm);
+                reg[0] = vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, (void*)vm->dispatcher_cookie);
                 // Unwind the stack if unwind extension returns success.
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];

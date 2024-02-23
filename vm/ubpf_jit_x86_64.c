@@ -127,6 +127,14 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 }
 
 static uint32_t
+emit_dispatched_external_helper_address(struct jit_state* state, struct ubpf_vm* vm) {
+
+    uint32_t external_helper_address_target = state->offset;
+    emit8(state, (uint64_t)vm->dispatcher);
+    return external_helper_address_target;
+}
+
+static uint32_t
 emit_retpoline(struct jit_state* state)
 {
 
@@ -699,6 +707,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     emit1(state, 0xc3); /* ret */
 
     state->retpoline_loc = emit_retpoline(state);
+    state->dispatcher_loc = emit_dispatched_external_helper_address(state, vm);
 
     return 0;
 }
@@ -828,11 +837,11 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
 }
 
 static void
-resolve_jumps(struct jit_state* state)
+resolve_patchable_relatives(struct jit_state* state)
 {
     int i;
     for (i = 0; i < state->num_jumps; i++) {
-        struct jump jump = state->jumps[i];
+        struct patchable_relative jump = state->jumps[i];
 
         int target_loc;
         if (jump.target_offset != 0) {
@@ -851,6 +860,23 @@ resolve_jumps(struct jit_state* state)
         uint8_t* offset_ptr = &state->buf[jump.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
+    for (i = 0; i < state->num_loads; i++) {
+        struct patchable_relative load = state->loads[i];
+
+        int target_loc;
+        if (load.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+            target_loc = state->dispatcher_loc;
+        } else {
+            target_loc = -1;
+            // FAIL
+        }
+
+        /* Assumes jump offset is at end of instruction */
+        uint32_t rel = target_loc - (load.offset_loc + sizeof(uint32_t));
+
+        uint8_t* offset_ptr = &state->buf[load.offset_loc];
+        memcpy(offset_ptr, &rel, sizeof(uint32_t));
+    }
 }
 
 int
@@ -864,7 +890,9 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
     state.buf = buffer;
     state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
     state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
+    state.loads = calloc(UBPF_MAX_INSTS, sizeof(state.loads[0]));
     state.num_jumps = 0;
+    state.num_loads = 0;
 
     if (!state.pc_locs || !state.jumps) {
         *errmsg = ubpf_error("Out of memory");
@@ -885,7 +913,7 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
         goto out;
     }
 
-    resolve_jumps(&state);
+    resolve_patchable_relatives(&state);
     result = 0;
 
     *size = state.offset;
