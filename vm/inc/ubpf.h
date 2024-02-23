@@ -98,8 +98,20 @@ extern "C"
     void
     ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...));
 
-    typedef uint64_t (*external_function_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+    /**
+     * @brief The type of an external function.
+     */
+    typedef uint64_t (*external_function_t)(uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4);
 
+    /**
+     * @brief Cast an external function to external_function_t
+     * Some external functions may not use all the parameters and, therefore,
+     * not match the external_function_t typedef. Use this for a conversion.
+     *
+     * @param[in] f The function to cast to match the signature of an
+     *              external function.
+     * @retval The external function, as external_function_t.
+     */
     external_function_t
     as_external_function_t(void* f);
 
@@ -119,11 +131,35 @@ extern "C"
     int
     ubpf_register(struct ubpf_vm* vm, unsigned int index, const char* name, external_function_t fn);
 
+    /**
+     * @brief The type of an external helper dispatcher function.
+     */
     typedef uint64_t (*external_function_dispatcher_t)(
-        void*, unsigned int, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+        void* cookie, unsigned int index, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
-    typedef bool (*external_function_validate_t)(unsigned int, void*);
+    /**
+     * @brief The type of an external helper validation function.
+     */
+    typedef bool (*external_function_validate_t)(unsigned int index, void* cookie);
 
+    /**
+     * @brief Register a function that dispatches to external helpers
+     * The immediate field of a CALL instruction is an index of a helper
+     * function to invoke. This API sets a callback that will choose the
+     * helper function to invoke (based on the index) and then invoke it.
+     * This API also sets a callback that the validator will use to determine
+     * if a given index is a valid external function.
+     *
+     * @param[in] vm The VM to register the function on.
+     * @param[in] dispatcher The callback that will dispatch to the external
+     *                       helper.
+     * @param[in] validater The callback that will validate that a given index
+     *                      is valid for an external helper.
+     * @param[in] cookie A pointer to some user-defined cookie that will be
+     *                   passed to the callbacks.
+     * @retval 0 Success.
+     * @retval -1 Failure.
+     */
     int
     ubpf_register_external_dispatcher(
         struct ubpf_vm* vm,
