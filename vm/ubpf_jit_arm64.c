@@ -157,7 +157,10 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
 static void
 divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm);
 
-static uint32_t inline align_to(uint32_t amount, uint64_t boundary) { return (amount + (boundary - 1 )) & ~(boundary - 1); }
+static uint32_t inline align_to(uint32_t amount, uint64_t boundary)
+{
+    return (amount + (boundary - 1)) & ~(boundary - 1);
+}
 
 static void
 emit_bytes(struct jit_state* state, void* data, uint32_t len)
@@ -577,13 +580,21 @@ emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
 }
 
 static void
-emit_call(struct jit_state* state, uintptr_t func)
+emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm, unsigned int idx)
 {
     uint32_t stack_movement = align_to(8, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
 
-    emit_movewide_immediate(state, true, temp_register, func);
+    // All parameters to the helper function are in the right spot
+    // for the dispatcher. All we need to do now is ...
+
+    // ... set up the final two parameters.
+    emit_movewide_immediate(state, true, R5, (uint64_t)vm);
+    emit_movewide_immediate(state, true, R6, idx);
+
+    // Call!
+    emit_movewide_immediate(state, true, temp_register, (uint64_t)ubpf_dispatch_to_external_helper);
     emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
@@ -1058,7 +1069,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_CALL:
             if (inst.src == 0) {
-                emit_call(state, (uintptr_t)vm->ext_funcs[inst.imm]);
+                emit_dispatched_external_helper_call(state, vm, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_addsub_immediate(state, true, AS_SUBS, RZ, map_register(0), 0);
                     emit_conditionalbranch_immediate(state, COND_EQ, TARGET_PC_EXIT);
