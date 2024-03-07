@@ -1,9 +1,9 @@
 var indexSectionsWithContent =
 {
-  0: "mu",
+  0: "aemu",
   1: "mu",
-  2: "u",
-  3: "u",
+  2: "au",
+  3: "eu",
   4: "u"
 };
 
