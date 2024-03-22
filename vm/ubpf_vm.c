@@ -71,6 +71,16 @@ ubpf_default_external_dispatcher(uint64_t arg1, uint64_t arg2, uint64_t arg3, ui
     return vm->ext_funcs[index](arg1, arg2, arg3, arg4, arg5);
 }
 
+static bool
+ubpf_default_external_validator(unsigned int index, void* cookie)
+{
+    struct ubpf_vm *vm = (struct ubpf_vm*)cookie;
+    if (index < MAX_EXT_FUNCS) {
+        return vm->ext_funcs[index] != NULL;
+    }
+    return false;
+}
+
 struct ubpf_vm*
 ubpf_create(void)
 {
@@ -106,6 +116,7 @@ ubpf_create(void)
     // By default, we will set an internal function to be the dispatcher.
     // If the user wants to override it, that's great (see ubpf_register_external_dispatcher).
     vm->dispatcher = ubpf_default_external_dispatcher;
+    vm->dispatcher_validate = ubpf_default_external_validator;
     vm->dispatcher_cookie = vm;
     return vm;
 }
@@ -130,10 +141,6 @@ as_external_function_t(void* f)
 int
 ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_function_t fn)
 {
-    if (vm->dispatcher != NULL) {
-        return -1;
-    }
-
     if (idx >= MAX_EXT_FUNCS) {
         return -1;
     }
