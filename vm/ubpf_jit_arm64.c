@@ -625,12 +625,12 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // for the dispatcher. All we need to do now is ...
 
     // ... set up the final two parameters.
-    emit_movewide_immediate(state, true, R5, (uint64_t)vm);
-    emit_movewide_immediate(state, true, R6, idx);
+    emit_movewide_immediate(state, true, R5, idx);
+    emit_movewide_immediate(state, true, R6, (uint64_t)vm->dispatcher_cookie);
 
     // Call!
     note_load(state, TARGET_PC_EXTERNAL_DISPATCHER);
-    emit_loadstore_literal(state, LS_LDRL, TARGET_PC_EXTERNAL_DISPATCHER);
+    emit_loadstore_literal(state, LS_LDRL, temp_register);
     emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
