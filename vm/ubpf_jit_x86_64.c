@@ -836,7 +836,7 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
     }
 }
 
-static void
+static bool
 resolve_patchable_relatives(struct jit_state* state)
 {
     int i;
@@ -868,7 +868,7 @@ resolve_patchable_relatives(struct jit_state* state)
             target_loc = state->dispatcher_loc;
         } else {
             target_loc = -1;
-            // FAIL
+            return false;
         }
 
         /* Assumes jump offset is at end of instruction */
@@ -877,6 +877,7 @@ resolve_patchable_relatives(struct jit_state* state)
         uint8_t* offset_ptr = &state->buf[load.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
+    return true;
 }
 
 int
@@ -913,9 +914,12 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
         goto out;
     }
 
-    resolve_patchable_relatives(&state);
-    result = 0;
+    if (!resolve_patchable_relatives(&state)) {
+        *errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code.");
+        goto out;
+    }
 
+    result = 0;
     *size = state.offset;
 
 out:

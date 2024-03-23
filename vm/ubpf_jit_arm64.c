@@ -686,12 +686,16 @@ emit_jit_epilogue(struct jit_state* state)
 static uint32_t
 emit_dispatched_external_helper_address(struct jit_state *state, uint64_t dispatcher_addr)
 {
-    int adjustment = state->offset % 4;
+    // We will assume that the buffer of memory holding the JIT'd code is 4-byte aligned.
+    // And, because ARM is 32-bit instructions, we know that each instruction is 4-byte aligned.
+    // And, finally, we need to make sure that the place we are putting the dispatch address
+    // is also 4-byte aligned. As a result, we can be sure that the delta between whoever
+    // is doing the PC-relative load and this address is a multiple of 4 bytes (which is how
+    // the PC-relative load instruction encodes its offset).
     uint8_t byte = 0;
-    if (adjustment) {
-        for (int i = 0; i<adjustment; i++) {
-            emit_bytes(state, &byte, 1);
-        }
+    int adjustment = (4 - (state->offset % 4)) % 4;
+    for (int i = 0; i < adjustment; i++) {
+        emit_bytes(state, &byte, 1);
     }
     uint32_t helper_address = state->offset;
     emit_bytes(state, &dispatcher_addr, sizeof(uint64_t));
@@ -1219,7 +1223,7 @@ divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm)
     }
 }
 
-static void
+static bool
 resolve_jumps(struct jit_state* state)
 {
     for (unsigned i = 0; i < state->num_jumps; ++i) {
@@ -1237,9 +1241,10 @@ resolve_jumps(struct jit_state* state)
         int32_t rel = target_loc - jump.offset_loc;
         update_branch_immediate(state, jump.offset_loc, rel);
     }
+    return true;
 }
 
-static void
+static bool
 resolve_loads(struct jit_state* state)
 {
     for (unsigned i = 0; i < state->num_loads; ++i) {
@@ -1249,15 +1254,15 @@ resolve_loads(struct jit_state* state)
         if (jump.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
             target_loc = state->dispatcher_loc;
         } else {
-            target_loc = -1;
+            return false;
         }
 
         int32_t rel = target_loc - jump.offset_loc;
         assert(rel % 4 == 0);
-        // TODO: MAKE A SHIFT.
-        rel /= 4;
+        rel >>= 2;
         update_load_literal(state, jump.offset_loc, rel);
     }
+    return true;
 }
 
 
@@ -1295,10 +1300,12 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** e
         goto out;
     }
 
-    resolve_jumps(&state);
-    resolve_loads(&state);
-    result = 0;
+    if (!resolve_jumps(&state) || !resolve_loads(&state)) {
+        *errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code.");
+        goto out;
+    }
 
+    result = 0;
     *size = state.offset;
 
 out:
