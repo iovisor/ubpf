@@ -921,5 +921,6 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** 
 out:
     free(state.pc_locs);
     free(state.jumps);
+    free(state.loads);
     return result;
 }
