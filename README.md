@@ -52,7 +52,7 @@ produces output about how to execute the program. With `nuget.exe` installed, th
 First, make sure that you have the XCode Command Line Tools installed:
 
 ```console
-$ xcode-select -install
+$ xcode-select --install
 ```
 
 Installing the XCode Command Linux Tools will install Apple's version of the Clang compiler and other developer-support tools.
