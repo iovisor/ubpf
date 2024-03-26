@@ -101,9 +101,9 @@ Typedefs</h2></td></tr>
 <tr class="memitem:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">external_function_t</a>) (uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4)</td></tr>
 <tr class="memdesc:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external function.  <a href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">More...</a><br /></td></tr>
 <tr class="separator:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aedbb751597cb132ea1a0827aec4ecf2e"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aedbb751597cb132ea1a0827aec4ecf2e">external_function_dispatcher_t</a>) (void *cookie, unsigned int index, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)</td></tr>
-<tr class="memdesc:aedbb751597cb132ea1a0827aec4ecf2e"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external helper dispatcher function.  <a href="ubpf_8h.html#aedbb751597cb132ea1a0827aec4ecf2e">More...</a><br /></td></tr>
-<tr class="separator:aedbb751597cb132ea1a0827aec4ecf2e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa819644ac2adf81271cf703f9eb5614b"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">external_function_dispatcher_t</a>) (uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, unsigned int index, void *cookie)</td></tr>
+<tr class="memdesc:aa819644ac2adf81271cf703f9eb5614b"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external helper dispatcher function.  <a href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">More...</a><br /></td></tr>
+<tr class="separator:aa819644ac2adf81271cf703f9eb5614b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a28a27475942992fb5f4b7536fc757fd7"><td class="memItemLeft" align="right" valign="top">typedef bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a28a27475942992fb5f4b7536fc757fd7">external_function_validate_t</a>) (unsigned int index, void *cookie)</td></tr>
 <tr class="memdesc:a28a27475942992fb5f4b7536fc757fd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external helper validation function.  <a href="ubpf_8h.html#a28a27475942992fb5f4b7536fc757fd7">More...</a><br /></td></tr>
 <tr class="separator:a28a27475942992fb5f4b7536fc757fd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -133,7 +133,7 @@ Functions</h2></td></tr>
 <tr class="memitem:a398c1c9b6d59876005eb64bbfab7b2b4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a398c1c9b6d59876005eb64bbfab7b2b4">ubpf_register</a> (struct ubpf_vm *vm, unsigned int index, const char *name, <a class="el" href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">external_function_t</a> fn)</td></tr>
 <tr class="memdesc:a398c1c9b6d59876005eb64bbfab7b2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an external function. The immediate field of a CALL instruction is an index into an array of functions registered by the user. This API associates a function with an index.  <a href="ubpf_8h.html#a398c1c9b6d59876005eb64bbfab7b2b4">More...</a><br /></td></tr>
 <tr class="separator:a398c1c9b6d59876005eb64bbfab7b2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a05bd76bca3d6351db8e6da1d542b37fa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a05bd76bca3d6351db8e6da1d542b37fa">ubpf_register_external_dispatcher</a> (struct ubpf_vm *vm, <a class="el" href="ubpf_8h.html#aedbb751597cb132ea1a0827aec4ecf2e">external_function_dispatcher_t</a> dispatcher, <a class="el" href="ubpf_8h.html#a28a27475942992fb5f4b7536fc757fd7">external_function_validate_t</a> validater, void *cookie)</td></tr>
+<tr class="memitem:a05bd76bca3d6351db8e6da1d542b37fa"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a05bd76bca3d6351db8e6da1d542b37fa">ubpf_register_external_dispatcher</a> (struct ubpf_vm *vm, <a class="el" href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">external_function_dispatcher_t</a> dispatcher, <a class="el" href="ubpf_8h.html#a28a27475942992fb5f4b7536fc757fd7">external_function_validate_t</a> validater, void *cookie)</td></tr>
 <tr class="memdesc:a05bd76bca3d6351db8e6da1d542b37fa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a function that dispatches to external helpers The immediate field of a CALL instruction is an index of a helper function to invoke. This API sets a callback that will choose the helper function to invoke (based on the index) and then invoke it. This API also sets a callback that the validator will use to determine if a given index is a valid external function.  <a href="ubpf_8h.html#a05bd76bca3d6351db8e6da1d542b37fa">More...</a><br /></td></tr>
 <tr class="separator:a05bd76bca3d6351db8e6da1d542b37fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8d32748c100c98d69dba8dcf0e9d4d0d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a8d32748c100c98d69dba8dcf0e9d4d0d">ubpf_load</a> (struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg)</td></tr>
@@ -220,14 +220,14 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Typedef Documentation</h2>
-<a id="aedbb751597cb132ea1a0827aec4ecf2e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aedbb751597cb132ea1a0827aec4ecf2e">&#9670;&nbsp;</a></span>external_function_dispatcher_t</h2>
+<a id="aa819644ac2adf81271cf703f9eb5614b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa819644ac2adf81271cf703f9eb5614b">&#9670;&nbsp;</a></span>external_function_dispatcher_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef uint64_t(* external_function_dispatcher_t) (void *cookie, unsigned int index, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)</td>
+          <td class="memname">typedef uint64_t(* external_function_dispatcher_t) (uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, unsigned int index, void *cookie)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -758,7 +758,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="ubpf_8h.html#aedbb751597cb132ea1a0827aec4ecf2e">external_function_dispatcher_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">external_function_dispatcher_t</a>&#160;</td>
           <td class="paramname"><em>dispatcher</em>, </td>
         </tr>
         <tr>
