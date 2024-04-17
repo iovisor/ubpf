@@ -29,6 +29,7 @@ add_subdirectory("vm")
         STEP_TARGETS build)
 
 if(UBPF_ENABLE_TESTS)
+  add_subdirectory("custom_tests")
   add_subdirectory("ubpf_plugin")
   if (NOT UBPF_SKIP_EXTERNAL)
   endif()

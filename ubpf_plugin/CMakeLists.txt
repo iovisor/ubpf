@@ -30,6 +30,14 @@ target_link_libraries(
     ubpf_settings
 )
 
+
+if(TARGET "ubpf_compat")
+  target_link_libraries("ubpf_plugin"
+    $<BUILD_INTERFACE:ubpf_compat>
+  )
+endif()
+
+
 file(GLOB external_files ${CMAKE_SOURCE_DIR}/external/bpf_conformance/tests/*.data)
 file(GLOB local_files ${CMAKE_SOURCE_DIR}/tests/*.data)
 

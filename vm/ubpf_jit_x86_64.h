@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include "ubpf.h"
-#include "ubpf_int.h"
+#include "ubpf_jit_support.h"
 
 #define RAX 0
 #define RCX 1
@@ -49,6 +49,8 @@
 #define R14 14
 #define R15 15
 
+#define VOLATILE_CTXT 11
+
 enum operand_size
 {
     S8,
@@ -57,42 +59,21 @@ enum operand_size
     S64,
 };
 
-struct patchable_relative
-{
-    uint32_t offset_loc;
-    uint32_t target_pc;
-    uint32_t target_offset;
-};
-
-/* Special values for target_pc in struct jump */
-#define TARGET_PC_EXIT -1
-#define TARGET_PC_RETPOLINE -3
-#define TARGET_PC_EXTERNAL_DISPATCHER -4
-
-struct jit_state
-{
-    uint8_t* buf;
-    uint32_t offset;
-    uint32_t size;
-    uint32_t* pc_locs;
-    uint32_t exit_loc;
-    uint32_t unwind_loc;
-    uint32_t retpoline_loc;
-    uint32_t dispatcher_loc;
-    struct patchable_relative* jumps;
-    struct patchable_relative* loads;
-    int num_jumps;
-    int num_loads;
-};
-
 static inline void
 emit_bytes(struct jit_state* state, void* data, uint32_t len)
 {
-    assert(state->offset <= state->size - len);
-    if ((state->offset + len) > state->size) {
-        state->offset = state->size;
+    // Never emit any bytes if there is an error!
+    if (state->jit_status != NoError) {
         return;
     }
+
+    // If we are trying to emit bytes to a spot outside the buffer,
+    // then there is not enough space!
+    if ((state->offset + len) > state->size) {
+        state->jit_status = NotEnoughSpace;
+        return;
+    }
+
     memcpy(state->buf + state->offset, data, len);
     state->offset += len;
 }
@@ -121,32 +102,29 @@ emit8(struct jit_state* state, uint64_t x)
     emit_bytes(state, &x, sizeof(x));
 }
 
-static inline void
-emit_jump_target_address(struct jit_state* state, int32_t target_pc)
+static void
+emit_4byte_offset_placeholder(struct jit_state* state)
 {
-    if (state->num_jumps == UBPF_MAX_INSTS) {
-        return;
-    }
-    struct patchable_relative* jump = &state->jumps[state->num_jumps++];
-    jump->offset_loc = state->offset;
-    jump->target_pc = target_pc;
     emit4(state, 0);
 }
 
-static inline void
-emit_jump_target_offset(struct jit_state* state, uint32_t jump_loc, uint32_t jump_state_offset)
+static uint32_t
+emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
-        return;
+        state->jit_status = TooManyJumps;
+        return 0;
     }
-    struct patchable_relative* jump = &state->jumps[state->num_jumps++];
-    jump->offset_loc = jump_loc;
-    jump->target_offset = jump_state_offset;
+    uint32_t target_address_offset = state->offset;
+    emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
+    emit_4byte_offset_placeholder(state);
+    return target_address_offset;
 }
 
 static inline void
 emit_modrm(struct jit_state* state, int mod, int r, int m)
 {
+    // Only the top 2 bits of the mod should be used.
     assert(!(mod & ~0xc0));
     emit1(state, (mod & 0xc0) | ((r & 7) << 3) | (m & 7));
 }
@@ -292,12 +270,12 @@ emit_cmp32(struct jit_state* state, int src, int dst)
     emit_alu32(state, 0x39, src, dst);
 }
 
-static inline void
+static inline uint32_t
 emit_jcc(struct jit_state* state, int code, int32_t target_pc)
 {
     emit1(state, 0x0f);
     emit1(state, code);
-    emit_jump_target_address(state, target_pc);
+    return emit_jump_address_reloc(state, target_pc);
 }
 
 /* Load [src + offset] into dst */
@@ -332,20 +310,37 @@ emit_load_imm(struct jit_state* state, int dst, int64_t imm)
     }
 }
 
-/* Load sign-extended immediate into register */
-static inline void
-emit_load_relative(struct jit_state* state, int target_pc)
+static uint32_t
+emit_rip_relative_load(struct jit_state* state, int dst, int relative_load_tgt)
 {
     if (state->num_loads == UBPF_MAX_INSTS) {
+        state->jit_status = TooManyLoads;
+        return 0;
+    }
+
+    emit_rex(state, 1, 0, 0, 0);
+    emit1(state, 0x8b);
+    emit_modrm(state, 0, dst, 0x05);
+    uint32_t load_target_offset = state->offset;
+    note_load(state, relative_load_tgt);
+    emit_4byte_offset_placeholder(state);
+    return load_target_offset;
+}
+
+static void
+emit_rip_relative_lea(struct jit_state* state, int dst, int lea_tgt)
+{
+    if (state->num_leas == UBPF_MAX_INSTS) {
+        state->jit_status = TooManyLeas;
         return;
     }
-    emit1(state, 0x48);
-    emit1(state, 0x8b);
-    emit1(state, 0x05);
-    struct patchable_relative* load = &state->loads[state->num_loads++];
-    load->offset_loc = state->offset;
-    load->target_pc = target_pc;
-    emit4(state, 0);
+
+    // lea dst, [rip + HELPER TABLE ADDRESS]
+    emit_rex(state, 1, 1, 0, 0);
+    emit1(state, 0x8d);
+    emit_modrm(state, 0, dst, 0x05);
+    note_lea(state, lea_tgt);
+    emit_4byte_offset_placeholder(state);
 }
 
 /* Store register src to [dst + offset] */
@@ -392,52 +387,179 @@ static inline void
 emit_jmp(struct jit_state* state, uint32_t target_pc)
 {
     emit1(state, 0xe9);
-    emit_jump_target_address(state, target_pc);
+    emit_jump_address_reloc(state, target_pc);
+}
+
+static inline uint32_t
+emit_call(struct jit_state* state, uint32_t target_pc)
+{
+    emit1(state, 0xe8);
+    uint32_t call_src = state->offset;
+    emit_jump_address_reloc(state, target_pc);
+    return call_src;
 }
 
 static inline void
-emit_dispatched_external_helper_call(struct jit_state* state, const struct ubpf_vm* vm, unsigned int idx)
+emit_pause(struct jit_state* state)
+{
+    emit1(state, 0xf3);
+    emit1(state, 0x90);
+}
+
+static inline void
+emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 {
     /*
+     * Note: We do *not* have to preserve any x86-64 registers here ...
+     * ... according to the SystemV ABI: rbx (eBPF6),
+     *                                   r13 (eBPF7),
+     *                                   r14 (eBPF8),
+     *                                   r15 (eBPF9), and
+     *                                   rbp (eBPF10) are all preserved.
+     * ... according to the Windows ABI: r15 (eBPF6)
+     *                                   rdi (eBPF7),
+     *                                   rsi (eBPF8),
+     *                                   rbx (eBPF9), and
+     *                                   rbp (eBPF10) are all preserved.
+     *
      * When we enter here, our stack is 16-byte aligned. Keep
      * it that way!
      */
 
-#if defined(_WIN32)
-    /* We have to create a little space to keep our 16-byte
-     * alignment happy
+    /*
+     * There are two things that could happen:
+     * 1. The user has registered an external dispatcher and we need to
+     *    send control there to invoke an external helper.
+     * 2. The user is relying on the default dispatcher to pass control
+     *    to the registered external helper.
+     * To determine which action to take, we will first consider the 8
+     * bytes at TARGET_PC_EXTERNAL_DISPATCHER. If those 8 bytes have an
+     * address, that represents the address of the user-registered external
+     * dispatcher and we pass control there. That function signature looks like
+     * uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, unsigned int index, void* cookie
+     * so we make sure that the arguments are done properly depending on the abi.
+     *
+     * If there is no external dispatcher registered, the user is expected
+     * to have registered a handler with us for the helper with index idx.
+     * There is a table of MAX_ function pointers starting at TARGET_LOAD_HELPER_TABLE.
+     * Each of those functions has a signature that looks like
+     * uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, void* cookie
+     * We load the appropriate function pointer by using idx to index it and then
+     * make sure that the arguments are set properly depending on the abi.
      */
-    emit_alu64_imm32(state, 0x81, 5, RSP, sizeof(uint64_t));
 
-    emit_load_imm(state, RAX, (uint64_t)vm->dispatcher_cookie);
-    emit_push(state, RAX);
+    // Save register where volatile context is stored.
+    emit_push(state, VOLATILE_CTXT);
+    emit_push(state, VOLATILE_CTXT);
+    // ^^ Stack is aligned here.
 
-    emit_load_imm(state, RAX, idx);
-    emit_push(state, RAX);
+#if defined(_WIN32)
+    /* Because we may need 24 bytes on the stack but at least 16, we have to take 32
+     * to keep alignment happy. We may ultimately need it all, but we certainly
+     * need 16! Later, though, there is a push that always happens (MARKER2), so
+     * we only allocate 24 here.
+     */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 3 * sizeof(uint64_t));
+#endif
 
-    /* Windows x64 ABI spills 5th parameter to stack */
+    emit_rip_relative_load(state, RAX, TARGET_PC_EXTERNAL_DISPATCHER);
+    // cmp rax, 0
+    emit_cmp_imm32(state, RAX, 0);
+    // jne skip_default_dispatcher_label
+    uint32_t skip_default_dispatcher_source = emit_jcc(state, 0x85, 0);
+
+    // Default dispatcher:
+
+    // Load the address of the helper function from the table.
+    // mov rax, idx
+    emit_alu32(state, 0xc7, 0, RAX);
+    emit4(state, idx);
+    // shl rax, 3 (i.e., multiply the index by 8 because addresses are that size on x86-64)
+    emit_alu64_imm8(state, 0xc1, 4, RAX, 3);
+
+    // lea r10, [rip + HELPER TABLE ADDRESS]
+    emit_rip_relative_lea(state, R10, TARGET_LOAD_HELPER_TABLE);
+
+    // add rax, r10
+    emit_alu64(state, 0x01, R10, RAX);
+    // load rax, [rax]
+    emit_load(state, S64, RAX, RAX, 0);
+
+    // There is no index for the registered helper function. They just get
+    // 5 arguments and a context, which becomes the 6th argument to the function ...
+#if defined(_WIN32)
+    // and spills to the stack on Windows.
+    // mov qword [rsp], VOLATILE_CTXT
+    emit1(state, 0x4c);
+    emit1(state, 0x89);
+    emit1(state, 0x5c);
+    emit1(state, 0x24);
+    emit1(state, 0x00);
+#else
+    // and goes in R9 on SystemV.
+    emit_mov(state, VOLATILE_CTXT, R9);
+#endif
+
+    // jmp call_label
+    emit1(state, 0xe9);
+    uint32_t skip_external_dispatcher_source = state->offset;
+    emit_4byte_offset_placeholder(state);
+
+    // External dispatcher:
+
+    // skip_default_dispatcher_label:
+    emit_jump_target(state, skip_default_dispatcher_source);
+
+    // Using an external dispatcher. They get a total of 7 arguments. The
+    // 6th argument is the index of the function to call which ...
+
+#if defined(_WIN32)
+    // and spills to the stack on Windows.
+
+    // mov qword [rsp + 8], VOLATILE_CTXT
+    emit1(state, 0x4c);
+    emit1(state, 0x89);
+    emit1(state, 0x5c);
+    emit1(state, 0x24);
+    emit1(state, 0x08);
+
+    // To make it easier on ourselves, let's just use
+    // VOLATILE_CTXT register to load the immediate
+    // and push to the stack.
+    emit_load_imm(state, VOLATILE_CTXT, (uint64_t)idx);
+
+    // mov qword [rsp + 0], VOLATILE_CTXT
+    emit1(state, 0x4c);
+    emit1(state, 0x89);
+    emit1(state, 0x5c);
+    emit1(state, 0x24);
+    emit1(state, 0x00);
+#else
+    // and goes in R9 on SystemV.
+    emit_load_imm(state, R9, (uint64_t)idx);
+    // And the 7th is already spilled to the stack in the right spot because
+    // we wanted to save it -- cool (see MARKER1, above).
+
+    // Intentional no-op for 7th argument.
+#endif
+
+    // Control flow converges for call:
+
+    // call_label:
+    emit_jump_target(state, skip_external_dispatcher_source);
+
+#if defined(_WIN32)
+    /* Windows x64 ABI spills 5th parameter to stack (MARKER2) */
     emit_push(state, map_register(5));
 
     /* Windows x64 ABI requires home register space.
      * Allocate home register space - 4 registers.
      */
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
-#else
-    // Save r9 -- I need it for a parameter!
-    emit_push(state, R9);
-
-    // Before it's a parameter, use it for a push.
-    emit_load_imm(state, R9, (uint64_t)vm->dispatcher_cookie);
-    emit_push(state, R9);
-
-    emit_load_imm(state, R9, (uint64_t)idx);
 #endif
 
-    emit_load_relative(state, TARGET_PC_EXTERNAL_DISPATCHER);
-
 #ifndef UBPF_DISABLE_RETPOLINES
-    emit1(state, 0xe8); // e8 is the opcode for a CALL
-    emit_jump_target_address(state, TARGET_PC_RETPOLINE);
+    emit_call(state, TARGET_PC_RETPOLINE);
 #else
     /* TODO use direct call when possible */
     /* callq *%rax */
@@ -456,12 +578,12 @@ emit_dispatched_external_helper_call(struct jit_state* state, const struct ubpf_
     // Just rationalize the stack!
 
 #if defined(_WIN32)
-    /* Deallocate home register space + 3 spilled parameters + alignment space */
+    /* Deallocate home register space + (up to ) 3 spilled parameters + alignment space */
     emit_alu64_imm32(state, 0x81, 0, RSP, (4 + 3 + 1) * sizeof(uint64_t));
-#else
-    emit_pop(state, R9); // First one is a throw away (it's where our parameter was!)
-    emit_pop(state, R9); // This one is real!
 #endif
+
+    emit_pop(state, VOLATILE_CTXT); // Restore register where volatile context is stored.
+    emit_pop(state, VOLATILE_CTXT); // Restore register where volatile context is stored.
 }
 
 #endif

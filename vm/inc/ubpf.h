@@ -140,7 +140,7 @@ extern "C"
     /**
      * @brief The type of an external helper validation function.
      */
-    typedef bool (*external_function_validate_t)(unsigned int index, void* cookie);
+    typedef bool (*external_function_validate_t)(unsigned int index, const struct ubpf_vm* vm);
 
     /**
      * @brief Register a function that dispatches to external helpers
@@ -155,8 +155,6 @@ extern "C"
      *                       helper.
      * @param[in] validater The callback that will validate that a given index
      *                      is valid for an external helper.
-     * @param[in] cookie A pointer to some user-defined cookie that will be
-     *                   passed to the callbacks.
      * @retval 0 Success.
      * @retval -1 Failure.
      */
@@ -164,8 +162,7 @@ extern "C"
     ubpf_register_external_dispatcher(
         struct ubpf_vm* vm,
         external_function_dispatcher_t dispatcher,
-        external_function_validate_t validater,
-        void* cookie);
+        external_function_validate_t validater);
 
     /**
      * @brief Load code into a VM.
@@ -274,8 +271,9 @@ extern "C"
     /**
      * @brief Compile a BPF program in the VM to native code.
      *
-     * A program must be loaded into the VM and all external functions must be
-     * registered before calling this function.
+     * A program must be loaded into the VM and all external functions (or
+     * the external helper dispatcher) must be registered before calling this
+     * function.
      *
      * @param[in] vm The VM to compile the program in.
      * @param[out] errmsg The error message, if any. This should be freed by the caller.
@@ -284,18 +282,22 @@ extern "C"
     ubpf_jit_fn
     ubpf_compile(struct ubpf_vm* vm, char** errmsg);
 
-    /*
-     * Translate the eBPF byte code to x64 machine code, store in buffer, and
-     * write the resulting count of bytes to size.
+    /**
+     * @brief Copy the JIT'd program code to the given buffer.
      *
-     * This must be called after registering all functions.
+     * A program must have been loaded into the VM and already JIT'd before
+     * calling this function.
      *
-     * Returns 0 on success, -1 on error. In case of error a pointer to the error
-     * message will be stored in 'errmsg' and should be freed by the caller.
+     * @param[in] vm The VM of the already JIT'd program.
+     * @param[out] errmsg The error message, if any. This should be freed by the caller.
+     * @return ubpf_jit_fn A pointer to the compiled program (the same as buffer), or
+     *         NULL on failure.
      */
+    ubpf_jit_fn
+    ubpf_copy_jit(struct ubpf_vm* vm, void *buffer, size_t size, char** errmsg);
 
     /**
-     * @brief Translate the eBPF byte code to x64 machine code.
+     * @brief Translate the eBPF byte code to machine code.
      *
      * A program must be loaded into the VM and all external functions must be
      * registered before calling this function.
@@ -396,6 +398,21 @@ extern "C"
      */
     int
     ubpf_register_data_bounds_check(struct ubpf_vm* vm, void* user_context, ubpf_bounds_check bounds_check);
+
+    /**
+     * @brief Set a size for the buffer allocated to machine code generated during JIT compilation.
+     * The JIT compiler allocates a buffer to store the code while it is being generated. The default
+     * may be too big for some embedded platforms. Use this to customize the size of that buffer.
+     * Note: The buffer being sized here is *not* the final location of the machine code returned by
+     * ubpf_compile -- that buffer is perfectly sized to match the size of the generated machine code.
+     *
+     * @param[in] vm The VM to set the buffer size for.
+     * @param[in] code_size The size of the buffer to use.
+     * @retval 0 Success.
+     * @retval -1 Failure.
+     */
+    int
+    ubpf_set_jit_code_size(struct ubpf_vm* vm, size_t code_size);
 
 #ifdef __cplusplus
 }
