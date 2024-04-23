@@ -1118,7 +1118,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 }
             } else if (inst.src == 1) {
                 int call_target = i + (inst.imm + 1);
-                if (call_target < 0 || call_target > num_insts) {
+                if (call_target < 0 || call_target >= num_insts) {
                     *errmsg =
                         ubpf_error("call to local function (at PC %d) is out of bounds (target: %d)", i, call_target);
                     return false;
