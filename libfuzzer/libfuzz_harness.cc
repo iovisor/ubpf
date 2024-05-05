@@ -116,6 +116,19 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
         return 0;
     }
 
+    // TODO: Enable executing the BPF code via JIT.
+    // This is blocked on an unknown issue that causes code to pass when run via
+    // the interpreter, but fail when run via the JIT.
+    //
+    // auto fn = ubpf_compile(vm, &error_message);
+    // if (fn == nullptr) {
+    //     free(error_message);
+    //     ubpf_destroy(vm);
+    //     return 0;
+    // }
+
+    // fn(memory.data(), memory.size());
+
     ubpf_destroy(vm);
 
     return 0; // Non-zero return values are reserved for future use.
