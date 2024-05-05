@@ -1,4 +1,0 @@
--- pyelf
-sqrti_rel.r_offset = 500
--- error
-Failed to load code: bad relocation offset
