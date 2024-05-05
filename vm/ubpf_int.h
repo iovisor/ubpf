@@ -70,6 +70,7 @@ struct ubpf_vm
     void* data_relocation_user_data;
     ubpf_bounds_check bounds_check_function;
     void* bounds_check_user_data;
+    int instruction_limit;
 #ifdef DEBUG
     uint64_t* regs;
 #endif

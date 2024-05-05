@@ -41,3 +41,6 @@ if(UBPF_ENABLE_PACKAGE)
   include("cmake/packaging.cmake")
 endif()
 
+if (UBPF_ENABLE_LIBFUZZER)
+  add_subdirectory("libfuzzer")
+endif()

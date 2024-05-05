@@ -11,7 +11,7 @@
 name: Main
 
 permissions:
-  contents: read
+  contents: write
   security-events: write # Required by codeql task.
 
 on:
@@ -20,7 +20,7 @@ on:
 
   push:
     branches:
-      - '*'
+      - 'main'
 
   pull_request:
     branches:
@@ -309,6 +309,12 @@ jobs:
       build_type: Debug
       enable_sanitizers: true
       disable_retpolines: true
+
+  linux_fuzzing:
+    uses: ./.github/workflows/fuzzing.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:

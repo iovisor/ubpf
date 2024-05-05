@@ -64,6 +64,28 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       )
     endif()
 
+    if(UBPF_ENABLE_LIBFUZZER)
+      set(fuzzer_flags
+        -g
+        -O0
+        -fsanitize=fuzzer
+        -fsanitize=address
+        -fsanitize-coverage=edge,indirect-calls,trace-cmp,trace-div,trace-gep
+        )
+
+      # Check if compiler is clang and emit error if not
+        if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
+            message(FATAL_ERROR "LibFuzzer is only supported with Clang")
+        endif()
+
+        target_compile_options("ubpf_settings" INTERFACE
+            ${fuzzer_flags}
+        )
+
+        target_link_options("ubpf_settings" INTERFACE
+            ${fuzzer_flags}
+        )
+    endif()
   elseif(PLATFORM_WINDOWS)
     set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "8.1")
 
