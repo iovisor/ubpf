@@ -18,12 +18,13 @@ var searchData=
   ['ubpf_5fregister_5fdata_5frelocation_20',['ubpf_register_data_relocation',['../ubpf_8h.html#a6ce8c1133902da4629c53aa82c159611',1,'ubpf.h']]],
   ['ubpf_5fregister_5fexternal_5fdispatcher_21',['ubpf_register_external_dispatcher',['../ubpf_8h.html#a27fbf5d30614b9c4b618209d681c3653',1,'ubpf.h']]],
   ['ubpf_5fset_5ferror_5fprint_22',['ubpf_set_error_print',['../ubpf_8h.html#ae7e25aeeb15d5dc04a58f99239c4774c',1,'ubpf.h']]],
-  ['ubpf_5fset_5fjit_5fcode_5fsize_23',['ubpf_set_jit_code_size',['../ubpf_8h.html#a96cdff7433769540c61a1cf41a0c241a',1,'ubpf.h']]],
-  ['ubpf_5fset_5fpointer_5fsecret_24',['ubpf_set_pointer_secret',['../ubpf_8h.html#a3257e0611c177eeaba7053e2eca92701',1,'ubpf.h']]],
-  ['ubpf_5fset_5fregisters_25',['ubpf_set_registers',['../ubpf_8h.html#aeb0990b88e11d2a0ba89fbaf8086cc0f',1,'ubpf.h']]],
-  ['ubpf_5fset_5funwind_5ffunction_5findex_26',['ubpf_set_unwind_function_index',['../ubpf_8h.html#a0046484ecdb72363d0c5ae710e7b96c3',1,'ubpf.h']]],
-  ['ubpf_5fstack_5fsize_27',['UBPF_STACK_SIZE',['../ubpf_8h.html#ab41a6986b0045cc2e5c84a75d08c7a12',1,'ubpf.h']]],
-  ['ubpf_5ftoggle_5fbounds_5fcheck_28',['ubpf_toggle_bounds_check',['../ubpf_8h.html#a80938918080712ac0667359fd163f1a5',1,'ubpf.h']]],
-  ['ubpf_5ftranslate_29',['ubpf_translate',['../ubpf_8h.html#ab34e26c0a46366345df354ce992448c4',1,'ubpf.h']]],
-  ['ubpf_5funload_5fcode_30',['ubpf_unload_code',['../ubpf_8h.html#ae95b334d7eeb18072da3b9f4eeb66c25',1,'ubpf.h']]]
+  ['ubpf_5fset_5finstruction_5flimit_23',['ubpf_set_instruction_limit',['../ubpf_8h.html#adfaef65d4add64487f09c0bd1d0a08df',1,'ubpf.h']]],
+  ['ubpf_5fset_5fjit_5fcode_5fsize_24',['ubpf_set_jit_code_size',['../ubpf_8h.html#a96cdff7433769540c61a1cf41a0c241a',1,'ubpf.h']]],
+  ['ubpf_5fset_5fpointer_5fsecret_25',['ubpf_set_pointer_secret',['../ubpf_8h.html#a3257e0611c177eeaba7053e2eca92701',1,'ubpf.h']]],
+  ['ubpf_5fset_5fregisters_26',['ubpf_set_registers',['../ubpf_8h.html#aeb0990b88e11d2a0ba89fbaf8086cc0f',1,'ubpf.h']]],
+  ['ubpf_5fset_5funwind_5ffunction_5findex_27',['ubpf_set_unwind_function_index',['../ubpf_8h.html#a0046484ecdb72363d0c5ae710e7b96c3',1,'ubpf.h']]],
+  ['ubpf_5fstack_5fsize_28',['UBPF_STACK_SIZE',['../ubpf_8h.html#ab41a6986b0045cc2e5c84a75d08c7a12',1,'ubpf.h']]],
+  ['ubpf_5ftoggle_5fbounds_5fcheck_29',['ubpf_toggle_bounds_check',['../ubpf_8h.html#a80938918080712ac0667359fd163f1a5',1,'ubpf.h']]],
+  ['ubpf_5ftranslate_30',['ubpf_translate',['../ubpf_8h.html#ab34e26c0a46366345df354ce992448c4',1,'ubpf.h']]],
+  ['ubpf_5funload_5fcode_31',['ubpf_unload_code',['../ubpf_8h.html#ae95b334d7eeb18072da3b9f4eeb66c25',1,'ubpf.h']]]
 ];

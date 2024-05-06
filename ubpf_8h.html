@@ -175,6 +175,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a96cdff7433769540c61a1cf41a0c241a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a96cdff7433769540c61a1cf41a0c241a">ubpf_set_jit_code_size</a> (struct ubpf_vm *vm, size_t code_size)</td></tr>
 <tr class="memdesc:a96cdff7433769540c61a1cf41a0c241a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a size for the buffer allocated to machine code generated during JIT compilation. The JIT compiler allocates a buffer to store the code while it is being generated. The default may be too big for some embedded platforms. Use this to customize the size of that buffer. Note: The buffer being sized here is <em>not</em> the final location of the machine code returned by ubpf_compile &ndash; that buffer is perfectly sized to match the size of the generated machine code.  <a href="ubpf_8h.html#a96cdff7433769540c61a1cf41a0c241a">More...</a><br /></td></tr>
 <tr class="separator:a96cdff7433769540c61a1cf41a0c241a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adfaef65d4add64487f09c0bd1d0a08df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#adfaef65d4add64487f09c0bd1d0a08df">ubpf_set_instruction_limit</a> (struct ubpf_vm *vm, uint32_t limit, uint32_t *previous_limit)</td></tr>
+<tr class="memdesc:adfaef65d4add64487f09c0bd1d0a08df"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the instruction limit for the VM. This is the maximum number of instructions that a program may execute during a call to ubpf_exec. It has no effect on JIT'd programs.  <a href="ubpf_8h.html#adfaef65d4add64487f09c0bd1d0a08df">More...</a><br /></td></tr>
+<tr class="separator:adfaef65d4add64487f09c0bd1d0a08df"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a23e70b5f29f0296e69a72ec5cfc588d8"></a>
@@ -885,6 +888,53 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="adfaef65d4add64487f09c0bd1d0a08df"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adfaef65d4add64487f09c0bd1d0a08df">&#9670;&nbsp;</a></span>ubpf_set_instruction_limit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_set_instruction_limit </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>limit</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t *&#160;</td>
+          <td class="paramname"><em>previous_limit</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the instruction limit for the VM. This is the maximum number of instructions that a program may execute during a call to ubpf_exec. It has no effect on JIT'd programs. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to set the instruction limit for. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">limit</td><td>The maximum number of instructions that a program may execute or 0 for no limit. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">previous_limit</td><td>Optional pointer to store the previous instruction limit. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 Success. </dd>
+<dd>
+-1 Failure. </dd></dl>
 
 </div>
 </div>
