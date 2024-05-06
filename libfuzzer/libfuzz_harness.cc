@@ -68,14 +68,26 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
     const uint8_t* program_start = data + 4;
     const uint8_t* memory_start = data + 4 + program_length;
 
-    if (program_length > size)
+    if (program_length > size) {
+        // The program length is larger than the input size.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
         return -1;
+    }
 
-    if (program_length == 0)
+    if (program_length == 0) {
+        // The program length is zero.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
         return -1;
+    }
 
-    if (program_length + 4u > size)
+    if (program_length + 4u > size) {
+        // The program length is larger than the input size.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
         return -1;
+    }
 
     // Copy any input memory into a writable buffer.
     if (memory_length > 0) {
@@ -83,53 +95,54 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
         std::memcpy(memory.data(), memory_start, memory_length);
     }
 
-    ubpf_vm* vm = ubpf_create();
-    if (vm == nullptr)
+    // Automatically free the VM when it goes out of scope.
+    std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
+
+    if (vm == nullptr) {
+        // Failed to create the VM.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
         return -1;
+    }
 
     char* error_message = nullptr;
 
-    if (program_length == 0) {
-        ubpf_destroy(vm);
-        return -1;
-    }
-
-    if (ubpf_load(vm, program_start, program_length, &error_message) != 0) {
+    if (ubpf_load(vm.get(), program_start, program_length, &error_message) != 0) {
+        // The program failed to load, due to a validation error.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
         free(error_message);
-        ubpf_destroy(vm);
         return -1;
     }
 
-    ubpf_set_error_print(vm, null_printf);
+    ubpf_set_error_print(vm.get(), null_printf);
 
-    ubpf_toggle_bounds_check(vm, true);
+    ubpf_toggle_bounds_check(vm.get(), true);
 
-    ubpf_register_external_dispatcher(vm, test_helpers_dispatcher, test_helpers_validator);
+    if (ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validator) != 0) {
+        // Failed to register the external dispatcher.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
+        return -1;
+    }
 
-    ubpf_set_instruction_limit(vm, 10000);
+    if (ubpf_set_instruction_limit(vm.get(), 10000, nullptr) != 0) {
+        // Failed to set the instruction limit.
+        // This is not interesting, as the fuzzer input is invalid.
+        // Do not add it to the corpus.
+        return -1;
+    }
 
     uint64_t result = 0;
 
-    // Assume the remaining data is test data.
-    if (ubpf_exec(vm, memory.data(), memory.size(), &result) != 0) {
-        ubpf_destroy(vm);
+    // Execute the program using the input memory.
+    if (ubpf_exec(vm.get(), memory.data(), memory.size(), &result) != 0) {
+        // The program passed validation during load, but failed during execution.
+        // due to a runtime error. Add it to the corpus as it may be interesting.
         return 0;
     }
 
-    // TODO: Enable executing the BPF code via JIT.
-    // This is blocked on an unknown issue that causes code to pass when run via
-    // the interpreter, but fail when run via the JIT.
-    //
-    // auto fn = ubpf_compile(vm, &error_message);
-    // if (fn == nullptr) {
-    //     free(error_message);
-    //     ubpf_destroy(vm);
-    //     return 0;
-    // }
-
-    // fn(memory.data(), memory.size());
-
-    ubpf_destroy(vm);
-
-    return 0; // Non-zero return values are reserved for future use.
+    // Program executed successfully.
+    // Add it to the corpus as it may be interesting.
+    return 0;
 }

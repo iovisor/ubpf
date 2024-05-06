@@ -415,14 +415,18 @@ extern "C"
     ubpf_set_jit_code_size(struct ubpf_vm* vm, size_t code_size);
 
     /**
-     * @brief Set the instruction limit for the VM.
+     * @brief Set the instruction limit for the VM. This is the maximum number
+     * of instructions that a program may execute during a call to ubpf_exec.
+     * It has no effect on JIT'd programs.
      *
      * @param[in] vm The VM to set the instruction limit for.
      * @param[in] limit The maximum number of instructions that a program may execute or 0 for no limit.
-     * @return Previous instruction limit.
+     * @param[out] previous_limit Optional pointer to store the previous instruction limit.
+     * @return 0 Success.
+     * @return -1 Failure.
      */
     int
-    ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit);
+    ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previous_limit);
 
 
 #ifdef __cplusplus
