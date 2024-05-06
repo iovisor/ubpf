@@ -30,9 +30,9 @@
 #include "ubpf_int.h"
 #include <unistd.h>
 
-#define MAX_EXT_FUNCS 64
 #define SHIFT_MASK_32_BIT(X) ((X) & 0x1f)
 #define SHIFT_MASK_64_BIT(X) ((X) & 0x3f)
+#define DEFAULT_JITTER_BUFFER_SIZE 65536
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
@@ -65,20 +65,9 @@ ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const
 }
 
 static uint64_t
-ubpf_default_external_dispatcher(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, unsigned int index, void* cookie)
+ubpf_default_external_dispatcher(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, unsigned int index, external_function_t *external_fns)
 {
-    struct ubpf_vm *vm = (struct ubpf_vm*)cookie;
-    return vm->ext_funcs[index](arg1, arg2, arg3, arg4, arg5);
-}
-
-static bool
-ubpf_default_external_validator(unsigned int index, void* cookie)
-{
-    struct ubpf_vm *vm = (struct ubpf_vm*)cookie;
-    if (index < MAX_EXT_FUNCS) {
-        return vm->ext_funcs[index] != NULL;
-    }
-    return false;
+    return external_fns[index](arg1, arg2, arg3, arg4, arg5);
 }
 
 struct ubpf_vm*
@@ -105,19 +94,20 @@ ubpf_create(void)
     vm->error_printf = fprintf;
 
 #if defined(__x86_64__) || defined(_M_X64)
-    vm->translate = ubpf_translate_x86_64;
+    vm->jit_translate = ubpf_translate_x86_64;
+    vm->jit_update_dispatcher = ubpf_jit_update_dispatcher_x86_64;
+    vm->jit_update_helper = ubpf_jit_update_helper_x86_64;
 #elif defined(__aarch64__) || defined(_M_ARM64)
-    vm->translate = ubpf_translate_arm64;
+    vm->jit_translate = ubpf_translate_arm64;
+    vm->jit_update_dispatcher = ubpf_jit_update_dispatcher_arm64;
+    vm->jit_update_helper = ubpf_jit_update_helper_arm64;
 #else
     vm->translate = ubpf_translate_null;
 #endif
     vm->unwind_stack_extension_index = -1;
 
-    // By default, we will set an internal function to be the dispatcher.
-    // If the user wants to override it, that's great (see ubpf_register_external_dispatcher).
-    vm->dispatcher = ubpf_default_external_dispatcher;
-    vm->dispatcher_validate = ubpf_default_external_validator;
-    vm->dispatcher_cookie = vm;
+    vm->jitted_result.compile_result = UBPF_JIT_COMPILE_FAILURE;
+    vm->jitter_buffer_size = DEFAULT_JITTER_BUFFER_SIZE;
     return vm;
 }
 
@@ -148,19 +138,51 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_f
     vm->ext_funcs[idx] = (ext_func)fn;
     vm->ext_func_names[idx] = name;
 
-    return 0;
+    int success = 0;
+
+    if (vm->jitted_result.compile_result == UBPF_JIT_COMPILE_SUCCESS) {
+        if (mprotect(vm->jitted, vm->jitted_size, PROT_READ | PROT_WRITE) < 0) {
+            return -1;
+        }
+
+        // Now, update!
+        if (!vm->jit_update_helper(vm, fn, idx, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_helper_offset)) {
+            // Can't immediately stop here because we have unprotected memory!
+            success = -1;
+        }
+
+        if (mprotect(vm->jitted, vm->jitted_size, PROT_READ | PROT_EXEC) < 0) {
+            return -1;
+        }
+    }
+    return success;
 }
 
 int
 ubpf_register_external_dispatcher(
-    struct ubpf_vm* vm, external_function_dispatcher_t dispatcher, external_function_validate_t validater, void* cookie)
+    struct ubpf_vm* vm, external_function_dispatcher_t dispatcher, external_function_validate_t validater)
 {
     vm->dispatcher = dispatcher;
     vm->dispatcher_validate = validater;
-    vm->dispatcher_cookie = cookie;
 
-    /* TODO: If the code is already JIT'd, update the dispatcher's address. */
-    return 0;
+    int success = 0;
+
+    if (vm->jitted_result.compile_result == UBPF_JIT_COMPILE_SUCCESS) {
+        if (mprotect(vm->jitted, vm->jitted_size, PROT_READ | PROT_WRITE) < 0) {
+            return -1;
+        }
+
+        // Now, update!
+        if (!vm->jit_update_dispatcher(vm, dispatcher, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_dispatcher_offset)) {
+            // Can't immediately stop here because we have unprotected memory!
+            success = -1;
+        }
+
+        if (mprotect(vm->jitted, vm->jitted_size, PROT_READ | PROT_EXEC) < 0) {
+            return -1;
+        }
+    }
+    return success;
 }
 
 int
@@ -185,16 +207,6 @@ ubpf_lookup_registered_function(struct ubpf_vm* vm, const char* name)
         }
     }
     return -1;
-}
-
-bool
-ubpf_validate_external_helper(const struct ubpf_vm* vm, unsigned int idx)
-{
-    if (vm->dispatcher_validate) {
-        return vm->dispatcher_validate(idx, vm->dispatcher_cookie);
-    }
-
-    return vm->ext_funcs[idx] != NULL;
 }
 
 int
@@ -342,6 +354,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     uint64_t _reg[16];
     uint64_t ras_index = 0;
     int return_value = -1;
+    void *external_dispatcher_cookie = mem;
 
 // Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
 #if defined(NTDDI_VERSION) && defined(WINNT)
@@ -899,9 +912,11 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             // program was assembled with the same endianess as the host machine.
             if (inst.src == 0) {
                 // Handle call by address to external function.
-                // reg[0] = vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5]);
-                reg[0] = vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, (void*)vm->dispatcher_cookie);
-                // Unwind the stack if unwind extension returns success.
+                if (vm->dispatcher != NULL) {
+                    reg[0] = vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, external_dispatcher_cookie);
+                } else {
+                    reg[0] = ubpf_default_external_dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, vm->ext_funcs);
+                }
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];
                     return_value = 0;
@@ -1111,7 +1126,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                     *errmsg = ubpf_error("invalid call immediate at PC %d", i);
                     return false;
                 }
-                if ((vm->dispatcher != NULL && !vm->dispatcher_validate(inst.imm, vm->dispatcher_cookie)) ||
+                if ((vm->dispatcher != NULL && !vm->dispatcher_validate(inst.imm, vm)) ||
                     (vm->dispatcher == NULL && !vm->ext_funcs[inst.imm])) {
                     *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
                     return false;

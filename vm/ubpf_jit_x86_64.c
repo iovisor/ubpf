@@ -18,6 +18,7 @@
  * limitations under the License.
  */
 
+#include "ubpf_jit_support.h"
 #define _GNU_SOURCE
 
 #include "ebpf.h"
@@ -54,10 +55,16 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
  * volatile to x64 non-volatile.
  */
 
+// Because of this designation and the way that the registers are mapped
+// between native and BPF, the value in native R10 is always something
+// the BPF program has to consider trashed across external function calls.
+// Therefore, during invocation of external function calls, we can use
+// native R10 for free.
+#define RCX_ALT R10
+
 #if defined(_WIN32)
 static int platform_nonvolatile_registers[] = {RBP, RBX, RDI, RSI, R13, R14, R15};
 static int platform_parameter_registers[] = {RCX, RDX, R8, R9};
-#define RCX_ALT R10
 static int register_map[REGISTER_MAP_SIZE] = {
     RAX,
     R10,
@@ -72,7 +79,6 @@ static int register_map[REGISTER_MAP_SIZE] = {
     RBP,
 };
 #else
-#define RCX_ALT R9
 static int platform_nonvolatile_registers[] = {RBP, RBX, R13, R14, R15};
 static int platform_parameter_registers[] = {RDI, RSI, RDX, RCX, R8, R9};
 static int register_map[REGISTER_MAP_SIZE] = {
@@ -80,7 +86,7 @@ static int register_map[REGISTER_MAP_SIZE] = {
     RDI,
     RSI,
     RDX,
-    R9,
+    R10,
     R8,
     RBX,
     R13,
@@ -115,7 +121,7 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
     emit1(state, 0xe8); // e8 is the opcode for a CALL
-    emit_jump_target_address(state, target_pc);
+    emit_jump_address_reloc(state, target_pc);
 #if defined(_WIN32)
     /* Deallocate home register space - 4 registers */
     emit_alu64_imm32(state, 0x81, 0, RSP, 4 * sizeof(uint64_t));
@@ -127,11 +133,23 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 }
 
 static uint32_t
-emit_dispatched_external_helper_address(struct jit_state* state, struct ubpf_vm* vm) {
+emit_dispatched_external_helper_address(struct jit_state* state, struct ubpf_vm* vm)
+{
 
     uint32_t external_helper_address_target = state->offset;
     emit8(state, (uint64_t)vm->dispatcher);
     return external_helper_address_target;
+}
+
+static uint32_t
+emit_helper_table(struct jit_state* state, struct ubpf_vm* vm)
+{
+
+    uint32_t helper_table_address_target = state->offset;
+    for (int i = 0; i < MAX_EXT_FUNCS; i++) {
+        emit8(state, (uint64_t)vm->ext_funcs[i]);
+    }
+    return helper_table_address_target;
 }
 
 static uint32_t
@@ -147,32 +165,27 @@ emit_retpoline(struct jit_state* state)
     /* label0: */
     /* call label1 */
     uint32_t retpoline_target = state->offset;
-    emit1(state, 0xe8);
-    uint32_t label1_call_offset = state->offset;
-    emit4(state, 0x00);
+    uint32_t label1_call_offset = emit_call(state, 0);
 
     /* capture_ret_spec: */
     /* pause */
     uint32_t capture_ret_spec = state->offset;
-    emit1(state, 0xf3);
-    emit1(state, 0x90);
+    emit_pause(state);
     /* jmp  capture_ret_spec */
-    emit1(state, 0xe9);
-    emit_jump_target_offset(state, state->offset, capture_ret_spec);
-    emit4(state, 0x00);
+    emit_jmp(state, capture_ret_spec);
 
     /* label1: */
     /* mov rax, (rsp) */
     uint32_t label1 = state->offset;
     emit1(state, 0x48);
     emit1(state, 0x89);
-    emit1(state, 0x04);
-    emit1(state, 0x24);
+    emit1(state, 0x04); // Mod: 00b Reg: 000b RM: 100b
+    emit1(state, 0x24); // Scale: 00b Index: 100b Base: 100b
 
     /* ret */
-    emit1(state, 0xc3);
+    emit_ret(state);
 
-    emit_jump_target_offset(state, label1_call_offset, label1);
+    fixup_jump_target(state->jumps, state->num_jumps, label1_call_offset, label1);
 
     return retpoline_target;
 }
@@ -200,6 +213,25 @@ ubpf_set_register_offset(int x)
     }
 }
 
+/*
+ * In order to make it so that the generated code is completely standalone, all the necessary
+ * function pointers for external helpers are embedded in the jitted code. The layout looks like:
+ *
+ *                 state->buffer: CODE
+ *                                CODE
+ *                                CODE
+ *                                ...
+ *                                CODE
+ *                                External Helper External Dispatcher Function Pointer (8 bytes, maybe NULL)
+ *                                External Helper Function Pointer Idx 0 (8 bytes, maybe NULL)
+ *                                External Helper Function Pointer Idx 1 (8 bytes, maybe NULL)
+ *                                ...
+ *                                External Helper Function Pointer Idx MAX_EXT_FUNCS-1 (8 bytes, maybe NULL)
+ * state->buffer + state->offset:
+ *
+ * The layout and operation of this mechanism is identical for code JIT compiled for Arm.
+ */
+
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
@@ -214,6 +246,11 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     if (map_register(1) != platform_parameter_registers[0]) {
         emit_mov(state, platform_parameter_registers[0], map_register(BPF_REG_1));
     }
+
+    /* Move the platform parameter register to the (volatile) register
+     * that holds the pointer to the context.
+     */
+    emit_mov(state, platform_parameter_registers[0], VOLATILE_CTXT);
 
     /*
      * Assuming that the stack is 16-byte aligned right before
@@ -259,6 +296,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     emit_jmp(state, TARGET_PC_EXIT);
 
     for (i = 0; i < vm->num_insts; i++) {
+        if (state->jit_status != NoError) {
+            break;
+        }
+
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
         state->pc_locs[i] = state->offset;
 
@@ -614,7 +655,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             /* We reserve RCX for shifts */
             if (inst.src == 0) {
                 emit_mov(state, RCX_ALT, RCX);
-                emit_dispatched_external_helper_call(state, vm, inst.imm);
+                emit_dispatched_external_helper_call(state, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_cmp_imm32(state, map_register(BPF_REG_0), 0);
                     emit_jcc(state, 0x84, TARGET_PC_EXIT);
@@ -679,9 +720,44 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
 
         default:
+            state->jit_status = UnknownInstruction;
             *errmsg = ubpf_error("Unknown instruction at PC %d: opcode %02x", i, inst.opcode);
-            return -1;
         }
+    }
+
+    if (state->jit_status != NoError) {
+        switch (state->jit_status) {
+        case TooManyJumps: {
+            *errmsg = ubpf_error("Too many jump instructions");
+            break;
+        }
+        case TooManyLoads: {
+            *errmsg = ubpf_error("Too many load instructions");
+            break;
+        }
+        case TooManyLeas: {
+            *errmsg = ubpf_error("Too many LEA calculations");
+            break;
+        }
+        case UnexpectedInstruction: {
+            // errmsg set at time the error was detected because the message requires
+            // information about the unexpected instruction.
+            break;
+        }
+        case UnknownInstruction: {
+            // errmsg set at time the error was detected because the message requires
+            // information about the unknown instruction.
+            break;
+        }
+        case NotEnoughSpace: {
+            *errmsg = ubpf_error("Target buffer too small");
+            break;
+        }
+        case NoError: {
+            assert(false);
+        }
+        }
+        return -1;
     }
 
     /* Epilogue */
@@ -708,6 +784,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     state->retpoline_loc = emit_retpoline(state);
     state->dispatcher_loc = emit_dispatched_external_helper_address(state, vm);
+    state->helper_table_loc = emit_helper_table(state, vm);
 
     return 0;
 }
@@ -860,71 +937,100 @@ resolve_patchable_relatives(struct jit_state* state)
         uint8_t* offset_ptr = &state->buf[jump.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
+
     for (i = 0; i < state->num_loads; i++) {
         struct patchable_relative load = state->loads[i];
 
         int target_loc;
+        // It is only possible to load from the external dispatcher's position.
         if (load.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
             target_loc = state->dispatcher_loc;
         } else {
             target_loc = -1;
             return false;
         }
-
-        /* Assumes jump offset is at end of instruction */
+        /* Assumes load target is calculated relative to the end of instruction */
         uint32_t rel = target_loc - (load.offset_loc + sizeof(uint32_t));
 
         uint8_t* offset_ptr = &state->buf[load.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
+
+    for (i = 0; i < state->num_leas; i++) {
+        struct patchable_relative lea = state->leas[i];
+
+        int target_loc;
+        // It is only possible to LEA from the helper table.
+        if (lea.target_pc == TARGET_LOAD_HELPER_TABLE) {
+            target_loc = state->helper_table_loc;
+        } else {
+            target_loc = -1;
+            return false;
+        }
+        /* Assumes lea target is calculated relative to the end of instruction */
+        uint32_t rel = target_loc - (lea.offset_loc + sizeof(uint32_t));
+
+        uint8_t* offset_ptr = &state->buf[lea.offset_loc];
+        memcpy(offset_ptr, &rel, sizeof(uint32_t));
+    }
     return true;
 }
 
-int
-ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg)
+struct ubpf_jit_result
+ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size)
 {
     struct jit_state state;
-    int result = -1;
+    struct ubpf_jit_result compile_result;
 
-    state.offset = 0;
-    state.size = *size;
-    state.buf = buffer;
-    state.pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state.pc_locs[0]));
-    state.jumps = calloc(UBPF_MAX_INSTS, sizeof(state.jumps[0]));
-    state.loads = calloc(UBPF_MAX_INSTS, sizeof(state.loads[0]));
-    state.num_jumps = 0;
-    state.num_loads = 0;
-
-    if (!state.pc_locs || !state.jumps) {
-        *errmsg = ubpf_error("Out of memory");
+    if (initialize_jit_state_result(&state, &compile_result, buffer, *size, &compile_result.errmsg) < 0) {
         goto out;
     }
 
-    if (translate(vm, &state, errmsg) < 0) {
-        goto out;
-    }
-
-    if (state.num_jumps == UBPF_MAX_INSTS) {
-        *errmsg = ubpf_error("Excessive number of jump targets");
-        goto out;
-    }
-
-    if (state.offset == state.size) {
-        *errmsg = ubpf_error("Target buffer too small");
+    if (translate(vm, &state, &compile_result.errmsg) < 0) {
         goto out;
     }
 
     if (!resolve_patchable_relatives(&state)) {
-        *errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code.");
+        compile_result.errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code");
         goto out;
     }
 
-    result = 0;
+    compile_result.compile_result = UBPF_JIT_COMPILE_SUCCESS;
+    compile_result.external_dispatcher_offset = state.dispatcher_loc;
+    compile_result.external_helper_offset = state.helper_table_loc;
     *size = state.offset;
 
 out:
-    free(state.pc_locs);
-    free(state.jumps);
-    free(state.loads);
-    return result;
+    release_jit_state_result(&state, &compile_result);
+    return compile_result;
+}
+
+bool
+ubpf_jit_update_dispatcher_x86_64(
+    struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset)
+{
+    UNUSED_PARAMETER(vm);
+    uint64_t jit_upper_bound = (uint64_t)buffer + size;
+    void* dispatcher_address = (void*)((uint64_t)buffer + offset);
+    if ((uint64_t)dispatcher_address + sizeof(void*) < jit_upper_bound) {
+        memcpy(dispatcher_address, &new_dispatcher, sizeof(void*));
+        return true;
+    }
+
+    return false;
+}
+
+bool
+ubpf_jit_update_helper_x86_64(
+    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+{
+    UNUSED_PARAMETER(vm);
+    uint64_t jit_upper_bound = (uint64_t)buffer + size;
+
+    void* dispatcher_address = (void*)((uint64_t)buffer + offset + (8 * idx));
+    if ((uint64_t)dispatcher_address + sizeof(void*) < jit_upper_bound) {
+        memcpy(dispatcher_address, &new_helper, sizeof(void*));
+        return true;
+    }
+    return false;
 }

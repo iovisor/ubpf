@@ -17,7 +17,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       -Wall
       -Werror
       -Iinc
-      -O2
+      -O0
+      -g
       -Wunused-parameter
       -fPIC
     )
