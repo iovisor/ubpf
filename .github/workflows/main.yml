@@ -11,7 +11,7 @@
 name: Main
 
 permissions:
-  contents: write
+  contents: read
   security-events: write # Required by codeql task.
 
 on:
@@ -315,6 +315,8 @@ jobs:
     with:
       arch: x86_64
       platform: ubuntu-latest
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:

@@ -4,7 +4,7 @@
 name: Fuzzing
 
 permissions:
-  contents: write # Required to update the corpus
+  contents: read
 
 on:
   workflow_call:
@@ -17,6 +17,11 @@ on:
       platform:
         required: true
         type: string
+
+    secrets:
+        GITHUB_TOKEN:
+          description: 'Token to push changes to the repository'
+          required: true
 
 jobs:
   build:
