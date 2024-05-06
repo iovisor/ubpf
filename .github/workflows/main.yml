@@ -310,13 +310,13 @@ jobs:
       enable_sanitizers: true
       disable_retpolines: true
 
+  # Run fuzzing on scheduled task only.
   linux_fuzzing:
+    if: github.event_name == 'schedule'
     uses: ./.github/workflows/fuzzing.yml
     with:
       arch: x86_64
       platform: ubuntu-latest
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:
