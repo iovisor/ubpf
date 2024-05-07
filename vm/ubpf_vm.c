@@ -299,7 +299,7 @@ i32(uint64_t x)
  * @param[in] immediate The signed 32-bit immediate value to sign extend.
  * @return The sign extended 64-bit value.
  */
-static int64_t sign_extend_immediate(int32_t immediate) {
+static int64_t i64(int32_t immediate) {
     return (int64_t)immediate;
 
 }
@@ -696,7 +696,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             pc += inst.offset;
             break;
         case EBPF_OP_JEQ_IMM:
-            if (reg[inst.dst] == (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] == (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -716,7 +716,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JGT_IMM:
-            if (reg[inst.dst] > (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] > (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -736,7 +736,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JGE_IMM:
-            if (reg[inst.dst] >= (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] >= (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -756,7 +756,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JLT_IMM:
-            if (reg[inst.dst] < (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] < (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -776,7 +776,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JLE_IMM:
-            if (reg[inst.dst] <= (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] <= (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -796,7 +796,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JSET_IMM:
-            if (reg[inst.dst] & (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] & (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -816,7 +816,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JNE_IMM:
-            if (reg[inst.dst] != (uint64_t)sign_extend_immediate(inst.imm)) {
+            if (reg[inst.dst] != (uint64_t)i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -836,7 +836,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JSGT_IMM:
-            if ((int64_t)reg[inst.dst] > sign_extend_immediate(inst.imm)) {
+            if ((int64_t)reg[inst.dst] > i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -856,7 +856,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JSGE_IMM:
-            if ((int64_t)reg[inst.dst] >= sign_extend_immediate(inst.imm)) {
+            if ((int64_t)reg[inst.dst] >= i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -876,7 +876,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JSLT_IMM:
-            if ((int64_t)reg[inst.dst] < sign_extend_immediate(inst.imm)) {
+            if ((int64_t)reg[inst.dst] < i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
@@ -896,7 +896,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JSLE_IMM:
-            if ((int64_t)reg[inst.dst] <= sign_extend_immediate(inst.imm)) {
+            if ((int64_t)reg[inst.dst] <= i64(inst.imm)) {
                 pc += inst.offset;
             }
             break;
