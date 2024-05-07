@@ -13,6 +13,7 @@ CLASSES = {
     3: "stx",
     4: "alu",
     5: "jmp",
+    6: "jmp32",
     7: "alu64",
 }
 
@@ -71,6 +72,7 @@ BPF_CLASS_ST = 2
 BPF_CLASS_STX = 3
 BPF_CLASS_ALU = 4
 BPF_CLASS_JMP = 5
+BPF_CLASS_JMP32 = 6
 BPF_CLASS_ALU64 = 7
 
 BPF_ALU_NEG = 8
@@ -122,6 +124,21 @@ def disassemble_one(data, offset):
         source = (code >> 3) & 1
         opcode = (code >> 4) & 0xf
         opcode_name = JMP_OPCODES.get(opcode)
+
+        if opcode_name == "exit":
+            return opcode_name
+        elif opcode_name == "call":
+            return "%s %s" % (opcode_name, I(imm))
+        elif opcode_name == "ja":
+            return "%s %s" % (opcode_name, O(off))
+        elif source == 0:
+            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), I(imm), O(off))
+        else:
+            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), R(src_reg), O(off))
+    elif cls == BPF_CLASS_JMP32:
+        source = (code >> 3) & 1
+        opcode = (code >> 4) & 0xf
+        opcode_name = JMP_OPCODES.get(opcode) + "32"
 
         if opcode_name == "exit":
             return opcode_name

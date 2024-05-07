@@ -819,7 +819,7 @@ muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm
     }
 
     // Load the divisor into RCX.
-    if (imm) {
+    if (!reg) {
         emit_load_imm(state, RCX, imm);
     } else {
         emit_mov(state, src, RCX);
