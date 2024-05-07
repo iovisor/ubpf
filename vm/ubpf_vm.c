@@ -293,6 +293,7 @@ i32(uint64_t x)
     return x;
 }
 
+
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
 inline static uint64_t
@@ -705,7 +706,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JGT_IMM:
-            if (reg[inst.dst] > u32(inst.imm)) {
+            if (reg[inst.dst] > inst.imm) {
                 pc += inst.offset;
             }
             break;
@@ -725,7 +726,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JGE_IMM:
-            if (reg[inst.dst] >= u32(inst.imm)) {
+            if (reg[inst.dst] >= inst.imm) {
                 pc += inst.offset;
             }
             break;
@@ -745,7 +746,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JLT_IMM:
-            if (reg[inst.dst] < u32(inst.imm)) {
+            if (reg[inst.dst] < inst.imm) {
                 pc += inst.offset;
             }
             break;
@@ -765,7 +766,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_JLE_IMM:
-            if (reg[inst.dst] <= u32(inst.imm)) {
+            if (reg[inst.dst] <= inst.imm) {
                 pc += inst.offset;
             }
             break;
