@@ -176,6 +176,25 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     }
     return false;
 }
+/**
+ * @brief The handler to determine the stack usage of local functions.
+ *
+ * @param[in] vm Pointer to the VM of which the local function at pc is a part.
+ * @param[in] pc The instruction address of the local function.
+ * @param[in] cookie A pointer to the context cookie given when this callback
+ *                   was registered.
+ * @return The amount of stack used by the local function starting at pc.
+ */
+int
+stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
+{
+    (void)(pc);
+    (void)(cookie);
+    (void)(vm);
+    // This is sized large enough that the rel_64_32.bpf.c program has enough space
+    // for each local function!
+    return 32;
+}
 
 int
 main(int argc, char** argv)
@@ -283,6 +302,7 @@ main(int argc, char** argv)
 
     register_functions(vm);
 
+    ubpf_register_stack_usage_calculator(vm, stack_usage_calculator, NULL);
     /*
      * The ELF magic corresponds to an RSH instruction with an offset,
      * which is invalid.
