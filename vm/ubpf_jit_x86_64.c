@@ -301,7 +301,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
-        state->pc_locs[i] = state->offset;
 
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
@@ -313,6 +312,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
              */
             emit_alu64_imm32(state, 0x81, 5, RSP, 8);
         }
+
+        state->pc_locs[i] = state->offset;
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
