@@ -34,9 +34,11 @@ initialize_jit_state_result(struct jit_state *state, struct ubpf_jit_result *com
     state->jumps = calloc(UBPF_MAX_INSTS, sizeof(state->jumps[0]));
     state->loads = calloc(UBPF_MAX_INSTS, sizeof(state->loads[0]));
     state->leas = calloc(UBPF_MAX_INSTS, sizeof(state->leas[0]));
+    state->local_calls = calloc(UBPF_MAX_INSTS, sizeof(state->local_calls[0]));
     state->num_jumps = 0;
     state->num_loads = 0;
     state->num_leas = 0;
+    state->num_local_calls = 0;
     state->jit_status = NoError;
 
     if (!state->pc_locs || !state->jumps || !state->loads || !state->leas) {
@@ -59,6 +61,8 @@ release_jit_state_result(struct jit_state *state, struct ubpf_jit_result *compil
     state->loads = NULL;
     free(state->leas);
     state->leas = NULL;
+    free(state->local_calls);
+    state->local_calls = NULL;
 }
 
 void

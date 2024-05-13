@@ -33,6 +33,7 @@ enum JitProgress {
     TooManyJumps,
     TooManyLoads,
     TooManyLeas,
+    TooManyLocalCalls,
     NotEnoughSpace,
     UnexpectedInstruction,
     UnknownInstruction
@@ -88,9 +89,11 @@ struct jit_state
     struct patchable_relative* jumps;
     struct patchable_relative* loads;
     struct patchable_relative* leas;
+    struct patchable_relative* local_calls;
     int num_jumps;
     int num_loads;
     int num_leas;
+    int num_local_calls;
     uint32_t stack_size;
 };
 

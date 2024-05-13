@@ -1189,6 +1189,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 *errmsg = ubpf_error("Too many LEA calculations.");
                 break;
             }
+            case TooManyLocalCalls: {
+                *errmsg = ubpf_error("Too many local calls.");
+                break;
+            }
             case UnexpectedInstruction: {
                 // errmsg set at time the error was detected because the message requires
                 // information about the unexpected instruction.
