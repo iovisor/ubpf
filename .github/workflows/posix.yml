@@ -199,8 +199,12 @@ jobs:
           path=$(dirname $file)
           name=$(basename $file)
           libfuzzer/split.sh $file
-          build/bin/ubpf_test --mem $path/memory-$name $path/program-$name
-          build/bin/ubpf_test --mem $path/memory-$name $path/program-$name --jit
+          interpret_result=$(build/bin/ubpf_test --mem $path/memory-$name $path/program-$name)
+          jit_result=$(build/bin/ubpf_test --mem $path/memory-$name $path/program-$name --jit)
+          if [[ $interpret_result != $jit_result ]]; then
+            echo "Test failed for $name"
+            exit 1
+          fi
         done
 
     - name: Generate code coverage report
