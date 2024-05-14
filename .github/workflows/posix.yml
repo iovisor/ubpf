@@ -202,6 +202,8 @@ jobs:
           interpret_result=$(build/bin/ubpf_test --mem $path/memory-$name $path/program-$name)
           jit_result=$(build/bin/ubpf_test --mem $path/memory-$name $path/program-$name --jit)
           if [[ $interpret_result != $jit_result ]]; then
+            echo "Interpret result: $interpret_result"
+            echo "JIT result: $jit_result"
             echo "Test failed for $name"
             exit 1
           fi
