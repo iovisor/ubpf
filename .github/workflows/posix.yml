@@ -191,6 +191,18 @@ jobs:
           --build build \
           --target test
 
+    - name: Run ubpf_test over each file in fuzz corpus
+      run: |
+        wget https://github.com/iovisor/ubpf/archive/refs/heads/fuzz/corpus.zip
+        unzip corpus.zip
+        for file in ubpf-fuzz-corpus/fuzz/corpus/*; do
+          path=$(dirname $file)
+          name=$(basename $file)
+          libfuzzer/split.sh $file
+          build/bin/ubpf_test --mem $path/memory-$name $path/program-$name
+          build/bin/ubpf_test --mem $path/memory-$name $path/program-$name --jit
+        done
+
     - name: Generate code coverage report
       if: inputs.enable_coverage == true && inputs.platform == 'macos-11'
       run: |
