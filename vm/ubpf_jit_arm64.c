@@ -338,7 +338,14 @@ static void
 emit_unconditionalbranch_immediate(
     struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
-    emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
+    struct patchable_relative* table = state->jumps;
+    int num_jumps = state->num_jumps;
+    if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
+        table = state->local_calls;
+        num_jumps = state->num_local_calls;
+    }
+
+    emit_patchable_relative(state->offset, target_pc, 0, table, num_jumps);
     emit_instruction(state, op);
 }
 
@@ -966,13 +973,19 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // All checks for errors during the encoding of _this_ instruction
         // occur at the end of the loop.
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
-        state->pc_locs[i] = state->offset;
 
         if (i == 0 || vm->int_funcs[i]) {
+            size_t prolog_start = state->offset;
             emit_movewide_immediate(state, true, temp_register, ubpf_stack_usage_for_local_func(vm, i));
             emit_addsub_immediate(state, true, AS_SUB, SP, SP, 16);
             emit_loadstorepair_immediate(state, LSP_STPX, temp_register, temp_register, SP, 0);
+            // Record the size of the prolog so that we can calculate offset when doing a local call.
+            if (state->bpf_function_prolog_size == 0) {
+                state->bpf_function_prolog_size = state->offset - prolog_start;
+            }
         }
+
+        state->pc_locs[i] = state->offset;
 
         enum Registers dst = map_register(inst.dst);
         enum Registers src = map_register(inst.src);
@@ -1371,6 +1384,25 @@ resolve_leas(struct jit_state* state)
     return true;
 }
 
+static bool
+resolve_local_calls(struct jit_state* state)
+{
+    for (unsigned i = 0; i < state->num_local_calls; ++i) {
+        struct patchable_relative local_call = state->local_calls[i];
+
+        int32_t target_loc;
+        assert(local_call.target_offset == 0);
+        assert(local_call.target_pc != TARGET_PC_EXIT);
+        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
+        target_loc = state->pc_locs[local_call.target_pc];
+
+        int32_t rel = target_loc - local_call.offset_loc;
+        rel -= state->bpf_function_prolog_size;
+        resolve_branch_immediate(state, local_call.offset_loc, rel);
+    }
+    return true;
+}
+
 bool
 ubpf_jit_update_dispatcher_arm64(
     struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset)
@@ -1415,7 +1447,7 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum Jit
         goto out;
     }
 
-    if (!resolve_jumps(&state) || !resolve_loads(&state) || !resolve_leas(&state)) {
+    if (!resolve_jumps(&state) || !resolve_loads(&state) || !resolve_leas(&state) || !resolve_local_calls(&state)) {
         compile_result.errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code.");
         goto out;
     }

@@ -97,6 +97,7 @@ struct jit_state
     int num_leas;
     int num_local_calls;
     uint32_t stack_size;
+    size_t bpf_function_prolog_size; // Count of bytes emitted at the start of the function.
 };
 
 int
