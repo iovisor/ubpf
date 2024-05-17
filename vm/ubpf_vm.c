@@ -45,7 +45,8 @@ bounds_check(
     uint16_t cur_pc,
     void* mem,
     size_t mem_len,
-    void* stack);
+    void* stack,
+    size_t stack_len);
 
 bool
 ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable)
@@ -65,7 +66,14 @@ ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const
 }
 
 static uint64_t
-ubpf_default_external_dispatcher(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, unsigned int index, external_function_t *external_fns)
+ubpf_default_external_dispatcher(
+    uint64_t arg1,
+    uint64_t arg2,
+    uint64_t arg3,
+    uint64_t arg4,
+    uint64_t arg5,
+    unsigned int index,
+    external_function_t* external_fns)
 {
     return external_fns[index](arg1, arg2, arg3, arg4, arg5);
 }
@@ -86,6 +94,12 @@ ubpf_create(void)
 
     vm->ext_func_names = calloc(MAX_EXT_FUNCS, sizeof(*vm->ext_func_names));
     if (vm->ext_func_names == NULL) {
+        ubpf_destroy(vm);
+        return NULL;
+    }
+
+    vm->local_func_stack_usage = calloc(UBPF_MAX_INSTS, sizeof(struct ubpf_stack_usage));
+    if (vm->local_func_stack_usage == NULL) {
         ubpf_destroy(vm);
         return NULL;
     }
@@ -118,6 +132,7 @@ ubpf_destroy(struct ubpf_vm* vm)
     free(vm->int_funcs);
     free(vm->ext_funcs);
     free(vm->ext_func_names);
+    free(vm->local_func_stack_usage);
     free(vm);
 }
 
@@ -126,7 +141,6 @@ as_external_function_t(void* f)
 {
     return (external_function_t)f;
 };
-
 
 int
 ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_function_t fn)
@@ -146,7 +160,8 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_f
         }
 
         // Now, update!
-        if (!vm->jit_update_helper(vm, fn, idx, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_helper_offset)) {
+        if (!vm->jit_update_helper(
+                vm, fn, idx, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_helper_offset)) {
             // Can't immediately stop here because we have unprotected memory!
             success = -1;
         }
@@ -173,7 +188,8 @@ ubpf_register_external_dispatcher(
         }
 
         // Now, update!
-        if (!vm->jit_update_dispatcher(vm, dispatcher, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_dispatcher_offset)) {
+        if (!vm->jit_update_dispatcher(
+                vm, dispatcher, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_dispatcher_offset)) {
             // Can't immediately stop here because we have unprotected memory!
             success = -1;
         }
@@ -215,8 +231,8 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
-    if (UBPF_STACK_SIZE % sizeof(uint64_t) != 0) {
-        *errmsg = ubpf_error("UBPF_STACK_SIZE must be a multiple of 8");
+    if (UBPF_EBPF_STACK_SIZE % sizeof(uint64_t) != 0) {
+        *errmsg = ubpf_error("UBPF_EBPF_STACK_SIZE must be a multiple of 8");
         return -1;
     }
 
@@ -299,12 +315,13 @@ i32(uint64_t x)
  * @param[in] immediate The signed 32-bit immediate value to sign extend.
  * @return The sign extended 64-bit value.
  */
-static int64_t i64(int32_t immediate) {
+static int64_t
+i64(int32_t immediate)
+{
     return (int64_t)immediate;
-
 }
 
-#define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
+#define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a) - 1)) == 0)
 
 inline static uint64_t
 ubpf_mem_load(uint64_t address, size_t size)
@@ -357,44 +374,30 @@ ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
 }
 
 int
-ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_return_value)
+ubpf_exec_ex(
+    const struct ubpf_vm* vm,
+    void* mem,
+    size_t mem_len,
+    uint64_t* bpf_return_value,
+    uint8_t* stack_start,
+    size_t stack_length)
 {
     uint16_t pc = 0;
     const struct ebpf_inst* insts = vm->insts;
     uint64_t* reg;
     uint64_t _reg[16];
-    uint64_t ras_index = 0;
+    uint64_t stack_frame_index = 0;
     int return_value = -1;
-    void *external_dispatcher_cookie = mem;
-
-// Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
-#if defined(NTDDI_VERSION) && defined(WINNT)
-    uint64_t* stack = NULL;
-    struct ubpf_stack_frame* stack_frames = NULL;
-
-    stack = calloc(UBPF_STACK_SIZE, 1);
-    if (!stack) {
-        return_value = -1;
-        goto cleanup;
-    }
-
-    stack_frames = calloc(UBPF_MAX_CALL_DEPTH, sizeof(struct ubpf_stack_frame));
-    if (!stack_frames) {
-        return_value = -1;
-        goto cleanup;
-    }
-
-#else
-    uint64_t stack[UBPF_STACK_SIZE / sizeof(uint64_t)];
-    struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
-        0,
-    };
-#endif
+    void* external_dispatcher_cookie = mem;
 
     if (!insts) {
         /* Code must be loaded before we can execute */
         return -1;
     }
+
+    struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
+        0,
+    };
 
 #ifdef DEBUG
     if (vm->regs)
@@ -407,7 +410,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 
     reg[1] = (uintptr_t)mem;
     reg[2] = (uint64_t)mem_len;
-    reg[10] = (uintptr_t)stack + UBPF_STACK_SIZE;
+    reg[10] = (uintptr_t)stack_start + stack_length;
 
     int instruction_limit = vm->instruction_limit;
 
@@ -421,6 +424,11 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             return_value = -1;
             goto cleanup;
         }
+
+        if (pc == 0 || vm->int_funcs[pc]) {
+            stack_frames[stack_frame_index].stack_usage = ubpf_stack_usage_for_local_func(vm, pc);
+        }
+
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
         switch (inst.opcode) {
@@ -622,19 +630,37 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
              *
              * Needed since we don't have a verifier yet.
              */
-#define BOUNDS_CHECK_LOAD(size)                                                                                 \
-    do {                                                                                                        \
-        if (!bounds_check(vm, (char*)reg[inst.src] + inst.offset, size, "load", cur_pc, mem, mem_len, stack)) { \
-            return_value = -1;                                                                                  \
-            goto cleanup;                                                                                       \
-        }                                                                                                       \
+#define BOUNDS_CHECK_LOAD(size)                     \
+    do {                                            \
+        if (!bounds_check(                          \
+                vm,                                 \
+                (char*)reg[inst.src] + inst.offset, \
+                size,                               \
+                "load",                             \
+                cur_pc,                             \
+                mem,                                \
+                mem_len,                            \
+                stack_start,                        \
+                stack_length)) {                    \
+            return_value = -1;                      \
+            goto cleanup;                           \
+        }                                           \
     } while (0)
-#define BOUNDS_CHECK_STORE(size)                                                                                 \
-    do {                                                                                                         \
-        if (!bounds_check(vm, (char*)reg[inst.dst] + inst.offset, size, "store", cur_pc, mem, mem_len, stack)) { \
-            return_value = -1;                                                                                   \
-            goto cleanup;                                                                                        \
-        }                                                                                                        \
+#define BOUNDS_CHECK_STORE(size)                    \
+    do {                                            \
+        if (!bounds_check(                          \
+                vm,                                 \
+                (char*)reg[inst.dst] + inst.offset, \
+                size,                               \
+                "store",                            \
+                cur_pc,                             \
+                mem,                                \
+                mem_len,                            \
+                stack_start,                        \
+                stack_length)) {                    \
+            return_value = -1;                      \
+            goto cleanup;                           \
+        }                                           \
     } while (0)
 
         case EBPF_OP_LDXW:
@@ -916,13 +942,14 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             }
             break;
         case EBPF_OP_EXIT:
-            if (ras_index > 0) {
-                ras_index--;
-                pc = stack_frames[ras_index].return_address;
-                reg[BPF_REG_6] = stack_frames[ras_index].saved_registers[0];
-                reg[BPF_REG_7] = stack_frames[ras_index].saved_registers[1];
-                reg[BPF_REG_8] = stack_frames[ras_index].saved_registers[2];
-                reg[BPF_REG_9] = stack_frames[ras_index].saved_registers[3];
+            if (stack_frame_index > 0) {
+                stack_frame_index--;
+                pc = stack_frames[stack_frame_index].return_address;
+                reg[BPF_REG_6] = stack_frames[stack_frame_index].saved_registers[0];
+                reg[BPF_REG_7] = stack_frames[stack_frame_index].saved_registers[1];
+                reg[BPF_REG_8] = stack_frames[stack_frame_index].saved_registers[2];
+                reg[BPF_REG_9] = stack_frames[stack_frame_index].saved_registers[3];
+                reg[BPF_REG_10] += stack_frames[stack_frame_index].stack_usage;
                 break;
             }
             *bpf_return_value = reg[0];
@@ -934,9 +961,11 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             if (inst.src == 0) {
                 // Handle call by address to external function.
                 if (vm->dispatcher != NULL) {
-                    reg[0] = vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, external_dispatcher_cookie);
+                    reg[0] =
+                        vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, external_dispatcher_cookie);
                 } else {
-                    reg[0] = ubpf_default_external_dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, vm->ext_funcs);
+                    reg[0] = ubpf_default_external_dispatcher(
+                        reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, vm->ext_funcs);
                 }
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];
@@ -944,22 +973,25 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
                     goto cleanup;
                 }
             } else if (inst.src == 1) {
-                if (ras_index >= UBPF_MAX_CALL_DEPTH) {
+                if (stack_frame_index >= UBPF_MAX_CALL_DEPTH) {
                     vm->error_printf(
                         stderr,
                         "uBPF error: number of nested functions calls (%lu) exceeds max (%lu) at PC %u\n",
-                        ras_index + 1,
+                        stack_frame_index + 1,
                         UBPF_MAX_CALL_DEPTH,
                         cur_pc);
                     return_value = -1;
                     goto cleanup;
                 }
-                stack_frames[ras_index].saved_registers[0] = reg[BPF_REG_6];
-                stack_frames[ras_index].saved_registers[1] = reg[BPF_REG_7];
-                stack_frames[ras_index].saved_registers[2] = reg[BPF_REG_8];
-                stack_frames[ras_index].saved_registers[3] = reg[BPF_REG_9];
-                stack_frames[ras_index].return_address = pc;
-                ras_index++;
+                stack_frames[stack_frame_index].saved_registers[0] = reg[BPF_REG_6];
+                stack_frames[stack_frame_index].saved_registers[1] = reg[BPF_REG_7];
+                stack_frames[stack_frame_index].saved_registers[2] = reg[BPF_REG_8];
+                stack_frames[stack_frame_index].saved_registers[3] = reg[BPF_REG_9];
+                stack_frames[stack_frame_index].return_address = pc;
+
+                reg[BPF_REG_10] -= stack_frames[stack_frame_index].stack_usage;
+
+                stack_frame_index++;
                 pc += inst.imm;
                 break;
             } else if (inst.src == 2) {
@@ -976,9 +1008,30 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 cleanup:
 #if defined(NTDDI_VERSION) && defined(WINNT)
     free(stack_frames);
-    free(stack);
 #endif
     return return_value;
+}
+
+int
+ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_return_value)
+{
+// Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
+#if defined(NTDDI_VERSION) && defined(WINNT)
+    uint64_t* stack = NULL;
+    struct ubpf_stack_frame* stack_frames = NULL;
+
+    stack = calloc(UBPF_EBPF_STACK_SIZE, 1);
+    if (!stack) {
+        return -1;
+    }
+#else
+    uint64_t stack[UBPF_EBPF_STACK_SIZE / sizeof(uint64_t)];
+#endif
+    int result = ubpf_exec_ex(vm, mem, mem_len, bpf_return_value, (uint8_t*)stack, UBPF_EBPF_STACK_SIZE);
+#if defined(NTDDI_VERSION) && defined(WINNT)
+    free(stack);
+#endif
+    return result;
 }
 
 static bool
@@ -986,6 +1039,10 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
 {
     if (num_insts >= UBPF_MAX_INSTS) {
         *errmsg = ubpf_error("too many instructions (max %u)", UBPF_MAX_INSTS);
+        return false;
+    }
+
+    if (!ubpf_calculate_stack_usage_for_local_func(vm, 0, errmsg)) {
         return false;
     }
 
@@ -1047,8 +1104,11 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_MOD64_REG:
         case EBPF_OP_XOR64_IMM:
         case EBPF_OP_XOR64_REG:
+            break;
         case EBPF_OP_MOV64_IMM:
         case EBPF_OP_MOV64_REG:
+            store = true;
+            break;
         case EBPF_OP_ARSH64_IMM:
         case EBPF_OP_ARSH64_REG:
             break;
@@ -1159,6 +1219,9 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                         ubpf_error("call to local function (at PC %d) is out of bounds (target: %d)", i, call_target);
                     return false;
                 }
+                if (!ubpf_calculate_stack_usage_for_local_func(vm, call_target, errmsg)) {
+                    return false;
+                }
             } else if (inst.src == 2) {
                 *errmsg = ubpf_error("call to external function by BTF ID (at PC %d) is not supported", i);
                 return false;
@@ -1205,15 +1268,16 @@ bounds_check(
     uint16_t cur_pc,
     void* mem,
     size_t mem_len,
-    void* stack)
+    void* stack,
+    size_t stack_len)
 {
     if (!vm->bounds_check_enabled)
         return true;
 
-    uintptr_t access_start= (uintptr_t)addr;
+    uintptr_t access_start = (uintptr_t)addr;
     uintptr_t access_end = access_start + size;
     uintptr_t stack_start = (uintptr_t)stack;
-    uintptr_t stack_end = stack_start + UBPF_STACK_SIZE;
+    uintptr_t stack_end = stack_start + stack_len;
     uintptr_t mem_start = (uintptr_t)mem;
     uintptr_t mem_end = mem_start + mem_len;
 
@@ -1223,12 +1287,7 @@ bounds_check(
 
     if (access_start > access_end) {
         vm->error_printf(
-            stderr,
-            "uBPF error: invalid memory access %s at PC %u, addr %p, size %d\n",
-            type,
-            cur_pc,
-            addr,
-            size);
+            stderr, "uBPF error: invalid memory access %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
         return false;
     }
 
@@ -1249,7 +1308,8 @@ bounds_check(
     // The address may be invalid or it may be a region of memory that the caller
     // is aware of but that is not part of the stack or memory.
     // Call any registered bounds check function to determine if the access is valid.
-    if (vm->bounds_check_function != NULL && vm->bounds_check_function(vm->bounds_check_user_data, access_start, size)) {
+    if (vm->bounds_check_function != NULL &&
+        vm->bounds_check_function(vm->bounds_check_user_data, access_start, size)) {
         return true;
     }
 
@@ -1266,7 +1326,7 @@ bounds_check(
         mem,
         mem_len,
         stack,
-        UBPF_STACK_SIZE);
+        UBPF_EBPF_STACK_SIZE);
     return false;
 }
 
@@ -1386,5 +1446,47 @@ ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previou
         *previous_limit = vm->instruction_limit;
     }
     vm->instruction_limit = limit;
+    return 0;
+}
+
+bool
+ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg)
+{
+    // If there is a stack usage calculator and we have not invoked it before for the target,
+    // then now is the time to call it!
+    if (vm->stack_usage_calculator && !vm->local_func_stack_usage[pc].stack_usage_calculated) {
+        uint16_t stack_usage = (vm->stack_usage_calculator)(vm, pc, vm->stack_usage_calculator_cookie);
+        vm->local_func_stack_usage[pc].stack_usage = stack_usage;
+    }
+    vm->local_func_stack_usage[pc].stack_usage_calculated = true;
+    // Now that we are guaranteed to have a value for the amount of the stack used by the function
+    // starting at call_target, let's make sure that it is 16-byte aligned. Note: The amount of stack
+    // used might be 0 (in the case where there is no registered stack usage calculator callback). That
+    // is okay because ubpf_stack_usage_for_local_func will give us a meaningful default.
+    if (vm->local_func_stack_usage[pc].stack_usage % 16) {
+        *errmsg = ubpf_error(
+            "local function (at PC %d) has improperly sized stack use (%d)",
+            pc,
+            vm->local_func_stack_usage[pc].stack_usage);
+        return false;
+    }
+    return true;
+}
+
+uint16_t
+ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc)
+{
+    uint16_t stack_usage = UBPF_EBPF_STACK_SIZE;
+    if (vm->local_func_stack_usage[pc].stack_usage_calculated) {
+        stack_usage = vm->local_func_stack_usage[pc].stack_usage;
+    }
+    return stack_usage;
+}
+
+int
+ubpf_register_stack_usage_calculator(struct ubpf_vm* vm, stack_usage_calculator_t calculator, void* cookie)
+{
+    vm->stack_usage_calculator_cookie = cookie;
+    vm->stack_usage_calculator = calculator;
     return 0;
 }

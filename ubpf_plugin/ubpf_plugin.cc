@@ -74,6 +74,26 @@ bytes_to_ebpf_inst(std::vector<uint8_t> bytes)
 }
 
 /**
+ * @brief The handler to determine the stack usage of local functions.
+ *
+ * @param[in] vm Pointer to the VM of which the local function at pc is a part.
+ * @param[in] pc The instruction address of the local function.
+ * @param[in] cookie A pointer to the context cookie given when this callback
+ *                   was registered.
+ * @return The amount of stack used by the local function starting at pc.
+ */
+int
+stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
+{
+    UNREFERENCED_PARAMETER(pc);
+    UNREFERENCED_PARAMETER(cookie);
+    UNREFERENCED_PARAMETER(vm);
+    // We will default to a conservative 64 bytes of stack usage for each local function.
+    // That should be enough for all the conformance tests.
+    return 64;
+}
+
+/**
  * @brief This program reads BPF instructions from stdin and memory contents from
  * the first agument. It then executes the BPF program and prints the
  * value of %r0 at the end of execution.
@@ -137,6 +157,8 @@ int main(int argc, char **argv)
     }
 
     ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
+
+    ubpf_register_stack_usage_calculator(vm.get(), stack_usage_calculator, nullptr);
 
     if (ubpf_set_unwind_function_index(vm.get(), 5) != 0)
     {
@@ -212,12 +234,33 @@ int main(int argc, char **argv)
         }
         copy_result = fn(usable_program_memory_pointer, usable_program_memory.size());
 
+        ubpf_jit_ex_fn fn_ex = ubpf_compile_ex(vm.get(), &error, ExtendedJitMode);
+        if (fn_ex == nullptr) {
+            std::cerr << "Failed to compile program (extended): " << error << std::endl;
+            free(error);
+            return 1;
+        }
+
+        uint64_t index_helper_result_external_stack;
+        usable_program_memory = memory;
+        usable_program_memory_pointer = nullptr;
+        if (usable_program_memory.size() != 0) {
+            usable_program_memory_pointer = usable_program_memory.data();
+        }
+
+        uint8_t* external_stack = (uint8_t*)calloc(512, 1);
+        index_helper_result_external_stack =
+            fn_ex(usable_program_memory_pointer, usable_program_memory.size(), external_stack, 512);
+        free(external_stack);
+
         // ... and make sure the results are the same.
-        if (external_dispatcher_result != index_helper_result || index_helper_result != copy_result) {
+        if (external_dispatcher_result != index_helper_result || index_helper_result != copy_result ||
+            external_dispatcher_result != index_helper_result_external_stack) {
             std::cerr << "Execution of the JIT'd code (with external and indexed helpers) and a copy of "
-                         "the JIT'd code gave different results: 0x" << std::hex << external_dispatcher_result 
-                      << " vs 0x" << std::hex << index_helper_result 
-                      << " vs 0x" << std::hex << copy_result << "." << std::endl;
+                         "the JIT'd code gave different results: 0x"
+                      << std::hex << external_dispatcher_result << " vs 0x" << std::hex << index_helper_result
+                      << " vs 0x" << std::hex << copy_result << " vs 0x" << std::hex
+                      << index_helper_result_external_stack << "." << std::endl;
             return 1;
         }
     }
@@ -246,7 +289,7 @@ int main(int argc, char **argv)
             }
         }
 
-        // ... but first reset program memory.
+        // ... but first reset program memory ...
         usable_program_memory = memory;
         usable_program_memory_pointer = nullptr;
         if (usable_program_memory.size() != 0) {
@@ -259,6 +302,35 @@ int main(int argc, char **argv)
             std::cerr << "Failed to execute program" << std::endl;
             return 1;
         }
+
+        // ... and, for the cherry on the sundae, execute the program by specifying a stack ...
+        uint64_t* external_stack = NULL;
+
+        external_stack = (uint64_t*)calloc(512, 1);
+        if (!external_stack) {
+            return -1;
+        }
+
+        // ... but first, reset that pesky memory again ...
+        usable_program_memory = memory;
+        usable_program_memory_pointer = nullptr;
+        if (usable_program_memory.size() != 0) {
+            usable_program_memory_pointer = usable_program_memory.data();
+        }
+
+        uint64_t external_memory_index_helper_result;
+        if (ubpf_exec_ex(
+                vm.get(),
+                usable_program_memory_pointer,
+                usable_program_memory.size(),
+                &external_memory_index_helper_result,
+                (uint8_t*)external_stack,
+                512) != 0) {
+            std::cerr << "Failed to execute program" << std::endl;
+            return 1;
+        }
+
+        free(external_stack);
 
         // ... and make sure the results are the same.
         if (external_dispatcher_result != index_helper_result) {
