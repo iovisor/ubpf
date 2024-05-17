@@ -1,10 +1,12 @@
 var indexSectionsWithContent =
 {
-  0: "aemu",
+  0: "abejmsu",
   1: "mu",
   2: "au",
-  3: "eu",
-  4: "u"
+  3: "esu",
+  4: "j",
+  5: "be",
+  6: "u"
 };
 
 var indexSectionNames =
@@ -13,7 +15,9 @@ var indexSectionNames =
   1: "files",
   2: "functions",
   3: "typedefs",
-  4: "defines"
+  4: "enums",
+  5: "enumvalues",
+  6: "defines"
 };
 
 var indexSectionLabels =
@@ -22,6 +26,8 @@ var indexSectionLabels =
   1: "Files",
   2: "Functions",
   3: "Typedefs",
-  4: "Macros"
+  4: "Enumerations",
+  5: "Enumerator",
+  6: "Macros"
 };
 

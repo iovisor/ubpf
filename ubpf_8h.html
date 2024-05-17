@@ -68,6 +68,7 @@ $(function() {
   <div class="summary">
 <a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle">
 <div class="title">ubpf.h File Reference</div>  </div>
@@ -86,9 +87,11 @@ Macros</h2></td></tr>
 <tr class="memitem:a7b029668bfe717c5d7b33fba3847a00f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">UBPF_MAX_INSTS</a>&#160;&#160;&#160;65536</td></tr>
 <tr class="memdesc:a7b029668bfe717c5d7b33fba3847a00f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of instructions that a program can contain.  <a href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">More...</a><br /></td></tr>
 <tr class="separator:a7b029668bfe717c5d7b33fba3847a00f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab41a6986b0045cc2e5c84a75d08c7a12"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ab41a6986b0045cc2e5c84a75d08c7a12">UBPF_STACK_SIZE</a>&#160;&#160;&#160;512</td></tr>
-<tr class="memdesc:ab41a6986b0045cc2e5c84a75d08c7a12"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default stack size for the VM. Must be divisible by 16.  <a href="ubpf_8h.html#ab41a6986b0045cc2e5c84a75d08c7a12">More...</a><br /></td></tr>
-<tr class="separator:ab41a6986b0045cc2e5c84a75d08c7a12"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>&#160;&#160;&#160;512</td></tr>
+<tr class="memdesc:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default stack size for the eBPF program. Must be divisible by 16.  <a href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">More...</a><br /></td></tr>
+<tr class="separator:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae89d6c1d7d2bda6006e9969e731826a3">UBPF_EBPF_NONVOLATILE_SIZE</a>&#160;&#160;&#160;(sizeof(uint64_t) * 5)</td></tr>
+<tr class="separator:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a>&#160;&#160;&#160;10</td></tr>
 <tr class="memdesc:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of nested calls in the VM.  <a href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">More...</a><br /></td></tr>
 <tr class="separator:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -98,6 +101,9 @@ Typedefs</h2></td></tr>
 <tr class="memitem:a6334115c4408267ec35087ade6128fa0"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a6334115c4408267ec35087ade6128fa0">ubpf_jit_fn</a>) (void *mem, size_t mem_len)</td></tr>
 <tr class="memdesc:a6334115c4408267ec35087ade6128fa0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opaque type for a uBPF JIT compiled function.  <a href="ubpf_8h.html#a6334115c4408267ec35087ade6128fa0">More...</a><br /></td></tr>
 <tr class="separator:a6334115c4408267ec35087ade6128fa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30c41270d593fc7ffc2161f03f8c0b5b"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a30c41270d593fc7ffc2161f03f8c0b5b">ubpf_jit_ex_fn</a>) (void *mem, size_t mem_len, uint8_t *stack, size_t stack_len)</td></tr>
+<tr class="memdesc:a30c41270d593fc7ffc2161f03f8c0b5b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Opaque type for a uBPF JIT compiled function with external stack.  <a href="ubpf_8h.html#a30c41270d593fc7ffc2161f03f8c0b5b">More...</a><br /></td></tr>
+<tr class="separator:a30c41270d593fc7ffc2161f03f8c0b5b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">external_function_t</a>) (uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4)</td></tr>
 <tr class="memdesc:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external function.  <a href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">More...</a><br /></td></tr>
 <tr class="separator:a97c06ae6f43ae6e0cbca64ac1e70bc30"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -107,11 +113,22 @@ Typedefs</h2></td></tr>
 <tr class="memitem:a924a4a1a3e782846945d6adbabbcbb9c"><td class="memItemLeft" align="right" valign="top">typedef bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a924a4a1a3e782846945d6adbabbcbb9c">external_function_validate_t</a>) (unsigned int index, const struct ubpf_vm *vm)</td></tr>
 <tr class="memdesc:a924a4a1a3e782846945d6adbabbcbb9c"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of an external helper validation function.  <a href="ubpf_8h.html#a924a4a1a3e782846945d6adbabbcbb9c">More...</a><br /></td></tr>
 <tr class="separator:a924a4a1a3e782846945d6adbabbcbb9c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a087420d1735791ffa6c5c436f52da00e"><td class="memItemLeft" align="right" valign="top">typedef int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a087420d1735791ffa6c5c436f52da00e">stack_usage_calculator_t</a>) (const struct ubpf_vm *vm, uint16_t pc, void *cookie)</td></tr>
+<tr class="memdesc:a087420d1735791ffa6c5c436f52da00e"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of a stack usage calculator callback function.  <a href="ubpf_8h.html#a087420d1735791ffa6c5c436f52da00e">More...</a><br /></td></tr>
+<tr class="separator:a087420d1735791ffa6c5c436f52da00e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a70fb644d080e8448c1db17bb99858391"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a70fb644d080e8448c1db17bb99858391">ubpf_data_relocation</a>) (void *user_context, const uint8_t *data, uint64_t data_size, const char *symbol_name, uint64_t symbol_offset, uint64_t symbol_size)</td></tr>
 <tr class="memdesc:a70fb644d080e8448c1db17bb99858391"><td class="mdescLeft">&#160;</td><td class="mdescRight">Data relocation function that is called by the VM when it encounters a R_BPF_64_64 relocation in the maps section of the ELF file.  <a href="ubpf_8h.html#a70fb644d080e8448c1db17bb99858391">More...</a><br /></td></tr>
 <tr class="separator:a70fb644d080e8448c1db17bb99858391"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a64bd2f640f675e3eeff48ea52583d699"><td class="memItemLeft" align="right" valign="top">typedef bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a64bd2f640f675e3eeff48ea52583d699">ubpf_bounds_check</a>) (void *context, uint64_t addr, uint64_t size)</td></tr>
 <tr class="separator:a64bd2f640f675e3eeff48ea52583d699"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:a4be1055c33e64a9f81abf25f8b5ddedd"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a> { <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedda81527be9d9bf3b5e45d8b59a4d1f19fd">ExtendedJitMode</a>
+, <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedda03f63951ae56be0eb19aae34d83706f8">BasicJitMode</a>
+ }</td></tr>
+<tr class="memdesc:a4be1055c33e64a9f81abf25f8b5ddedd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enum to describe JIT mode.  <a href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">More...</a><br /></td></tr>
+<tr class="separator:a4be1055c33e64a9f81abf25f8b5ddedd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
@@ -136,6 +153,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a27fbf5d30614b9c4b618209d681c3653"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a27fbf5d30614b9c4b618209d681c3653">ubpf_register_external_dispatcher</a> (struct ubpf_vm *vm, <a class="el" href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">external_function_dispatcher_t</a> dispatcher, <a class="el" href="ubpf_8h.html#a924a4a1a3e782846945d6adbabbcbb9c">external_function_validate_t</a> validater)</td></tr>
 <tr class="memdesc:a27fbf5d30614b9c4b618209d681c3653"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a function that dispatches to external helpers The immediate field of a CALL instruction is an index of a helper function to invoke. This API sets a callback that will choose the helper function to invoke (based on the index) and then invoke it. This API also sets a callback that the validator will use to determine if a given index is a valid external function.  <a href="ubpf_8h.html#a27fbf5d30614b9c4b618209d681c3653">More...</a><br /></td></tr>
 <tr class="separator:a27fbf5d30614b9c4b618209d681c3653"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aacb195bc0c95663214fe205613ff1c9a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aacb195bc0c95663214fe205613ff1c9a">ubpf_register_stack_usage_calculator</a> (struct ubpf_vm *vm, <a class="el" href="ubpf_8h.html#a087420d1735791ffa6c5c436f52da00e">stack_usage_calculator_t</a> calculator, void *cookie)</td></tr>
+<tr class="memdesc:aacb195bc0c95663214fe205613ff1c9a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a function that will be called during eBPF program validation to determine stack usage for a local function.  <a href="ubpf_8h.html#aacb195bc0c95663214fe205613ff1c9a">More...</a><br /></td></tr>
+<tr class="separator:aacb195bc0c95663214fe205613ff1c9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8d32748c100c98d69dba8dcf0e9d4d0d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a8d32748c100c98d69dba8dcf0e9d4d0d">ubpf_load</a> (struct ubpf_vm *vm, const void *code, uint32_t code_len, char **errmsg)</td></tr>
 <tr class="memdesc:a8d32748c100c98d69dba8dcf0e9d4d0d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Load code into a VM. This must be done before calling ubpf_exec or ubpf_compile and after registering all functions.  <a href="ubpf_8h.html#a8d32748c100c98d69dba8dcf0e9d4d0d">More...</a><br /></td></tr>
 <tr class="separator:a8d32748c100c98d69dba8dcf0e9d4d0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -145,15 +165,23 @@ Functions</h2></td></tr>
 <tr class="memitem:a1ce3eb22d45ec43436758a139ffc8c95"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a1ce3eb22d45ec43436758a139ffc8c95">ubpf_exec</a> (const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t *bpf_return_value)</td></tr>
 <tr class="memdesc:a1ce3eb22d45ec43436758a139ffc8c95"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a BPF program in the VM using the interpreter.  <a href="ubpf_8h.html#a1ce3eb22d45ec43436758a139ffc8c95">More...</a><br /></td></tr>
 <tr class="separator:a1ce3eb22d45ec43436758a139ffc8c95"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6ded3ae17d5879d7c19f32fa52cbbe26"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a6ded3ae17d5879d7c19f32fa52cbbe26">ubpf_exec_ex</a> (const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t *bpf_return_value, uint8_t *stack, size_t stack_len)</td></tr>
+<tr class="separator:a6ded3ae17d5879d7c19f32fa52cbbe26"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a67b901bf6d169b6b28f818f15bd17cba"><td class="memItemLeft" align="right" valign="top"><a class="el" href="ubpf_8h.html#a6334115c4408267ec35087ade6128fa0">ubpf_jit_fn</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a67b901bf6d169b6b28f818f15bd17cba">ubpf_compile</a> (struct ubpf_vm *vm, char **errmsg)</td></tr>
 <tr class="memdesc:a67b901bf6d169b6b28f818f15bd17cba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compile a BPF program in the VM to native code.  <a href="ubpf_8h.html#a67b901bf6d169b6b28f818f15bd17cba">More...</a><br /></td></tr>
 <tr class="separator:a67b901bf6d169b6b28f818f15bd17cba"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a281772f3e99c3d8505751297c51aa22e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="ubpf_8h.html#a30c41270d593fc7ffc2161f03f8c0b5b">ubpf_jit_ex_fn</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a281772f3e99c3d8505751297c51aa22e">ubpf_compile_ex</a> (struct ubpf_vm *vm, char **errmsg, enum <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a> jit_mode)</td></tr>
+<tr class="memdesc:a281772f3e99c3d8505751297c51aa22e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compile a BPF program in the VM to native code.  <a href="ubpf_8h.html#a281772f3e99c3d8505751297c51aa22e">More...</a><br /></td></tr>
+<tr class="separator:a281772f3e99c3d8505751297c51aa22e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2604f93223a8f076b503ba144a6b1ce"><td class="memItemLeft" align="right" valign="top"><a class="el" href="ubpf_8h.html#a6334115c4408267ec35087ade6128fa0">ubpf_jit_fn</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aa2604f93223a8f076b503ba144a6b1ce">ubpf_copy_jit</a> (struct ubpf_vm *vm, void *buffer, size_t size, char **errmsg)</td></tr>
 <tr class="memdesc:aa2604f93223a8f076b503ba144a6b1ce"><td class="mdescLeft">&#160;</td><td class="mdescRight">Copy the JIT'd program code to the given buffer.  <a href="ubpf_8h.html#aa2604f93223a8f076b503ba144a6b1ce">More...</a><br /></td></tr>
 <tr class="separator:aa2604f93223a8f076b503ba144a6b1ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab34e26c0a46366345df354ce992448c4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ab34e26c0a46366345df354ce992448c4">ubpf_translate</a> (struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg)</td></tr>
 <tr class="memdesc:ab34e26c0a46366345df354ce992448c4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Translate the eBPF byte code to machine code.  <a href="ubpf_8h.html#ab34e26c0a46366345df354ce992448c4">More...</a><br /></td></tr>
 <tr class="separator:ab34e26c0a46366345df354ce992448c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb2b46e62e54e7e8b81303def1014eb0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#afb2b46e62e54e7e8b81303def1014eb0">ubpf_translate_ex</a> (struct ubpf_vm *vm, uint8_t *buffer, size_t *size, char **errmsg, enum <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a> jit_mode)</td></tr>
+<tr class="memdesc:afb2b46e62e54e7e8b81303def1014eb0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Translate the eBPF byte code to machine code.  <a href="ubpf_8h.html#afb2b46e62e54e7e8b81303def1014eb0">More...</a><br /></td></tr>
+<tr class="separator:afb2b46e62e54e7e8b81303def1014eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0046484ecdb72363d0c5ae710e7b96c3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a0046484ecdb72363d0c5ae710e7b96c3">ubpf_set_unwind_function_index</a> (struct ubpf_vm *vm, unsigned int idx)</td></tr>
 <tr class="memdesc:a0046484ecdb72363d0c5ae710e7b96c3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Instruct the uBPF runtime to apply unwind-on-success semantics to a helper function. If the function returns 0, the uBPF runtime will end execution of the eBPF program and immediately return control to the caller. This is used for implementing function like the "bpf_tail_call" helper.  <a href="ubpf_8h.html#a0046484ecdb72363d0c5ae710e7b96c3">More...</a><br /></td></tr>
 <tr class="separator:a0046484ecdb72363d0c5ae710e7b96c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -180,6 +208,36 @@ Functions</h2></td></tr>
 <tr class="separator:adfaef65d4add64487f09c0bd1d0a08df"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ae89d6c1d7d2bda6006e9969e731826a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae89d6c1d7d2bda6006e9969e731826a3">&#9670;&nbsp;</a></span>UBPF_EBPF_NONVOLATILE_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UBPF_EBPF_NONVOLATILE_SIZE&#160;&#160;&#160;(sizeof(uint64_t) * 5)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a91fdfd9d55e9ffcadcfe27a87340eace"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a91fdfd9d55e9ffcadcfe27a87340eace">&#9670;&nbsp;</a></span>UBPF_EBPF_STACK_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UBPF_EBPF_STACK_SIZE&#160;&#160;&#160;512</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Default stack size for the eBPF program. Must be divisible by 16. </p>
+
+</div>
+</div>
 <a id="a23e70b5f29f0296e69a72ec5cfc588d8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a23e70b5f29f0296e69a72ec5cfc588d8">&#9670;&nbsp;</a></span>UBPF_MAX_CALL_DEPTH</h2>
 
@@ -209,22 +267,6 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Default maximum number of instructions that a program can contain. </p>
-
-</div>
-</div>
-<a id="ab41a6986b0045cc2e5c84a75d08c7a12"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab41a6986b0045cc2e5c84a75d08c7a12">&#9670;&nbsp;</a></span>UBPF_STACK_SIZE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UBPF_STACK_SIZE&#160;&#160;&#160;512</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Default stack size for the VM. Must be divisible by 16. </p>
 
 </div>
 </div>
@@ -277,6 +319,23 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a087420d1735791ffa6c5c436f52da00e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a087420d1735791ffa6c5c436f52da00e">&#9670;&nbsp;</a></span>stack_usage_calculator_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef int(* stack_usage_calculator_t) (const struct ubpf_vm *vm, uint16_t pc, void *cookie)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>The type of a stack usage calculator callback function. </p>
+<p>See ubpf_register_stack_usage_calculator for additional information. </p>
+
+</div>
+</div>
 <a id="a64bd2f640f675e3eeff48ea52583d699"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a64bd2f640f675e3eeff48ea52583d699">&#9670;&nbsp;</a></span>ubpf_bounds_check</h2>
 
@@ -319,6 +378,22 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a30c41270d593fc7ffc2161f03f8c0b5b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30c41270d593fc7ffc2161f03f8c0b5b">&#9670;&nbsp;</a></span>ubpf_jit_ex_fn</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef uint64_t(* ubpf_jit_ex_fn) (void *mem, size_t mem_len, uint8_t *stack, size_t stack_len)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Opaque type for a uBPF JIT compiled function with external stack. </p>
+
+</div>
+</div>
 <a id="a6334115c4408267ec35087ade6128fa0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a6334115c4408267ec35087ade6128fa0">&#9670;&nbsp;</a></span>ubpf_jit_fn</h2>
 
@@ -332,6 +407,37 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Opaque type for a uBPF JIT compiled function. </p>
+
+</div>
+</div>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="a4be1055c33e64a9f81abf25f8b5ddedd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4be1055c33e64a9f81abf25f8b5ddedd">&#9670;&nbsp;</a></span>JitMode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enum to describe JIT mode. </p>
+<p>ExtendedJitMode specifies that an invocation of that code have 4 parameters:</p><ol type="1">
+<li>A pointer to the program's memory space.</li>
+<li>The size of the program's memory space.</li>
+<li>A pointer to memory to be used by the program as a stack during execution.</li>
+<li>The size of the provided stack space. See ubpf_jit_ex_fn for more information.</li>
+</ol>
+<p>BasicJitMode specifies that an invocation of that code have 2 parameters:</p><ol type="1">
+<li>A pointer to the program's memory space.</li>
+<li>The size of the program's memory space. The function generated by the JITer executing in basic mode automatically allocates a stack for the program's execution. See ubpf_jit_fn for more information. </li>
+</ol>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a4be1055c33e64a9f81abf25f8b5ddedda81527be9d9bf3b5e45d8b59a4d1f19fd"></a>ExtendedJitMode&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a4be1055c33e64a9f81abf25f8b5ddedda03f63951ae56be0eb19aae34d83706f8"></a>BasicJitMode&#160;</td><td class="fielddoc"></td></tr>
+</table>
 
 </div>
 </div>
@@ -396,10 +502,58 @@ Functions</h2></td></tr>
 
 <p>Compile a BPF program in the VM to native code. </p>
 <p>A program must be loaded into the VM and all external functions (or the external helper dispatcher) must be registered before calling this function.</p>
+<p>The JITer executes in basic mode when invoked through this function.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to compile the program in. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">errmsg</td><td>The error message, if any. This should be freed by the caller. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>ubpf_jit_fn A pointer to the compiled program, or NULL on failure. </dd></dl>
+
+</div>
+</div>
+<a id="a281772f3e99c3d8505751297c51aa22e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a281772f3e99c3d8505751297c51aa22e">&#9670;&nbsp;</a></span>ubpf_compile_ex()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="ubpf_8h.html#a30c41270d593fc7ffc2161f03f8c0b5b">ubpf_jit_ex_fn</a> ubpf_compile_ex </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>errmsg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">enum <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a>&#160;</td>
+          <td class="paramname"><em>jit_mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Compile a BPF program in the VM to native code. </p>
+<p>A program must be loaded into the VM and all external functions (or the external helper dispatcher) must be registered before calling this function.</p>
+<p>The JITer executes in the prescribed mode when invoked through this function. If jit_mode is basic, the caller will have to cast the function pointer to the appropriate type (ubpf_jit_fn).</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to compile the program in. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">errmsg</td><td>The error message, if any. This should be freed by the caller. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">jit_mode</td><td>The mode in which to execute the JITer &ndash; basic or extended. </td></tr>
   </table>
   </dd>
 </dl>
@@ -447,6 +601,7 @@ Functions</h2></td></tr>
 
 <p>Copy the JIT'd program code to the given buffer. </p>
 <p>A program must have been loaded into the VM and already JIT'd before calling this function.</p>
+<p>Note: Caller must know the mode in which the JITer was executed and may need to cast the result to the appropriate type (e.g., ubpf_jit_ex_fn).</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM of the already JIT'd program. </td></tr>
@@ -561,6 +716,58 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a6ded3ae17d5879d7c19f32fa52cbbe26"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6ded3ae17d5879d7c19f32fa52cbbe26">&#9670;&nbsp;</a></span>ubpf_exec_ex()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_exec_ex </td>
+          <td>(</td>
+          <td class="paramtype">const struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>mem</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>mem_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>bpf_return_value</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>stack</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>stack_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
 
 </div>
 </div>
@@ -841,6 +1048,60 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to register the function on. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">dispatcher</td><td>The callback that will dispatch to the external helper. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">validater</td><td>The callback that will validate that a given index is valid for an external helper. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="aacb195bc0c95663214fe205613ff1c9a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aacb195bc0c95663214fe205613ff1c9a">&#9670;&nbsp;</a></span>ubpf_register_stack_usage_calculator()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_register_stack_usage_calculator </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="ubpf_8h.html#a087420d1735791ffa6c5c436f52da00e">stack_usage_calculator_t</a>&#160;</td>
+          <td class="paramname"><em>calculator</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>cookie</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a function that will be called during eBPF program validation to determine stack usage for a local function. </p>
+<p>In eBPF, the frame pointer is a read-only register. Therefore, the eBPF interpreter or the eBPF JITer need to know the stack usage for each local function so that the frame pointer can be adjusted properly on behalf of the calling function. The callback registered here has access to a cookie for context (specified in the call to this function), the PC (in the eBPF program) of the first instruction of a local function and the <code>ubpf_vm</code>.</p>
+<p>The callback's job is to calculate the amount of stack space used by the local function that starts at the given PC.</p>
+<p>If the callback returns 0 or there is no callback registered, the eBPF interpreter/JITer assume that the local function uses the maximum stack available according to the spec (512K).</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to register the callback with. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">dispatcher</td><td>The callback that will be invoked to determine the amount of stack usage for a local function that starts at ... </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">pc</td><td>The pc of the function whose stack usage the callback must caculate. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1183,12 +1444,80 @@ Functions</h2></td></tr>
 
 <p>Translate the eBPF byte code to machine code. </p>
 <p>A program must be loaded into the VM and all external functions must be registered before calling this function.</p>
+<p>The JITer executes in basic mode when invoked through this function.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to translate the program in. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">buffer</td><td>The buffer to store the translated code in. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">errmsg</td><td>The error message, if any. This should be freed by the caller. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="afb2b46e62e54e7e8b81303def1014eb0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb2b46e62e54e7e8b81303def1014eb0">&#9670;&nbsp;</a></span>ubpf_translate_ex()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_translate_ex </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>errmsg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">enum <a class="el" href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">JitMode</a>&#160;</td>
+          <td class="paramname"><em>jit_mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Translate the eBPF byte code to machine code. </p>
+<p>A program must be loaded into the VM and all external functions must be registered before calling this function.</p>
+<p>The JITer executes in the prescribed mode when invoked through this function.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to translate the program in. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">buffer</td><td>The buffer to store the translated code in. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">errmsg</td><td>The error message, if any. This should be freed by the caller. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">jit_mode</td><td>The mode in which to execute the JITer &ndash; basic or extended. </td></tr>
   </table>
   </dd>
 </dl>
