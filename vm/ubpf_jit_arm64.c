@@ -339,13 +339,13 @@ emit_unconditionalbranch_immediate(
     struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
     struct patchable_relative* table = state->jumps;
-    int num_jumps = state->num_jumps;
+    int* num_jumps = &state->num_jumps;
     if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
         table = state->local_calls;
-        num_jumps = state->num_local_calls;
+        num_jumps = &state->num_local_calls;
     }
 
-    emit_patchable_relative(state->offset, target_pc, 0, table, num_jumps);
+    emit_patchable_relative(state->offset, target_pc, 0, table, (*num_jumps)++);
     emit_instruction(state, op);
 }
 
