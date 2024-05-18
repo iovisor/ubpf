@@ -1045,7 +1045,7 @@ resolve_patchable_relatives(struct jit_state* state)
 struct ubpf_jit_result
 ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode)
 {
-    struct jit_state state = {0};
+    struct jit_state state;
     struct ubpf_jit_result compile_result;
 
     if (initialize_jit_state_result(&state, &compile_result, buffer, *size, jit_mode, &compile_result.errmsg) < 0) {

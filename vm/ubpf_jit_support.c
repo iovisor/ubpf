@@ -50,6 +50,7 @@ initialize_jit_state_result(
     state->num_local_calls = 0;
     state->jit_status = NoError;
     state->jit_mode = jit_mode;
+    state->bpf_function_prolog_size = 0;
 
     if (!state->pc_locs || !state->jumps || !state->loads || !state->leas) {
         *errmsg = ubpf_error("Could not allocate space needed to JIT compile eBPF program");
