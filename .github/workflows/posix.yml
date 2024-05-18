@@ -80,7 +80,7 @@ jobs:
       run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2 # v4.0.0
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
