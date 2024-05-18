@@ -353,6 +353,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             // Record the size of the prolog so that we can calculate offset when doing a local call.
             if (state->bpf_function_prolog_size == 0) {
                 state->bpf_function_prolog_size = state->offset - prolog_start;
+            } else {
+                assert(state->bpf_function_prolog_size == state->offset - prolog_start);
             }
         }
 
