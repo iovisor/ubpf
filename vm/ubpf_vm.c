@@ -737,7 +737,7 @@ ubpf_exec_ex(
             }
             break;
         case EBPF_OP_JEQ32_REG:
-            if (u32(reg[inst.dst]) == reg[inst.src]) {
+            if (u32(reg[inst.dst]) == u32(reg[inst.src])) {
                 pc += inst.offset;
             }
             break;
@@ -1002,6 +1002,9 @@ ubpf_exec_ex(
             // Because we have already validated, we can assume that the type code is
             // valid.
             break;
+        }
+        if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) && (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
+            reg[inst.dst] &= UINT32_MAX;
         }
     }
 
@@ -1371,7 +1374,6 @@ ubpf_get_registers(const struct ubpf_vm* vm)
     fprintf(stderr, "uBPF warning: registers are not exposed in release mode. Please recompile in debug mode\n");
     return NULL;
 }
-
 #endif
 
 typedef struct _ebpf_encoded_inst

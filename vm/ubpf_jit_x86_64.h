@@ -225,6 +225,12 @@ emit_alu32_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
     emit1(state, imm);
 }
 
+static inline void
+emit_truncate_u32(struct jit_state* state, int destination)
+{
+    emit_alu32_imm32(state, 0x81, 4, destination, UINT32_MAX);
+}
+
 /* REX.W prefix and ModRM byte */
 /* We use the MR encoding when there is a choice */
 /* 'src' is often used as an opcode extension */
