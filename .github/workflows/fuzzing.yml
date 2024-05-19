@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v4.1.5
+    - uses: actions/checkout@v4.1.6
       with:
         submodules: 'recursive'
 
@@ -107,7 +107,7 @@ jobs:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
 
-    - uses: actions/checkout@v4.1.5
+    - uses: actions/checkout@v4.1.6
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
