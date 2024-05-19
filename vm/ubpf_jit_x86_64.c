@@ -135,7 +135,7 @@ emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
     emit1(state, 0xe8); // e8 is the opcode for a CALL
-    emit_jump_address_reloc(state, target_pc);
+    emit_local_call_address_reloc(state, target_pc);
 
 #if defined(_WIN32)
     /* Deallocate home register space - 4 registers */
@@ -336,13 +336,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
-        state->pc_locs[i] = state->offset;
 
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
         uint32_t target_pc = i + inst.offset + 1;
 
         if (i == 0 || vm->int_funcs[i]) {
+            size_t prolog_start = state->offset;
             uint16_t stack_usage = ubpf_stack_usage_for_local_func(vm, i);
             emit_alu64_imm32(state, 0x81, 5, RSP, 8);
             emit1(state, 0x48);
@@ -350,7 +350,15 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit1(state, 0x04); // Mod: 00b Reg: 000b RM: 100b
             emit1(state, 0x24); // Scale: 00b Index: 100b Base: 100b
             emit4(state, stack_usage);
+            // Record the size of the prolog so that we can calculate offset when doing a local call.
+            if (state->bpf_function_prolog_size == 0) {
+                state->bpf_function_prolog_size = state->offset - prolog_start;
+            } else {
+                assert(state->bpf_function_prolog_size == state->offset - prolog_start);
+            }
         }
+
+        state->pc_locs[i] = state->offset;
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
@@ -777,6 +785,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             *errmsg = ubpf_error("Too many LEA calculations");
             break;
         }
+        case TooManyLocalCalls: {
+            *errmsg = ubpf_error("Too many local calls");
+            break;
+        }
         case UnexpectedInstruction: {
             // errmsg set at time the error was detected because the message requires
             // information about the unexpected instruction.
@@ -973,6 +985,24 @@ resolve_patchable_relatives(struct jit_state* state)
         uint32_t rel = target_loc - (jump.offset_loc + sizeof(uint32_t));
 
         uint8_t* offset_ptr = &state->buf[jump.offset_loc];
+        memcpy(offset_ptr, &rel, sizeof(uint32_t));
+    }
+
+    for (i = 0; i < state->num_local_calls; i++) {
+        struct patchable_relative local_call = state->local_calls[i];
+
+        int target_loc;
+        assert(local_call.target_offset == 0);
+        assert(local_call.target_pc != TARGET_PC_EXIT);
+        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
+
+        target_loc = state->pc_locs[local_call.target_pc];
+
+        /* Assumes call offset is at end of instruction */
+        uint32_t rel = target_loc - (local_call.offset_loc + sizeof(uint32_t));
+        rel -= state->bpf_function_prolog_size; // For the prolog inserted at the start of every local call.
+
+        uint8_t* offset_ptr = &state->buf[local_call.offset_loc];
         memcpy(offset_ptr, &rel, sizeof(uint32_t));
     }
 
