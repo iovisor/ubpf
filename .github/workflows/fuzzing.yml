@@ -107,7 +107,7 @@ jobs:
           --build build
 
     - name: Upload fuzzer as artifacts
-      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
@@ -118,7 +118,7 @@ jobs:
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@cbed621e49e4c01b044d60f6c80ea4ed6328b281
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: fuzzer
 
