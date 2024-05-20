@@ -75,7 +75,7 @@ jobs:
       shell: bash
 
     - name: Install system dependencies (macOS)
-      if: matrix.platform == 'macos-11'
+      if: matrix.platform == 'macos-latest'
       run: |
         brew install \
           cmake \

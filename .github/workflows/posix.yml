@@ -123,7 +123,7 @@ jobs:
       shell: bash
 
     - name: Install system dependencies (macOS)
-      if: inputs.platform == 'macos-11'
+      if: inputs.platform == 'macos-latest'
       run: |
         brew install \
           cmake \
@@ -192,13 +192,13 @@ jobs:
           --target test
 
     - name: Generate code coverage report
-      if: inputs.enable_coverage == true && inputs.platform == 'macos-11'
+      if: inputs.enable_coverage == true && inputs.platform == 'macos-latest'
       run: |
         mkdir -p coverage
         lcov --capture --directory build --include '${{env.GITHUB_WORKSPACE}}/*' --output-file coverage/lcov.info --ignore-errors inconsistent
 
     - name: Generate code coverage report
-      if: inputs.enable_coverage == true && inputs.platform != 'macos-11'
+      if: inputs.enable_coverage == true && inputs.platform != 'macos-latest'
       run: |
         mkdir -p coverage
         lcov --capture --directory build --include '${{env.GITHUB_WORKSPACE}}/*' --output-file coverage/lcov.info
@@ -291,7 +291,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the macOS TGZ package
-      if: inputs.upload_packages == true && inputs.platform == 'macos-11'
+      if: inputs.upload_packages == true && inputs.platform == 'macos-latest'
       uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
       with:
         name: macos_tgz_package
