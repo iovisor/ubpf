@@ -425,7 +425,7 @@ ubpf_exec_ex(
             goto cleanup;
         }
 
-        if (pc == 0 || vm->int_funcs[pc]) {
+        if ((pc == 0 || vm->int_funcs[pc]) && stack_frame_index < UBPF_MAX_CALL_DEPTH) {
             stack_frames[stack_frame_index].stack_usage = ubpf_stack_usage_for_local_func(vm, pc);
         }
 
