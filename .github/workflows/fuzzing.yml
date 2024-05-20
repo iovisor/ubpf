@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v4.1.6
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
 
@@ -32,7 +32,7 @@ jobs:
       run: echo "VALUE=platform-${{ matrix.platform }}_arch=${{ matrix.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@v4.0.2
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -102,18 +102,18 @@ jobs:
           --build build
 
     - name: Upload fuzzer as artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2
       with:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
 
-    - uses: actions/checkout@v4.1.6
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@cbed621e49e4c01b044d60f6c80ea4ed6328b281
       with:
         name: fuzzer
 
@@ -142,7 +142,7 @@ jobs:
 
     - name: Upload artifacts
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2
       with:
         name: fuzzing-artifacts
         path: artifacts/
