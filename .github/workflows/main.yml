@@ -311,6 +311,40 @@ jobs:
       enable_sanitizers: true
       disable_retpolines: true
 
+  linux_release_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: RelWithDebInfo
+      build_codeql: true
+
+  linux_debug_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: Debug
+      build_codeql: true
+
+  linux_release_no_retpolines_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: RelWithDebInfo
+      build_codeql: true
+      disable_retpolines: true
+
+  linux_debug_no_retpolines_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: Debug
+      build_codeql: true
+      disable_retpolines: true
+
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:
   #   uses: ./.github/workflows/posix.yml
