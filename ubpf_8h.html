@@ -206,6 +206,9 @@ Functions</h2></td></tr>
 <tr class="memitem:adfaef65d4add64487f09c0bd1d0a08df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#adfaef65d4add64487f09c0bd1d0a08df">ubpf_set_instruction_limit</a> (struct ubpf_vm *vm, uint32_t limit, uint32_t *previous_limit)</td></tr>
 <tr class="memdesc:adfaef65d4add64487f09c0bd1d0a08df"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the instruction limit for the VM. This is the maximum number of instructions that a program may execute during a call to ubpf_exec. It has no effect on JIT'd programs.  <a href="ubpf_8h.html#adfaef65d4add64487f09c0bd1d0a08df">More...</a><br /></td></tr>
 <tr class="separator:adfaef65d4add64487f09c0bd1d0a08df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4033cc1ab40ffc0d3de6efb70bb91768"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a4033cc1ab40ffc0d3de6efb70bb91768">ubpf_toggle_undefined_behavior_check</a> (struct ubpf_vm *vm, bool enable)</td></tr>
+<tr class="memdesc:a4033cc1ab40ffc0d3de6efb70bb91768"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable undefined behavior checks. Undefined behavior includes reading from uninitialized memory or using uninitialized registers. Default is disabled to preserve performance and compatibility with existing eBPF programs.  <a href="ubpf_8h.html#a4033cc1ab40ffc0d3de6efb70bb91768">More...</a><br /></td></tr>
+<tr class="separator:a4033cc1ab40ffc0d3de6efb70bb91768"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="ae89d6c1d7d2bda6006e9969e731826a3"></a>
@@ -1401,6 +1404,46 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a4033cc1ab40ffc0d3de6efb70bb91768"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4033cc1ab40ffc0d3de6efb70bb91768">&#9670;&nbsp;</a></span>ubpf_toggle_undefined_behavior_check()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool ubpf_toggle_undefined_behavior_check </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>enable</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enable or disable undefined behavior checks. Undefined behavior includes reading from uninitialized memory or using uninitialized registers. Default is disabled to preserve performance and compatibility with existing eBPF programs. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>VM to enable or disable undefined behavior checks on. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">enable</td><td>Enable undefined behavior checks if true, disable if false. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if undefined behavior checks were previously enabled. </dd>
+<dd>
+false if undefined behavior checks were previously disabled. </dd></dl>
 
 </div>
 </div>
