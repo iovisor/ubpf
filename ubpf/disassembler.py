@@ -128,6 +128,8 @@ def disassemble_one(data, offset):
         if opcode_name == "exit":
             return opcode_name
         elif opcode_name == "call":
+            if src_reg == 1:
+                opcode_name += " local"
             return "%s %s" % (opcode_name, I(imm))
         elif opcode_name == "ja":
             return "%s %s" % (opcode_name, O(off))
@@ -143,6 +145,8 @@ def disassemble_one(data, offset):
         if opcode_name == "exit":
             return opcode_name
         elif opcode_name == "call":
+            if src_reg == 1:
+                opcode_name += " local"
             return "%s %s" % (opcode_name, I(imm))
         elif opcode_name == "ja":
             return "%s %s" % (opcode_name, O(off))

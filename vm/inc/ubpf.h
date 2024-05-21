@@ -544,6 +544,18 @@ extern "C"
     int
     ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previous_limit);
 
+    /**
+     * @brief Enable or disable undefined behavior checks. Undefined behavior includes
+     * reading from uninitialized memory or using uninitialized registers. Default is disabled to
+     * preserve performance and compatibility with existing eBPF programs.
+     *
+     * @param[in] vm VM to enable or disable undefined behavior checks on.
+     * @param[in] enable Enable undefined behavior checks if true, disable if false.
+     * @return true if undefined behavior checks were previously enabled.
+     * @return false if undefined behavior checks were previously disabled.
+     */
+    bool
+    ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable);
 #ifdef __cplusplus
 }
 #endif

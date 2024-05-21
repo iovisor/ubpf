@@ -56,6 +56,14 @@ ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable)
     return old;
 }
 
+bool
+ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable)
+{
+    bool old = vm->undefined_behavior_check_enabled;
+    vm->undefined_behavior_check_enabled = enable;
+    return old;
+}
+
 void
 ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...))
 {
@@ -105,6 +113,7 @@ ubpf_create(void)
     }
 
     vm->bounds_check_enabled = true;
+    vm->undefined_behavior_check_enabled = false;
     vm->error_printf = fprintf;
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -373,6 +382,226 @@ ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
     }
 }
 
+/**
+ * @brief Mark the bits in the shadow stack corresponding to the address if it is within the stack bounds.
+ *
+ * @param[in] stack The base address of the stack.
+ * @param[in] shadow_stack The base address of the shadow stack.
+ * @param[in] address The address being written to.
+ * @param[in] size The number of bytes being written.
+ */
+static inline void
+ubpf_mark_shadow_stack(
+    const struct ubpf_vm* vm, uint8_t* stack, uint64_t stack_length, uint8_t* shadow_stack, void* address, size_t size)
+{
+    if (!vm->undefined_behavior_check_enabled) {
+        return;
+    }
+
+    uintptr_t access_start = (uintptr_t)address;
+    uintptr_t access_end = access_start + size;
+    uintptr_t stack_start = (uintptr_t)stack;
+    uintptr_t stack_end = stack_start + stack_length;
+
+    if (access_start > access_end) {
+        // Overflow
+        return;
+    }
+
+    if (access_start >= stack_start && access_end <= stack_end) {
+        // Shadow stack is a bit array, where each bit corresponds to 1 byte in the stack.
+        // If the bit is set, the memory is initialized.
+        size_t offset = access_start - stack_start;
+        for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
+            // Convert test_bit into offset + mask to test against the shadow stack.
+            size_t bit_offset = test_bit / 8;
+            size_t bit_mask = 1 << (test_bit % 8);
+            shadow_stack[bit_offset] |= bit_mask;
+        }
+    }
+}
+
+/**
+ * @brief Check if the address is within the stack bounds and the shadow stack is marked for the address.
+ *
+ * @param[in] stack The base address of the stack.
+ * @param[in] shadow_stack The base address of the shadow stack.
+ * @param[in] address The address being read from.
+ * @param[in] size The number of bytes being read.
+ * @return true - The read is from initialized memory or is not within the stack bounds.
+ * @return false - The read is from uninitialized memory within the stack bounds.
+ */
+static inline bool
+ubpf_check_shadow_stack(
+    const struct ubpf_vm* vm, uint8_t* stack, uint64_t stack_length, uint8_t* shadow_stack, void* address, size_t size)
+{
+    if (!vm->undefined_behavior_check_enabled) {
+        return true;
+    }
+
+    uintptr_t access_start = (uintptr_t)address;
+    uintptr_t access_end = access_start + size;
+    uintptr_t stack_start = (uintptr_t)stack;
+    uintptr_t stack_end = stack_start + stack_length;
+
+    if (access_start > access_end) {
+        // Overflow
+        return true;
+    }
+
+    if (access_start >= stack_start && access_end <= stack_end) {
+        // Shadow stack is a bit array, where each bit corresponds to 1 byte in the stack.
+        // If the bit is set, the memory is initialized.
+        size_t offset = access_start - stack_start;
+        for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
+            // Convert test_bit into offset + mask to test against the shadow stack.
+            size_t bit_offset = test_bit / 8;
+            size_t bit_mask = 1 << (test_bit % 8);
+            if ((shadow_stack[bit_offset] & bit_mask) == 0) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+#define REGISTER_TO_SHADOW_MASK(reg) (1 << (reg))
+
+/**
+ * @brief Check if the registers being accessed by this instruction are initialized and mark the destination register as
+ * initialized if it is.
+ *
+ * @param[in] vm The VM instance.
+ * @param[in,out] shadow_registers Storage for the shadow register state.
+ * @param[in] inst The instruction being executed.
+ * @return true - The registers are initialized.
+ * @return false - The registers are not initialized - an error message has been printed.
+ */
+static inline bool
+ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registers, struct ebpf_inst inst)
+{
+    if (!vm->undefined_behavior_check_enabled) {
+        return true;
+    }
+
+    bool src_register_required = false;
+    bool dst_register_required = false;
+    bool dst_register_initialized = false;
+
+    switch (inst.opcode & EBPF_CLS_MASK) {
+    // Load instructions initialize the destination register.
+    case EBPF_CLS_LD:
+        dst_register_initialized = true;
+        break;
+    // Load indirect instructions initialize the destination register and require the source register to be initialized.
+    case EBPF_CLS_LDX:
+        src_register_required = true;
+        dst_register_initialized = true;
+        break;
+    // Store instructions require the destination register to be initialized.
+    case EBPF_CLS_ST:
+        dst_register_required = true;
+        break;
+    // Store indirect instructions require both the source and destination registers to be initialized.
+    case EBPF_CLS_STX:
+        dst_register_required = true;
+        src_register_required = true;
+        break;
+    case EBPF_CLS_ALU:
+    case EBPF_CLS_ALU64:
+        // Source register is required if the EBPF_SRC_REG bit is set.
+        src_register_required = inst.opcode & EBPF_SRC_REG;
+        dst_register_initialized = true;
+        switch (inst.opcode & EBPF_ALU_OP_MASK) {
+        case 0x00: // EBPF_OP_ADD
+        case 0x10: // EBPF_OP_SUB
+        case 0x20: // EBPF_OP_MUL
+        case 0x30: // EBPF_OP_DIV
+        case 0x40: // EBPF_OP_OR
+        case 0x50: // EBPF_OP_AND
+        case 0x60: // EBPF_OP_LSH
+        case 0x70: // EBPF_OP_RSH
+        case 0x80: // EBPF_OP_NEG
+        case 0x90: // EBPF_OP_MOD
+        case 0xa0: // EBPF_OP_XOR
+        case 0xc0: // EBPF_OP_ARSH
+        case 0xd0: // EBPF_OP_LE
+            dst_register_required = true;
+            break;
+        case 0xb0: // EBPF_OP_MOV
+            // Destination register is initialized.
+            break;
+        }
+        break;
+    case EBPF_CLS_JMP:
+    case EBPF_CLS_JMP32:
+        // Source register is required if the EBPF_SRC_REG bit is set.
+        src_register_required = inst.opcode & EBPF_SRC_REG;
+        switch (inst.opcode & EBPF_JMP_OP_MASK) {
+        case EBPF_MODE_JA:
+        case EBPF_MODE_CALL:
+        case EBPF_MODE_EXIT:
+            src_register_required = false;
+            break;
+        case EBPF_MODE_JEQ:
+        case EBPF_MODE_JGT:
+        case EBPF_MODE_JGE:
+        case EBPF_MODE_JSET:
+        case EBPF_MODE_JNE:
+        case EBPF_MODE_JSGT:
+        case EBPF_MODE_JSGE:
+        case EBPF_MODE_JLT:
+        case EBPF_MODE_JLE:
+        case EBPF_MODE_JSLT:
+        case EBPF_MODE_JSLE:
+            dst_register_required = true;
+            break;
+        }
+        break;
+    }
+
+    if (src_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.src))) {
+        vm->error_printf(stderr, "Error: Source register r%d is not initialized.\n", inst.src);
+        return false;
+    }
+
+    if (dst_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.dst))) {
+        vm->error_printf(stderr, "Error: Destination register r%d is not initialized.\n", inst.dst);
+        return false;
+    }
+
+    if (dst_register_initialized) {
+        *shadow_registers |= REGISTER_TO_SHADOW_MASK(inst.dst);
+    }
+
+    if (inst.opcode == EBPF_OP_CALL) {
+        if (inst.src == 0) {
+            // Mark the return address register as initialized.
+            *shadow_registers |= REGISTER_TO_SHADOW_MASK(0);
+
+            // Mark r1-r5 as uninitialized.
+            *shadow_registers &=
+                ~(REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(3) |
+                  REGISTER_TO_SHADOW_MASK(4) | REGISTER_TO_SHADOW_MASK(5));
+        } else if (inst.src == 1) {
+            // Do nothing, register state will be handled by the callee on return.
+        }
+    }
+
+    if (inst.opcode == EBPF_OP_EXIT) {
+        if (!(*shadow_registers & REGISTER_TO_SHADOW_MASK(0))) {
+            vm->error_printf(stderr, "Error: Return value register r0 is not initialized.\n");
+            return false;
+        }
+        // Mark r1-r5 as uninitialized.
+        *shadow_registers &=
+            ~(REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(3) |
+              REGISTER_TO_SHADOW_MASK(4) | REGISTER_TO_SHADOW_MASK(5));
+    }
+
+    return true;
+}
+
 int
 ubpf_exec_ex(
     const struct ubpf_vm* vm,
@@ -389,6 +618,9 @@ ubpf_exec_ex(
     uint64_t stack_frame_index = 0;
     int return_value = -1;
     void* external_dispatcher_cookie = mem;
+    void* shadow_stack = NULL;
+
+    struct ebpf_inst previous_inst = {.opcode = 0};
 
     if (!insts) {
         /* Code must be loaded before we can execute */
@@ -399,6 +631,14 @@ ubpf_exec_ex(
         0,
     };
 
+    if (vm->undefined_behavior_check_enabled) {
+        shadow_stack = calloc(stack_length / 8, 1);
+        if (!shadow_stack) {
+            return_value = -1;
+            goto cleanup;
+        }
+    }
+
 #ifdef DEBUG
     if (vm->regs)
         reg = vm->regs;
@@ -407,10 +647,14 @@ ubpf_exec_ex(
 #else
     reg = _reg;
 #endif
+    uint16_t shadow_registers = 0; // Bit mask of registers that have been written to.
 
     reg[1] = (uintptr_t)mem;
     reg[2] = (uint64_t)mem_len;
     reg[10] = (uintptr_t)stack_start + stack_length;
+
+    // Mark r1, r2, r10 as initialized.
+    shadow_registers |= REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(10);
 
     int instruction_limit = vm->instruction_limit;
 
@@ -426,10 +670,25 @@ ubpf_exec_ex(
         }
 
         if ((pc == 0 || vm->int_funcs[pc]) && stack_frame_index < UBPF_MAX_CALL_DEPTH) {
+            // If this is neither the first instruction nor a local function call, then the behavior is undefined.
+            if (previous_inst.opcode != 0 && !(previous_inst.opcode == EBPF_OP_CALL && previous_inst.src == 1)) {
+                // Previous instruction wasn't a call to this instruction, so behavior is undefined.
+                if (vm->undefined_behavior_check_enabled) {
+                    vm->error_printf(
+                        stderr, "Error: Call to local function at pc %d is not from a call instruction.\n", pc);
+                    return_value = -1;
+                    goto cleanup;
+                }
+            }
             stack_frames[stack_frame_index].stack_usage = ubpf_stack_usage_for_local_func(vm, pc);
         }
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
+
+        if (!ubpf_validate_shadow_register(vm, &shadow_registers, inst)) {
+            return_value = -1;
+            goto cleanup;
+        }
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
@@ -630,37 +889,43 @@ ubpf_exec_ex(
              *
              * Needed since we don't have a verifier yet.
              */
-#define BOUNDS_CHECK_LOAD(size)                     \
-    do {                                            \
-        if (!bounds_check(                          \
-                vm,                                 \
-                (char*)reg[inst.src] + inst.offset, \
-                size,                               \
-                "load",                             \
-                cur_pc,                             \
-                mem,                                \
-                mem_len,                            \
-                stack_start,                        \
-                stack_length)) {                    \
-            return_value = -1;                      \
-            goto cleanup;                           \
-        }                                           \
+#define BOUNDS_CHECK_LOAD(size)                                                                           \
+    do {                                                                                                  \
+        if (!ubpf_check_shadow_stack(                                                                     \
+                vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.src] + inst.offset, size)) { \
+            return_value = -1;                                                                            \
+            goto cleanup;                                                                                 \
+        }                                                                                                 \
+        if (!bounds_check(                                                                                \
+                vm,                                                                                       \
+                (char*)reg[inst.src] + inst.offset,                                                       \
+                size,                                                                                     \
+                "load",                                                                                   \
+                cur_pc,                                                                                   \
+                mem,                                                                                      \
+                mem_len,                                                                                  \
+                stack_start,                                                                              \
+                stack_length)) {                                                                          \
+            return_value = -1;                                                                            \
+            goto cleanup;                                                                                 \
+        }                                                                                                 \
     } while (0)
-#define BOUNDS_CHECK_STORE(size)                    \
-    do {                                            \
-        if (!bounds_check(                          \
-                vm,                                 \
-                (char*)reg[inst.dst] + inst.offset, \
-                size,                               \
-                "store",                            \
-                cur_pc,                             \
-                mem,                                \
-                mem_len,                            \
-                stack_start,                        \
-                stack_length)) {                    \
-            return_value = -1;                      \
-            goto cleanup;                           \
-        }                                           \
+#define BOUNDS_CHECK_STORE(size)                                                                                       \
+    do {                                                                                                               \
+        if (!bounds_check(                                                                                             \
+                vm,                                                                                                    \
+                (char*)reg[inst.dst] + inst.offset,                                                                    \
+                size,                                                                                                  \
+                "store",                                                                                               \
+                cur_pc,                                                                                                \
+                mem,                                                                                                   \
+                mem_len,                                                                                               \
+                stack_start,                                                                                           \
+                stack_length)) {                                                                                       \
+            return_value = -1;                                                                                         \
+            goto cleanup;                                                                                              \
+        }                                                                                                              \
+        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.dst] + inst.offset, size); \
     } while (0)
 
         case EBPF_OP_LDXW:
@@ -1002,16 +1267,25 @@ ubpf_exec_ex(
             // Because we have already validated, we can assume that the type code is
             // valid.
             break;
+        default:
+            vm->error_printf(stderr, "Error: unknown opcode %d at PC %d\n", inst.opcode, cur_pc);
+            return_value = -1;
+            goto cleanup;
         }
         if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) && (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
             reg[inst.dst] &= UINT32_MAX;
         }
+        // Save the previous instruction for detecting falling through to the start of another function.
+        previous_inst = inst;
     }
 
 cleanup:
 #if defined(NTDDI_VERSION) && defined(WINNT)
     free(stack_frames);
 #endif
+    if (shadow_stack) {
+        free(shadow_stack);
+    }
     return return_value;
 }
 
@@ -1358,6 +1632,7 @@ ubpf_get_registers(const struct ubpf_vm* vm)
 {
     return vm->regs;
 }
+
 #else
 void
 ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)
