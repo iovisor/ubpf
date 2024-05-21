@@ -522,11 +522,11 @@ ubpf_exec_ex(
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_ARSH_IMM:
-            reg[inst.dst] = (int32_t)reg[inst.dst] >> inst.imm;
+            reg[inst.dst] = (int32_t)reg[inst.dst] >> SHIFT_MASK_32_BIT(inst.imm);
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_ARSH_REG:
-            reg[inst.dst] = (int32_t)reg[inst.dst] >> u32(reg[inst.src]);
+            reg[inst.dst] = (int32_t)reg[inst.dst] >> SHIFT_MASK_32_BIT(reg[inst.src]);
             reg[inst.dst] &= UINT32_MAX;
             break;
 
@@ -619,10 +619,10 @@ ubpf_exec_ex(
             reg[inst.dst] = reg[inst.src];
             break;
         case EBPF_OP_ARSH64_IMM:
-            reg[inst.dst] = (int64_t)reg[inst.dst] >> inst.imm;
+            reg[inst.dst] = (int64_t)reg[inst.dst] >> SHIFT_MASK_64_BIT(inst.imm);
             break;
         case EBPF_OP_ARSH64_REG:
-            reg[inst.dst] = (int64_t)reg[inst.dst] >> reg[inst.src];
+            reg[inst.dst] = (int64_t)reg[inst.dst] >> SHIFT_MASK_64_BIT(reg[inst.src]);
             break;
 
             /*
