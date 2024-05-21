@@ -1259,6 +1259,83 @@ ubpf_exec_ex(
             // Because we have already validated, we can assume that the type code is
             // valid.
             break;
+        case EBPF_OP_ATOMIC_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            volatile uint64_t* destination = (volatile uint64_t*)(reg[inst.dst] + inst.offset);
+            uint64_t value = reg[inst.src];
+            uint64_t result;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                result = UBPF_ATOMIC_ADD_FETCH(destination, value);
+                break;
+            case EBPF_ALU_OP_OR:
+                result = UBPF_ATOMIC_OR_FETCH(destination, value);
+                break;
+            case EBPF_ALU_OP_AND:
+                result = UBPF_ATOMIC_AND_FETCH(destination, value);
+                break;
+            case EBPF_ALU_OP_XOR:
+                result = UBPF_ATOMIC_XOR_FETCH(destination, value);
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                result = UBPF_ATOMIC_EXCHANGE(destination, value);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                result = UBPF_ATOMIC_COMPARE_EXCHANGE(destination, value, reg[0]);
+                break;
+            default:
+                vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
+                return_value = -1;
+                goto cleanup;
+            }
+            if (fetch) {
+                if (inst.imm != EBPF_ATOMIC_OP_CMPXCHG) {
+                    reg[inst.src] = result;
+                }
+                else {
+                    reg[0] = result;
+                }   
+            }
+        } break;
+
+        case EBPF_OP_ATOMIC32_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
+            uint32_t value = u32(reg[inst.src]);
+            uint32_t result;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                result = UBPF_ATOMIC_ADD_FETCH32(destination, value);
+                break;
+            case EBPF_ALU_OP_OR:
+                result = UBPF_ATOMIC_OR_FETCH32(destination, value);
+                break;
+            case EBPF_ALU_OP_AND:
+                result = UBPF_ATOMIC_AND_FETCH32(destination, value);
+                break;
+            case EBPF_ALU_OP_XOR:
+                result = UBPF_ATOMIC_XOR_FETCH32(destination, value);
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                result = UBPF_ATOMIC_EXCHANGE32(destination, value);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                result = UBPF_ATOMIC_COMPARE_EXCHANGE32(destination, value, u32(reg[0]));
+                break;
+            default:
+                vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
+                return_value = -1;
+                goto cleanup;
+            }
+            if (fetch) {
+                if (inst.imm != EBPF_ATOMIC_OP_CMPXCHG) {
+                    reg[inst.src] = result;
+                } else {
+                    reg[0] = result;
+                }
+            }
+        } break;
+
         default:
             vm->error_printf(stderr, "Error: unknown opcode %d at PC %d\n", inst.opcode, cur_pc);
             return_value = -1;
@@ -1504,6 +1581,50 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_MOD64_IMM:
             break;
 
+        // 64-bit atomic operations
+        case EBPF_OP_ATOMIC_STORE: {
+            store = true;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                break;
+            case EBPF_ALU_OP_OR:
+                break;
+            case EBPF_ALU_OP_AND:
+                break;
+            case EBPF_ALU_OP_XOR:
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                break;
+            default:
+                *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                return false;
+            }
+            break;
+        }
+        // 32-bit atomic operations
+        case EBPF_OP_ATOMIC32_STORE: {
+            store = true;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                break;
+            case EBPF_ALU_OP_OR:
+                break;
+            case EBPF_ALU_OP_AND:
+                break;
+            case EBPF_ALU_OP_XOR:
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG  & ~EBPF_ATOMIC_OP_FETCH):
+                break;
+            default:
+                *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                return false;
+            }
+            break;
+        }
         default:
             *errmsg = ubpf_error("unknown opcode 0x%02x at PC %d", inst.opcode, i);
             return false;

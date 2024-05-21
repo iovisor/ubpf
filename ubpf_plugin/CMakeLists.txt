@@ -66,9 +66,6 @@ endif()
 
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
 list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
-# TODO: remove this once we have a proper implementation of interlocked operations
-# and support for calling local functions.
-list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
 
 foreach(file ${files})
     unset(EXPECT_FAILURE)
