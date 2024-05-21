@@ -66,7 +66,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       upload_packages: true
 
@@ -74,7 +74,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       upload_packages: true
       disable_retpolines: true
@@ -83,7 +83,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -91,7 +91,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_coverage: true
       disable_retpolines: true
@@ -100,7 +100,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
 
@@ -108,7 +108,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
       disable_retpolines: true
@@ -118,14 +118,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
 
   macos_debug_no_retpolines:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       disable_retpolines: true
 
@@ -134,7 +134,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_coverage: true
 
@@ -142,7 +142,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_coverage: true
       disable_retpolines: true
@@ -151,7 +151,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_sanitizers: true
 
@@ -159,7 +159,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_sanitizers: true
       disable_retpolines: true
