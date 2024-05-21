@@ -62,10 +62,9 @@ artifact_prefix='artifacts/'; Test unit written to artifacts/crash-7036cbef2b568
 Base64: KAAAALRQEGpqSmotLgEAAAAAAAAEIQAAAACVlSYh/P///5WVlZWXt5eXAI4AJA==
 ```
 
-To triage the crash, the crash can be post processed using:
+To triage the crash, post process it with:
 ```
 libfuzzer/split.sh artifacts/crash-7036cbef2b568fa0b6e458a9c8062571a65144e1
-
 
 Extracting program-7036cbef2b568fa0b6e458a9c8062571a65144e1...
 Extracting memory-7036cbef2b568fa0b6e458a9c8062571a65144e1...
