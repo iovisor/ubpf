@@ -1260,6 +1260,7 @@ ubpf_exec_ex(
             // valid.
             break;
         case EBPF_OP_ATOMIC_STORE: {
+            BOUNDS_CHECK_STORE(8);
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             volatile uint64_t* destination = (volatile uint64_t*)(reg[inst.dst] + inst.offset);
             uint64_t value = reg[inst.src];
@@ -1294,11 +1295,12 @@ ubpf_exec_ex(
                 }
                 else {
                     reg[0] = result;
-                }   
+                }
             }
         } break;
 
         case EBPF_OP_ATOMIC32_STORE: {
+            BOUNDS_CHECK_STORE(4);
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
             uint32_t value = u32(reg[inst.src]);
