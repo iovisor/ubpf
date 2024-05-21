@@ -17,6 +17,7 @@ extern "C"
 }
 
 #include "test_helpers.h"
+#include <cassert>
 
 uint64_t test_helpers_dispatcher(uint64_t p0, uint64_t p1,uint64_t p2,uint64_t p3, uint64_t p4, unsigned int idx, void* cookie) {
     UNREFERENCED_PARAMETER(cookie);
@@ -43,6 +44,12 @@ int null_printf(FILE* stream, const char* format, ...)
 
 typedef std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> ubpf_vm_ptr;
 
+/**
+ * @brief Create a ubpf vm object and load the program code into it.
+ *
+ * @param[in] program_code The program code to load into the VM.
+ * @return A unique pointer to the ubpf_vm object or nullptr if the VM could not be created.
+ */
 ubpf_vm_ptr create_ubpf_vm(const std::vector<uint8_t>& program_code)
 {
     // Automatically free the VM when it goes out of scope.
@@ -52,7 +59,7 @@ ubpf_vm_ptr create_ubpf_vm(const std::vector<uint8_t>& program_code)
         // Failed to create the VM.
         // This is not interesting, as the fuzzer input is invalid.
         // Do not add it to the corpus.
-        return vm;
+        return {nullptr, nullptr};
     }
 
     ubpf_toggle_undefined_behavior_check(vm.get(), true);
@@ -66,8 +73,7 @@ ubpf_vm_ptr create_ubpf_vm(const std::vector<uint8_t>& program_code)
         // This is not interesting, as the fuzzer input is invalid.
         // Do not add it to the corpus.
         free(error_message);
-        vm.reset();
-        return vm;
+        return {nullptr, nullptr};
     }
 
     ubpf_toggle_bounds_check(vm.get(), true);
@@ -76,21 +82,29 @@ ubpf_vm_ptr create_ubpf_vm(const std::vector<uint8_t>& program_code)
         // Failed to register the external dispatcher.
         // This is not interesting, as the fuzzer input is invalid.
         // Do not add it to the corpus.
-        vm.reset();
-        return vm;
+        return {nullptr, nullptr};
     }
 
     if (ubpf_set_instruction_limit(vm.get(), 10000, nullptr) != 0) {
         // Failed to set the instruction limit.
         // This is not interesting, as the fuzzer input is invalid.
         // Do not add it to the corpus.
-        vm.reset();
-        return vm;
+        return {nullptr, nullptr};
     }
 
     return vm;
 }
 
+/**
+ * @brief Invoke the ubpf interpreter with the given program code and input memory.
+ *
+ * @param[in] program_code The program code to execute.
+ * @param[in,out] memory The input memory to use when executing the program. May be modified by the program.
+ * @param[in,out] ubpf_stack The stack to use when executing the program. May be modified by the program.
+ * @param[out] interpreter_result The result of the program execution.
+ * @return true if the program executed successfully.
+ * @return false if the program failed to execute.
+ */
 bool call_ubpf_interpreter(const std::vector<uint8_t>& program_code, std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack, uint64_t& interpreter_result)
 {
     auto vm = create_ubpf_vm(program_code);
@@ -110,6 +124,16 @@ bool call_ubpf_interpreter(const std::vector<uint8_t>& program_code, std::vector
     return true;
 }
 
+/**
+ * @brief Execute the given program code using the ubpf JIT.
+ *
+ * @param[in] program_code The program code to execute.
+ * @param[in,out] memory The input memory to use when executing the program. May be modified by the program.
+ * @param[in,out] ubpf_stack The stack to use when executing the program. May be modified by the program.
+ * @param[out] interpreter_result The result of the program execution.
+ * @return true if the program executed successfully.
+ * @return false if the program failed to execute.
+ */
 bool call_ubpf_jit(const std::vector<uint8_t>& program_code, std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack, uint64_t& jit_result)
 {
     auto vm = create_ubpf_vm(program_code);
@@ -136,8 +160,16 @@ bool call_ubpf_jit(const std::vector<uint8_t>& program_code, std::vector<uint8_t
     return true;
 }
 
-bool call_linux_jit(const std::vector<uint8_t>& program_code, std::vector<uint8_t>& memory, std::vector<uint8_t> ubpf_stack, uint64_t& linux_jit_result);
-
+/**
+ * @brief Copy the program and memory from the input buffer into separate buffers.
+ *
+ * @param[in] data The input buffer from the fuzzer.
+ * @param[in] size The size of the input buffer.
+ * @param[out] program The program code extracted from the input buffer.
+ * @param[out] memory The input memory extracted from the input buffer.
+ * @return true if the input buffer was successfully split.
+ * @return false if the input buffer is malformed.
+ */
 bool split_input(const uint8_t* data, std::size_t size, std::vector<uint8_t>& program, std::vector<uint8_t>& memory)
 {
     if (size < 4)
@@ -218,8 +250,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
     }
 
     if (!split_input(data, size, program, memory)) {
-        // The input is invalid. Not interesting.
-        return -1;
+        // The input was successfully split, but failed to split again.
+        // This should not happen.
+        assert(!"split_input failed");
     }
 
     if (!call_ubpf_jit(program, memory, ubpf_stack, jit_result)) {

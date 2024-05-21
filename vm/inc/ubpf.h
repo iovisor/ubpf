@@ -546,7 +546,8 @@ extern "C"
 
     /**
      * @brief Enable or disable undefined behavior checks. Undefined behavior includes
-     * reading from uninitialized memory or using uninitialized registers.
+     * reading from uninitialized memory or using uninitialized registers. Default is disabled to
+     * preserve performance and compatibility with existing eBPF programs.
      *
      * @param[in] vm VM to enable or disable undefined behavior checks on.
      * @param[in] enable Enable undefined behavior checks if true, disable if false.

@@ -409,7 +409,7 @@ ubpf_mark_shadow_stack(
     }
 
     if (access_start >= stack_start && access_end <= stack_end) {
-        // Shadow stack is an bit array, where each bit corresponds to 1 byte in the stack.
+        // Shadow stack is a bit array, where each bit corresponds to 1 byte in the stack.
         // If the bit is set, the memory is initialized.
         size_t offset = access_start - stack_start;
         for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
@@ -450,7 +450,7 @@ ubpf_check_shadow_stack(
     }
 
     if (access_start >= stack_start && access_end <= stack_end) {
-        // Shadow stack is an bit array, where each bit corresponds to 1 byte in the stack.
+        // Shadow stack is a bit array, where each bit corresponds to 1 byte in the stack.
         // If the bit is set, the memory is initialized.
         size_t offset = access_start - stack_start;
         for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
@@ -464,6 +464,8 @@ ubpf_check_shadow_stack(
     }
     return true;
 }
+
+#define REGISTER_TO_SHADOW_MASK(reg) (1 << (reg))
 
 /**
  * @brief Check if the registers being accessed by this instruction are initialized and mark the destination register as
@@ -558,39 +560,43 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
         break;
     }
 
-    if (src_register_required && !(*shadow_registers & (1 << inst.src))) {
+    if (src_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.src))) {
         vm->error_printf(stderr, "Error: Source register r%d is not initialized.\n", inst.src);
         return false;
     }
 
-    if (dst_register_required && !(*shadow_registers & (1 << inst.dst))) {
+    if (dst_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.dst))) {
         vm->error_printf(stderr, "Error: Destination register r%d is not initialized.\n", inst.dst);
         return false;
     }
 
     if (dst_register_initialized) {
-        *shadow_registers |= 1 << inst.dst;
+        *shadow_registers |= REGISTER_TO_SHADOW_MASK(inst.dst);
     }
 
     if (inst.opcode == EBPF_OP_CALL) {
         if (inst.src == 0) {
             // Mark the return address register as initialized.
-            *shadow_registers |= 1 << 0;
+            *shadow_registers |= REGISTER_TO_SHADOW_MASK(0);
 
             // Mark r1-r5 as uninitialized.
-            *shadow_registers &= ~0x3e;
+            *shadow_registers &=
+                ~(REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(3) |
+                  REGISTER_TO_SHADOW_MASK(4) | REGISTER_TO_SHADOW_MASK(5));
         } else if (inst.src == 1) {
             // Do nothing, register state will be handled by the callee on return.
         }
     }
 
     if (inst.opcode == EBPF_OP_EXIT) {
-        if (!(*shadow_registers & (1 << 0))) {
-            vm->error_printf(stderr, "Error: Return address register r0 is not initialized.\n");
+        if (!(*shadow_registers & REGISTER_TO_SHADOW_MASK(0))) {
+            vm->error_printf(stderr, "Error: Return value register r0 is not initialized.\n");
             return false;
         }
         // Mark r1-r5 as uninitialized.
-        *shadow_registers &= ~0x3e;
+        *shadow_registers &=
+            ~(REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(3) |
+              REGISTER_TO_SHADOW_MASK(4) | REGISTER_TO_SHADOW_MASK(5));
     }
 
     return true;
@@ -648,7 +654,7 @@ ubpf_exec_ex(
     reg[10] = (uintptr_t)stack_start + stack_length;
 
     // Mark r1, r2, r10 as initialized.
-    shadow_registers |= (1 << 1) | (1 << 2) | (1 << 10);
+    shadow_registers |= REGISTER_TO_SHADOW_MASK(1) | REGISTER_TO_SHADOW_MASK(2) | REGISTER_TO_SHADOW_MASK(10);
 
     int instruction_limit = vm->instruction_limit;
 
