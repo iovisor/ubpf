@@ -769,6 +769,12 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             state->jit_status = UnknownInstruction;
             *errmsg = ubpf_error("Unknown instruction at PC %d: opcode %02x", i, inst.opcode);
         }
+
+        // If this is a ALU32 instruction, truncate the target register to 32 bits.
+        if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) &&
+            (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
+            emit_truncate_u32(state, dst);
+        }
     }
 
     if (state->jit_status != NoError) {

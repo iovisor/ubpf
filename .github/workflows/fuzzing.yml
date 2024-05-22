@@ -23,7 +23,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v4.1.5
+    - name: Harden Runner
+      uses: step-security/harden-runner@a4aa98b93cab29d9b1101a6143fb8bce00e2eac4 # v2.7.1
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
 
@@ -32,7 +37,7 @@ jobs:
       run: echo "VALUE=platform-${{ matrix.platform }}_arch=${{ matrix.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@v4.0.2
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -70,7 +75,7 @@ jobs:
       shell: bash
 
     - name: Install system dependencies (macOS)
-      if: matrix.platform == 'macos-11'
+      if: matrix.platform == 'macos-latest'
       run: |
         brew install \
           cmake \
@@ -102,18 +107,18 @@ jobs:
           --build build
 
     - name: Upload fuzzer as artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
 
-    - uses: actions/checkout@v4.1.5
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: fuzzer
 
@@ -142,7 +147,7 @@ jobs:
 
     - name: Upload artifacts
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2
       with:
         name: fuzzing-artifacts
         path: artifacts/
