@@ -431,6 +431,14 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_LE:
+            if (inst.imm == 16) {
+                /* Truncate to 16 bits */
+                emit_alu32_imm32(state, 0x81, 4, dst, 0xffff);
+            }
+            else if (inst.imm == 32) {
+                /* Truncate to 32 bits */
+                emit_alu32_imm32(state, 0x81, 4, dst, 0xffffffff);
+            }
             /* No-op */
             break;
         case EBPF_OP_BE:
