@@ -13,9 +13,9 @@
 
 #include <Winsock2.h>
 
-#define htole16(value) (value)
+#define htole16(value) (uint16_t)(value)
 
-#define htole32(value) (value)
+#define htole32(value) (uint32_t)(value)
 
 #define htole64(value) (value)
 

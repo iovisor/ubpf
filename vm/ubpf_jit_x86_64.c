@@ -431,7 +431,14 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_LE:
-            /* No-op */
+            /* x64 instruction set is already little-endian, so no-op except for truncation. */
+            if (inst.imm == 16) {
+                /* Truncate to 16 bits */
+                emit_alu32_imm32(state, 0x81, 4, dst, 0xffff);
+            } else if (inst.imm == 32) {
+                /* Truncate to 32 bits */
+                emit_alu32_imm32(state, 0x81, 4, dst, 0xffffffff);
+            }
             break;
         case EBPF_OP_BE:
             if (inst.imm == 16) {

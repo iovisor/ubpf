@@ -1067,6 +1067,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 /* UXTH dst, dst. */
                 emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
             }
+            else if (inst.imm == 32) {
+                /* UXTW dst, dst. */
+                emit_instruction(state, 0x53007c00 | (dst << 5) | dst);
+            }
             break;
         case EBPF_OP_BE:
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
