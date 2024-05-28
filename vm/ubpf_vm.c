@@ -1280,9 +1280,6 @@ ubpf_exec_ex(
     }
 
 cleanup:
-#if defined(NTDDI_VERSION) && defined(WINNT)
-    free(stack_frames);
-#endif
     if (shadow_stack) {
         free(shadow_stack);
     }
@@ -1295,8 +1292,6 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 // Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
 #if defined(NTDDI_VERSION) && defined(WINNT)
     uint64_t* stack = NULL;
-    struct ubpf_stack_frame* stack_frames = NULL;
-
     stack = calloc(UBPF_EBPF_STACK_SIZE, 1);
     if (!stack) {
         return -1;
