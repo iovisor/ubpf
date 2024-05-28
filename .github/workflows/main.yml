@@ -13,6 +13,7 @@ name: Main
 permissions:
   contents: read
   security-events: write # Required by codeql task.
+  actions: read
 
 on:
   schedule:
@@ -65,7 +66,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       upload_packages: true
 
@@ -73,7 +74,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       upload_packages: true
       disable_retpolines: true
@@ -82,7 +83,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_coverage: true
 
@@ -90,7 +91,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_coverage: true
       disable_retpolines: true
@@ -99,7 +100,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
 
@@ -107,7 +108,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: RelWithDebInfo
       enable_sanitizers: true
       disable_retpolines: true
@@ -117,14 +118,14 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
 
   macos_debug_no_retpolines:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       disable_retpolines: true
 
@@ -133,7 +134,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_coverage: true
 
@@ -141,7 +142,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_coverage: true
       disable_retpolines: true
@@ -150,7 +151,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_sanitizers: true
 
@@ -158,7 +159,7 @@ jobs:
     uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
-      platform: macos-11
+      platform: macos-latest
       build_type: Debug
       enable_sanitizers: true
       disable_retpolines: true
@@ -310,13 +311,39 @@ jobs:
       enable_sanitizers: true
       disable_retpolines: true
 
-  # Run fuzzing on scheduled task only.
-  linux_fuzzing:
-    if: github.event_name == 'schedule'
-    uses: ./.github/workflows/fuzzing.yml
+  linux_release_codeql:
+    uses: ./.github/workflows/posix.yml
     with:
       arch: x86_64
       platform: ubuntu-latest
+      build_type: RelWithDebInfo
+      build_codeql: true
+
+  linux_debug_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: Debug
+      build_codeql: true
+
+  linux_release_no_retpolines_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: RelWithDebInfo
+      build_codeql: true
+      disable_retpolines: true
+
+  linux_debug_no_retpolines_codeql:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: Debug
+      build_codeql: true
+      disable_retpolines: true
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:
@@ -340,8 +367,13 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      with:
+        egress-policy: audit
+
     - name: Coveralls Finished
-      uses: coverallsapp/github-action@v2.2.3
+      uses: coverallsapp/github-action@643bc377ffa44ace6394b2b5d0d3950076de9f63 # v2.3.0
       with:
         github-token: ${{ secrets.github_token }}
         parallel-finished: true

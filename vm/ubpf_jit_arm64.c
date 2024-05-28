@@ -24,7 +24,6 @@
 
 #define _GNU_SOURCE
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
@@ -245,8 +244,7 @@ emit_loadstore_register(
 }
 
 static void
-emit_loadstore_literal(
-    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, uint32_t target)
+emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, uint32_t target)
 {
     note_load(state, target);
     const uint32_t reg_op_base = 0x08000000U;
@@ -254,7 +252,7 @@ emit_loadstore_literal(
 }
 
 static void
-emit_adr(struct jit_state *state, uint32_t offset, enum Registers rd)
+emit_adr(struct jit_state* state, uint32_t offset, enum Registers rd)
 {
     note_lea(state, offset);
     uint32_t instr = 0x10000000 | rd;
@@ -340,7 +338,14 @@ static void
 emit_unconditionalbranch_immediate(
     struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
-    emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
+    struct patchable_relative* table = state->jumps;
+    int* num_jumps = &state->num_jumps;
+    if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
+        table = state->local_calls;
+        num_jumps = &state->num_local_calls;
+    }
+
+    emit_patchable_relative(state->offset, target_pc, 0, table, (*num_jumps)++);
     emit_instruction(state, op);
 }
 
@@ -502,8 +507,9 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
 /* Generate the function prologue.
  *
  * We set the stack to look like:
- *   SP on entry
  *   ubpf_stack_size bytes of UBPF stack
+ *   SP on entry
+ *   SP on entry
  *   Callee saved registers
  *   Frame <- SP.
  * Precondition: The runtime stack pointer is 16-byte aligned.
@@ -512,24 +518,27 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
 static void
 emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
 {
-    uint32_t register_space = _countof(callee_saved_registers) * 8 + 2 * 8;
-    state->stack_size = align_to(ubpf_stack_size + register_space, 16);
-    emit_addsub_immediate(state, true, AS_SUB, SP, SP, state->stack_size);
-
-    /* Set up frame */
+    emit_addsub_immediate(state, true, AS_SUB, SP, SP, 16);
     emit_loadstorepair_immediate(state, LSP_STPX, R29, R30, SP, 0);
-    /* In ARM64 calling convention, R29 is the frame pointer. */
-    emit_addsub_immediate(state, true, AS_ADD, R29, SP, 0);
 
+    state->stack_size = _countof(callee_saved_registers) * 8;
+    emit_addsub_immediate(state, true, AS_SUB, SP, SP, state->stack_size);
     /* Save callee saved registers */
     unsigned i;
     for (i = 0; i < _countof(callee_saved_registers); i += 2) {
         emit_loadstorepair_immediate(
-            state, LSP_STPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
+            state, LSP_STPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i) * 8);
     }
+    emit_addsub_immediate(state, true, AS_ADD, R29, SP, 0);
 
-    /* Setup UBPF frame pointer. */
-    emit_addsub_immediate(state, true, AS_ADD, map_register(10), SP, state->stack_size);
+    if (state->jit_mode == BasicJitMode) {
+        /* Setup UBPF frame pointer. */
+        emit_addsub_immediate(state, true, AS_ADD, map_register(10), SP, 0);
+        emit_addsub_immediate(state, true, AS_SUB, SP, SP, ubpf_stack_size);
+    } else {
+        emit_addsub_immediate(state, true, AS_ADD, map_register(10), R2, 0);
+        emit_addsub_register(state, true, AS_ADD, map_register(10), map_register(10), R3);
+    }
 
     /* Copy R0 to the volatile context for safe keeping. */
     emit_logical_register(state, true, LOG_ORR, VOLATILE_CTXT, RZ, R0);
@@ -537,6 +546,33 @@ emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
     emit_unconditionalbranch_immediate(state, UBR_BL, TARGET_PC_ENTER);
     emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
     state->entry_loc = state->offset;
+}
+
+static void
+emit_jit_epilogue(struct jit_state* state)
+{
+    state->exit_loc = state->offset;
+
+    /* Move register 0 into R0 */
+    if (map_register(0) != R0) {
+        emit_logical_register(state, true, LOG_ORR, R0, RZ, map_register(0));
+    }
+
+    /* We could be anywhere in the stack if we excepted. Get our head right. */
+    emit_addsub_immediate(state, true, AS_ADD, SP, R29, 0);
+
+    /* Restore callee-saved registers).  */
+    size_t i;
+    for (i = 0; i < _countof(callee_saved_registers); i += 2) {
+        emit_loadstorepair_immediate(
+            state, LSP_LDPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i) * 8);
+    }
+    emit_addsub_immediate(state, true, AS_ADD, SP, SP, state->stack_size);
+
+    emit_loadstorepair_immediate(state, LSP_LDPX, R29, R30, SP, 0);
+    emit_addsub_immediate(state, true, AS_ADD, SP, SP, 16);
+
+    emit_unconditionalbranch_register(state, BR_RET, R30);
 }
 
 static void
@@ -602,44 +638,31 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
 static void
 emit_local_call(struct jit_state* state, uint32_t target_pc)
 {
-    uint32_t stack_movement = align_to(40, 16);
+    emit_loadstore_immediate(state, LS_LDRX, temp_register, SP, 0);
+    emit_addsub_register(state, true, AS_SUB, map_register(10), map_register(10), temp_register);
+
+    uint32_t stack_movement = align_to(48, 16);
     emit_addsub_immediate(state, true, AS_SUB, SP, SP, stack_movement);
+
     emit_loadstore_immediate(state, LS_STRX, R30, SP, 0);
-    emit_loadstorepair_immediate(state, LSP_STPX, map_register(6), map_register(7), SP, 8);
-    emit_loadstorepair_immediate(state, LSP_STPX, map_register(8), map_register(9), SP, 24);
+    emit_loadstore_immediate(state, LS_STRX, temp_register, SP, 8);
+    emit_loadstorepair_immediate(state, LSP_STPX, map_register(6), map_register(7), SP, 16);
+    emit_loadstorepair_immediate(state, LSP_STPX, map_register(8), map_register(9), SP, 32);
+
     emit_unconditionalbranch_immediate(state, UBR_BL, target_pc);
+
     emit_loadstore_immediate(state, LS_LDRX, R30, SP, 0);
-    emit_loadstorepair_immediate(state, LSP_LDPX, map_register(6), map_register(7), SP, 8);
-    emit_loadstorepair_immediate(state, LSP_LDPX, map_register(8), map_register(9), SP, 24);
+    emit_loadstore_immediate(state, LS_LDRX, temp_register, SP, 8);
+    emit_loadstorepair_immediate(state, LSP_LDPX, map_register(6), map_register(7), SP, 16);
+    emit_loadstorepair_immediate(state, LSP_LDPX, map_register(8), map_register(9), SP, 32);
+
     emit_addsub_immediate(state, true, AS_ADD, SP, SP, stack_movement);
-}
 
-static void
-emit_jit_epilogue(struct jit_state* state)
-{
-    state->exit_loc = state->offset;
-
-    /* Move register 0 into R0 */
-    if (map_register(0) != R0) {
-        emit_logical_register(state, true, LOG_ORR, R0, RZ, map_register(0));
-    }
-
-    /* We could be anywhere in the stack if we excepted. Get our head right. */
-    emit_addsub_immediate(state, true, AS_ADD, SP, R29, 0);
-
-    /* Restore callee-saved registers).  */
-    size_t i;
-    for (i = 0; i < _countof(callee_saved_registers); i += 2) {
-        emit_loadstorepair_immediate(
-            state, LSP_LDPX, callee_saved_registers[i], callee_saved_registers[i + 1], SP, (i + 2) * 8);
-    }
-    emit_loadstorepair_immediate(state, LSP_LDPX, R29, R30, SP, 0);
-    emit_addsub_immediate(state, true, AS_ADD, SP, SP, state->stack_size);
-    emit_unconditionalbranch_register(state, BR_RET, R30);
+    emit_addsub_register(state, true, AS_ADD, map_register(10), map_register(10), temp_register);
 }
 
 static uint32_t
-emit_dispatched_external_helper_address(struct jit_state *state, uint64_t dispatcher_addr)
+emit_dispatched_external_helper_address(struct jit_state* state, uint64_t dispatcher_addr)
 {
     // We will assume that the buffer of memory holding the JIT'd code is 4-byte aligned.
     // And, because ARM is 32-bit instructions, we know that each instruction is 4-byte aligned.
@@ -658,10 +681,11 @@ emit_dispatched_external_helper_address(struct jit_state *state, uint64_t dispat
 }
 
 static uint32_t
-emit_helper_table(struct jit_state* state, struct ubpf_vm* vm) {
+emit_helper_table(struct jit_state* state, struct ubpf_vm* vm)
+{
 
     uint32_t helper_table_address_target = state->offset;
-    for (int i = 0; i<MAX_EXT_FUNCS; i++) {
+    for (int i = 0; i < MAX_EXT_FUNCS; i++) {
         emit_bytes(state, &vm->ext_funcs[i], sizeof(uint64_t));
     }
     return helper_table_address_target;
@@ -938,7 +962,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
     int i;
 
-    emit_jit_prologue(state, UBPF_STACK_SIZE);
+    emit_jit_prologue(state, UBPF_EBPF_STACK_SIZE);
 
     for (i = 0; i < vm->num_insts; i++) {
 
@@ -949,6 +973,20 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // All checks for errors during the encoding of _this_ instruction
         // occur at the end of the loop.
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
+
+        if (i == 0 || vm->int_funcs[i]) {
+            size_t prolog_start = state->offset;
+            emit_movewide_immediate(state, true, temp_register, ubpf_stack_usage_for_local_func(vm, i));
+            emit_addsub_immediate(state, true, AS_SUB, SP, SP, 16);
+            emit_loadstorepair_immediate(state, LSP_STPX, temp_register, temp_register, SP, 0);
+            // Record the size of the prolog so that we can calculate offset when doing a local call.
+            if (state->bpf_function_prolog_size == 0) {
+                state->bpf_function_prolog_size = state->offset - prolog_start;
+            } else {
+                assert(state->bpf_function_prolog_size == state->offset - prolog_start);
+            }
+        }
+
         state->pc_locs[i] = state->offset;
 
         enum Registers dst = map_register(inst.dst);
@@ -1028,6 +1066,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.imm == 16) {
                 /* UXTH dst, dst. */
                 emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
+            }
+            else if (inst.imm == 32) {
+                /* UXTW dst, dst. */
+                emit_instruction(state, 0x53007c00 | (dst << 5) | dst);
             }
             break;
         case EBPF_OP_BE:
@@ -1112,6 +1154,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             break;
         case EBPF_OP_EXIT:
+            emit_addsub_immediate(state, true, AS_ADD, SP, SP, 16);
             emit_unconditionalbranch_register(state, BR_RET, R30);
             break;
 
@@ -1177,43 +1220,46 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     if (state->jit_status != NoError) {
         switch (state->jit_status) {
-            case TooManyJumps: {
-                *errmsg = ubpf_error("Too many jump instructions.");
-                break;
-            }
-            case TooManyLoads: {
-                *errmsg = ubpf_error("Too many load instructions.");
-                break;
-            }
-            case TooManyLeas: {
-                *errmsg = ubpf_error("Too many LEA calculations.");
-                break;
-            }
-            case UnexpectedInstruction: {
-                // errmsg set at time the error was detected because the message requires
-                // information about the unexpected instruction.
-                break;
-            }
-            case UnknownInstruction: {
-                // errmsg set at time the error was detected because the message requires
-                // information about the unknown instruction.
-                break;
-            }
-            case NotEnoughSpace: {
-                *errmsg = ubpf_error("Target buffer too small");
-                break;
-            }
-            case NoError: {
-                assert(false);
-            }
+        case TooManyJumps: {
+            *errmsg = ubpf_error("Too many jump instructions.");
+            break;
+        }
+        case TooManyLoads: {
+            *errmsg = ubpf_error("Too many load instructions.");
+            break;
+        }
+        case TooManyLeas: {
+            *errmsg = ubpf_error("Too many LEA calculations.");
+            break;
+        }
+        case TooManyLocalCalls: {
+            *errmsg = ubpf_error("Too many local calls.");
+            break;
+        }
+        case UnexpectedInstruction: {
+            // errmsg set at time the error was detected because the message requires
+            // information about the unexpected instruction.
+            break;
+        }
+        case UnknownInstruction: {
+            // errmsg set at time the error was detected because the message requires
+            // information about the unknown instruction.
+            break;
+        }
+        case NotEnoughSpace: {
+            *errmsg = ubpf_error("Target buffer too small");
+            break;
+        }
+        case NoError: {
+            assert(false);
+        }
         }
         return -1;
     }
 
-
     emit_jit_epilogue(state);
 
-    state->dispatcher_loc =  emit_dispatched_external_helper_address(state, (uint64_t)vm->dispatcher);
+    state->dispatcher_loc = emit_dispatched_external_helper_address(state, (uint64_t)vm->dispatcher);
     state->helper_table_loc = emit_helper_table(state, vm);
 
     return 0;
@@ -1276,7 +1322,6 @@ resolve_adr(struct jit_state* state, uint32_t instr_offset, int32_t immediate)
     instr |= immhi;
     memcpy(state->buf + instr_offset, &instr, sizeof(uint32_t));
 }
-
 
 static bool
 resolve_jumps(struct jit_state* state)
@@ -1345,12 +1390,32 @@ resolve_leas(struct jit_state* state)
     return true;
 }
 
+static bool
+resolve_local_calls(struct jit_state* state)
+{
+    for (unsigned i = 0; i < state->num_local_calls; ++i) {
+        struct patchable_relative local_call = state->local_calls[i];
 
-bool ubpf_jit_update_dispatcher_arm64(struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset)
+        int32_t target_loc;
+        assert(local_call.target_offset == 0);
+        assert(local_call.target_pc != TARGET_PC_EXIT);
+        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
+        target_loc = state->pc_locs[local_call.target_pc];
+
+        int32_t rel = target_loc - local_call.offset_loc;
+        rel -= state->bpf_function_prolog_size;
+        resolve_branch_immediate(state, local_call.offset_loc, rel);
+    }
+    return true;
+}
+
+bool
+ubpf_jit_update_dispatcher_arm64(
+    struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;
-    void *dispatcher_address = (void*)((uint64_t)buffer + offset);
+    void* dispatcher_address = (void*)((uint64_t)buffer + offset);
     if ((uint64_t)dispatcher_address + sizeof(void*) < jit_upper_bound) {
         memcpy(dispatcher_address, &new_dispatcher, sizeof(void*));
         return true;
@@ -1359,7 +1424,9 @@ bool ubpf_jit_update_dispatcher_arm64(struct ubpf_vm* vm, external_function_disp
     return false;
 }
 
-bool ubpf_jit_update_helper_arm64(struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+bool
+ubpf_jit_update_helper_arm64(
+    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;
@@ -1373,12 +1440,12 @@ bool ubpf_jit_update_helper_arm64(struct ubpf_vm* vm, ext_func new_helper, unsig
 }
 
 struct ubpf_jit_result
-ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size)
+ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode)
 {
     struct jit_state state;
     struct ubpf_jit_result compile_result;
 
-    if (initialize_jit_state_result(&state, &compile_result, buffer, *size, &compile_result.errmsg) < 0) {
+    if (initialize_jit_state_result(&state, &compile_result, buffer, *size, jit_mode, &compile_result.errmsg) < 0) {
         goto out;
     }
 
@@ -1386,7 +1453,7 @@ ubpf_translate_arm64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size)
         goto out;
     }
 
-    if (!resolve_jumps(&state) || !resolve_loads(&state) || !resolve_leas(&state)) {
+    if (!resolve_jumps(&state) || !resolve_loads(&state) || !resolve_leas(&state) || !resolve_local_calls(&state)) {
         compile_result.errmsg = ubpf_error("Could not patch the relative addresses in the JIT'd code.");
         goto out;
     }

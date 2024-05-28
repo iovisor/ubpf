@@ -128,6 +128,25 @@ def disassemble_one(data, offset):
         if opcode_name == "exit":
             return opcode_name
         elif opcode_name == "call":
+            if src_reg == 1:
+                opcode_name += " local"
+            return "%s %s" % (opcode_name, I(imm))
+        elif opcode_name == "ja":
+            return "%s %s" % (opcode_name, O(off))
+        elif source == 0:
+            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), I(imm), O(off))
+        else:
+            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), R(src_reg), O(off))
+    elif cls == BPF_CLASS_JMP32:
+        source = (code >> 3) & 1
+        opcode = (code >> 4) & 0xf
+        opcode_name = JMP_OPCODES.get(opcode) + "32"
+
+        if opcode_name == "exit":
+            return opcode_name
+        elif opcode_name == "call":
+            if src_reg == 1:
+                opcode_name += " local"
             return "%s %s" % (opcode_name, I(imm))
         elif opcode_name == "ja":
             return "%s %s" % (opcode_name, O(off))

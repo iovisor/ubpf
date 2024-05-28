@@ -4,41 +4,40 @@
 name: Fuzzing
 
 permissions:
-  contents: read
+  contents: write
 
 on:
-  workflow_call:
-    inputs:
-      arch:
-        description: 'Architecture'
-        required: true
-        type: string
-
-      platform:
-        required: true
-        type: string
+  schedule: # Run every day at 21:00 UTC
+    - cron: '00 21 * * *'
+  workflow_dispatch: # Run manually
 
 jobs:
   build:
-    runs-on: ${{ inputs.platform }}
+    strategy:
+      matrix:
+        platform:
+          - ubuntu-latest
+        arch:
+          - x86_64
+
+    runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Harden Runner
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
 
-    - name: Initialize CodeQL
-      if: inputs.build_codeql == true
-      uses: github/codeql-action/init@d39d31e687223d841ef683f52467bd88e9b21c14
-      with:
-        languages: 'cpp'
-
     - name: Generate the cache key
       id: cache_key
-      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
+      run: echo "VALUE=platform-${{ matrix.platform }}_arch=${{ matrix.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@v4.0.2
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -49,7 +48,7 @@ jobs:
           ccache
 
     - name: Install system dependencies (Linux)
-      if: inputs.platform == 'ubuntu-latest'
+      if: matrix.platform == 'ubuntu-latest'
       run: |
         sudo apt-get update
 
@@ -63,12 +62,7 @@ jobs:
           libboost-filesystem-dev \
           libelf-dev
 
-        if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
-          sudo apt-get install -y \
-            clang-tools
-        fi
-
-        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+        if [[ "${{ matrix.arch }}" == "arm64" ]] ; then
           sudo apt install -y \
             g++-aarch64-linux-gnu \
             gcc-aarch64-linux-gnu \
@@ -76,12 +70,12 @@ jobs:
         fi
 
     - name: Build/install libbpf From Source
-      if: inputs.platform == 'ubuntu-latest'
+      if: matrix.platform == 'ubuntu-latest'
       run: ./.github/scripts/build-libbpf.sh
       shell: bash
 
     - name: Install system dependencies (macOS)
-      if: inputs.platform == 'macos-11'
+      if: matrix.platform == 'macos-latest'
       run: |
         brew install \
           cmake \
@@ -98,7 +92,7 @@ jobs:
           -G Ninja \
           -S . \
           -B build \
-          -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
+          -DCMAKE_BUILD_TYPE=Debug \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DUBPF_ENABLE_LIBFUZZER=1 \
@@ -109,26 +103,22 @@ jobs:
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
-        if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
-          command_prefix="scan-build -o scan_build_report"
-        fi
-
         ${command_prefix} cmake \
           --build build
 
     - name: Upload fuzzer as artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
       with:
         name: fuzzer
 
@@ -152,12 +142,12 @@ jobs:
         git config --global user.email 'ubpf@users.noreply.github.com'
         git config --global user.name 'Github Action'
         git commit -sm "Update fuzzing corpus"
-        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/iovisor/ubpf.git
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git
         git push
 
     - name: Upload artifacts
       if: always()
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2
       with:
         name: fuzzing-artifacts
         path: artifacts/

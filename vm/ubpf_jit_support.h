@@ -28,11 +28,13 @@
 #include <sys/types.h>
 #include "ubpf_int.h"
 
-enum JitProgress {
+enum JitProgress
+{
     NoError,
     TooManyJumps,
     TooManyLoads,
     TooManyLeas,
+    TooManyLocalCalls,
     NotEnoughSpace,
     UnexpectedInstruction,
     UnknownInstruction
@@ -51,10 +53,10 @@ struct patchable_relative
 
 /* Special values for target_pc in struct jump */
 #define TARGET_PC_EXIT ~UINT32_C(0)
-#define TARGET_PC_ENTER (~UINT32_C(0) &                   0x01)
-#define TARGET_PC_RETPOLINE (~UINT32_C(0) &             0x0101)
+#define TARGET_PC_ENTER (~UINT32_C(0) & 0x01)
+#define TARGET_PC_RETPOLINE (~UINT32_C(0) & 0x0101)
 #define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0x010101)
-#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) &    0x01010101)
+#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) & 0x01010101)
 
 struct jit_state
 {
@@ -85,23 +87,34 @@ struct jit_state
      */
     uint32_t helper_table_loc;
     enum JitProgress jit_status;
+    enum JitMode jit_mode;
     struct patchable_relative* jumps;
     struct patchable_relative* loads;
     struct patchable_relative* leas;
+    struct patchable_relative* local_calls;
     int num_jumps;
     int num_loads;
     int num_leas;
+    int num_local_calls;
     uint32_t stack_size;
+    size_t bpf_function_prolog_size; // Count of bytes emitted at the start of the function.
 };
 
 int
-initialize_jit_state_result(struct jit_state *state, struct ubpf_jit_result *compile_result, uint8_t *buffer, uint32_t size, char **errmsg);
+initialize_jit_state_result(
+    struct jit_state* state,
+    struct ubpf_jit_result* compile_result,
+    uint8_t* buffer,
+    uint32_t size,
+    enum JitMode jit_mode,
+    char** errmsg);
 
 void
-release_jit_state_result(struct jit_state *state, struct ubpf_jit_result *compile_result);
+release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compile_result);
 
 void
-emit_patchable_relative(uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative *table, size_t index);
+emit_patchable_relative(
+    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index);
 
 void
 note_load(struct jit_state* state, uint32_t target_pc);
@@ -113,5 +126,5 @@ void
 emit_jump_target(struct jit_state* state, uint32_t jump_src);
 
 void
-fixup_jump_target(struct patchable_relative *table, size_t table_size, uint32_t src_offset, uint32_t dest_offset);
+fixup_jump_target(struct patchable_relative* table, size_t table_size, uint32_t src_offset, uint32_t dest_offset);
 #endif

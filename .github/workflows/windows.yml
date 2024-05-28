@@ -31,18 +31,30 @@ on:
         required: false
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    permissions:
+      actions: read  # for github/codeql-action/init to get workflow details
+      contents: read  # for actions/checkout to fetch code
+      security-events: write  # for github/codeql-action/analyze to upload SARIF results
     runs-on: ${{ inputs.platform }}
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Harden Runner
+      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@d39d31e687223d841ef683f52467bd88e9b21c14
+      uses: github/codeql-action/init@9fdb3e49720b44c48891d036bb502feb25684276
       with:
         languages: 'cpp'
 
@@ -104,4 +116,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@d39d31e687223d841ef683f52467bd88e9b21c14
+      uses: github/codeql-action/analyze@9fdb3e49720b44c48891d036bb502feb25684276

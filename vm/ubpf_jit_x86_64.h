@@ -121,6 +121,19 @@ emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
     return target_address_offset;
 }
 
+static uint32_t
+emit_local_call_address_reloc(struct jit_state* state, int32_t target_pc)
+{
+    if (state->num_local_calls == UBPF_MAX_INSTS) {
+        state->jit_status = TooManyLocalCalls;
+        return 0;
+    }
+    uint32_t target_address_offset = state->offset;
+    emit_patchable_relative(state->offset, target_pc, 0, state->local_calls, state->num_local_calls++);
+    emit_4byte_offset_placeholder(state);
+    return target_address_offset;
+}
+
 static inline void
 emit_modrm(struct jit_state* state, int mod, int r, int m)
 {
@@ -210,6 +223,12 @@ emit_alu32_imm8(struct jit_state* state, int op, int src, int dst, int8_t imm)
 {
     emit_alu32(state, op, src, dst);
     emit1(state, imm);
+}
+
+static inline void
+emit_truncate_u32(struct jit_state* state, int destination)
+{
+    emit_alu32_imm32(state, 0x81, 4, destination, UINT32_MAX);
 }
 
 /* REX.W prefix and ModRM byte */
