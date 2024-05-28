@@ -415,7 +415,7 @@ ubpf_mark_shadow_stack(
         for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
             // Convert test_bit into offset + mask to test against the shadow stack.
             size_t bit_offset = test_bit / 8;
-            size_t bit_mask = 1 << (test_bit % 8);
+            size_t bit_mask = 1ull << (test_bit % 8);
             shadow_stack[bit_offset] |= bit_mask;
         }
     }
@@ -456,7 +456,7 @@ ubpf_check_shadow_stack(
         for (size_t test_bit = offset; test_bit < offset + size; test_bit++) {
             // Convert test_bit into offset + mask to test against the shadow stack.
             size_t bit_offset = test_bit / 8;
-            size_t bit_mask = 1 << (test_bit % 8);
+            size_t bit_mask = 1ull << (test_bit % 8);
             if ((shadow_stack[bit_offset] & bit_mask) == 0) {
                 return false;
             }
