@@ -122,6 +122,19 @@ emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
 }
 
 static uint32_t
+emit_near_jump_address_reloc(struct jit_state* state, int32_t target_pc)
+{
+    if (state->num_jumps == UBPF_MAX_INSTS) {
+        state->jit_status = TooManyJumps;
+        return 0;
+    }
+    uint32_t target_address_offset = state->offset;
+    emit_patchable_relative_ex(state->offset, target_pc, 0, state->jumps, state->num_jumps++, true /* near */);
+    emit1(state, 0x0);
+    return target_address_offset;
+}
+
+static uint32_t
 emit_local_call_address_reloc(struct jit_state* state, int32_t target_pc)
 {
     if (state->num_local_calls == UBPF_MAX_INSTS) {
@@ -402,11 +415,32 @@ emit_ret(struct jit_state* state)
     emit1(state, 0xc3);
 }
 
-static inline void
+/** @brief Emit a (32-bit) jump.
+ *
+ * @param[in] state The JIT state.
+ * @param[in] target_pc The PC to which to jump when this near
+ *                      jump is executed.
+ * @return The offset in the JIT'd code where the jump offset starts.
+ */
+static inline uint32_t
 emit_jmp(struct jit_state* state, uint32_t target_pc)
 {
     emit1(state, 0xe9);
-    emit_jump_address_reloc(state, target_pc);
+    return emit_jump_address_reloc(state, target_pc);
+}
+
+/** @brief Emit a near jump.
+ *
+ * @param[in] state The JIT state.
+ * @param[in] target_pc The PC to which to jump when this near
+ *                      jump is executed.
+ * @return The offset in the JIT'd code where the jump offset starts.
+ */
+static inline uint32_t
+emit_near_jmp(struct jit_state* state, uint32_t target_pc)
+{
+    emit1(state, 0xeb);
+    return emit_near_jump_address_reloc(state, target_pc);
 }
 
 static inline uint32_t

@@ -49,6 +49,8 @@ struct patchable_relative
     uint32_t target_pc;
     /* ... the target_offset is set which overrides the automatic lookup. */
     uint32_t target_offset;
+    /* Whether or not this patchable relative is _near_. */
+    bool near;
 };
 
 /* Special values for target_pc in struct jump */
@@ -112,6 +114,39 @@ initialize_jit_state_result(
 void
 release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compile_result);
 
+/** @brief Add an entry to the given patchable relative table.
+ *
+ * Emitting an entry into the patchable relative table means that resolution of the target
+ * address can be postponed until all the instructions are emitted. Note: This function does
+ * not emit any instructions -- it simply updates metadata to guide resolution after code generation.
+ * _target_pc_ is in eBPF instruction units and _manual_target_offset_ is in JIT'd instruction
+ * units. In other words, setting _target_pc_ instead of _manual_target_offset_ will guide
+ * the resolution algorithm to find the JIT'd code that corresponds to the eBPF instruction
+ * (as the jump target); alternatively, setting _manual_target_offset_ will direct the
+ * resolution algorithm to find the JIT'd instruction at that offset (as the target).
+ *
+ * @param[in] offset The offset in the JIT'd code where the to-be-resolved target begins.
+ * @param[in] target_pc The offset of the eBPF instruction targeted by the jump.
+ * @param[in] manual_target_offset The offset of the JIT'd instruction targeted by the jump.
+ *                                 A non-zero value for this parameter overrides _target_pc_`.
+ * @param[in] table The relative patchable table to update.
+ * @param[in] index A spot in the _table_ to add/update according to the given parameters.
+ * @param[in] near Whether the target is relatively near the jump.
+ */
+void
+emit_patchable_relative_ex(
+    uint32_t offset,
+    uint32_t target_pc,
+    uint32_t manual_target_offset,
+    struct patchable_relative* table,
+    size_t index,
+    bool near);
+
+/** @brief Add an entry to the given patchable relative table.
+ *
+ * See emit_patchable_relative_ex. emit_patchable_relative's parameters have the same meaning
+ * but fixes the _near_ argument to false.
+ */
 void
 emit_patchable_relative(
     uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index);
