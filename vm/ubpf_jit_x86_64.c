@@ -341,6 +341,19 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         int src = map_register(inst.src);
         uint32_t target_pc = i + inst.offset + 1;
 
+        // If a) the previous instruction could fallthrough to this instruction and
+        //    b) this instruction starts a local function, then
+        // we have to "jump around" the code that manipulates the stack!
+        uint32_t fallthrough_jump_source = 0;
+        bool fallthrough_jump_present = false;
+        if (i != 0 && vm->int_funcs[i]) {
+            struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
+            if (ubpf_instruction_has_fallthrough(prev_inst)) {
+                fallthrough_jump_source = emit_near_jmp(state, 0);
+                fallthrough_jump_present = true;
+            }
+        }
+
         if (i == 0 || vm->int_funcs[i]) {
             size_t prolog_start = state->offset;
             uint16_t stack_usage = ubpf_stack_usage_for_local_func(vm, i);
@@ -350,14 +363,19 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit1(state, 0x04); // Mod: 00b Reg: 000b RM: 100b
             emit1(state, 0x24); // Scale: 00b Index: 100b Base: 100b
             emit4(state, stack_usage);
+
             // Record the size of the prolog so that we can calculate offset when doing a local call.
             if (state->bpf_function_prolog_size == 0) {
                 state->bpf_function_prolog_size = state->offset - prolog_start;
             } else {
                 assert(state->bpf_function_prolog_size == state->offset - prolog_start);
             }
+
         }
 
+        if (fallthrough_jump_present) {
+            fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
+        }
         state->pc_locs[i] = state->offset;
 
         switch (inst.opcode) {
@@ -778,8 +796,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
 
         // If this is a ALU32 instruction, truncate the target register to 32 bits.
-        if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) &&
-            (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
+        if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) && (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
             emit_truncate_u32(state, dst);
         }
     }
@@ -994,11 +1011,29 @@ resolve_patchable_relatives(struct jit_state* state)
             target_loc = state->pc_locs[jump.target_pc];
         }
 
-        /* Assumes jump offset is at end of instruction */
-        uint32_t rel = target_loc - (jump.offset_loc + sizeof(uint32_t));
+        if (jump.near) {
+            /* When there is a near jump, we need to make sure that the target
+             * is within the proper limits. So, we start with a type that can
+             * hold values that are bigger than we'll ultimately need. If we
+             * went straight to the uint8_t, we couldn't tell if we overflowed.
+             */
+            int32_t rel = target_loc - (jump.offset_loc + sizeof(uint8_t));
+            if (!(-128 <= rel && rel < 128)) {
+                return false;
+            }
+            /* Now that we are sure the target is _near_ enough, we can move
+             * to the proper type.
+             */
+            int8_t rel8 = rel;
+            uint8_t* offset_ptr = &state->buf[jump.offset_loc];
+            *offset_ptr = rel8;
+        } else {
+            /* Assumes jump offset is at end of instruction */
+            uint32_t rel = target_loc - (jump.offset_loc + sizeof(uint32_t));
 
-        uint8_t* offset_ptr = &state->buf[jump.offset_loc];
-        memcpy(offset_ptr, &rel, sizeof(uint32_t));
+            uint8_t* offset_ptr = &state->buf[jump.offset_loc];
+            memcpy(offset_ptr, &rel, sizeof(uint32_t));
+        }
     }
 
     for (i = 0; i < state->num_local_calls; i++) {

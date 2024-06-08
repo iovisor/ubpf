@@ -77,13 +77,26 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
 }
 
 void
-emit_patchable_relative(
-    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index)
+emit_patchable_relative_ex(
+    uint32_t offset,
+    uint32_t target_pc,
+    uint32_t manual_target_offset,
+    struct patchable_relative* table,
+    size_t index,
+    bool near)
 {
     struct patchable_relative* jump = &table[index];
     jump->offset_loc = offset;
     jump->target_pc = target_pc;
     jump->target_offset = manual_target_offset;
+    jump->near = near;
+}
+
+void
+emit_patchable_relative(
+    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index)
+{
+    emit_patchable_relative_ex(offset, target_pc, manual_target_offset, table, index, false);
 }
 
 void
