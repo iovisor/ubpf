@@ -21,6 +21,7 @@
 #ifndef UBPF_INT_H
 #define UBPF_INT_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <ubpf.h>
 #include "ebpf.h"
@@ -169,5 +170,21 @@ ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc);
 
 bool
 ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg);
+
+/**
+ * @brief Determine whether an eBPF instruction has a fallthrough
+ *
+ * An eBPF instruction has a fallthrough unless the instruction performs
+ * unconditional change in control-flow. Currently, the only instruction
+ * that fits that description is the EXIT.
+ *
+ * @return True if the inst has a fallthrough; false, otherwise.
+ */
+static inline bool
+ubpf_instruction_has_fallthrough(const struct ebpf_inst inst)
+{
+    // The only instruction that does not have a fallthrough is the EXIT.
+    return inst.opcode != EBPF_OP_EXIT;
+}
 
 #endif
