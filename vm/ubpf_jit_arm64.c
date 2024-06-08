@@ -22,6 +22,7 @@
  * [ArmARM-A H.a]: https://developer.arm.com/documentation/ddi0487/ha
  */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
@@ -334,10 +335,11 @@ enum UnconditionalBranchImmediateOpcode
 };
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
-static void
+static uint32_t
 emit_unconditionalbranch_immediate(
     struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
+    uint32_t source_offset = state->offset;
     struct patchable_relative* table = state->jumps;
     int* num_jumps = &state->num_jumps;
     if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
@@ -347,6 +349,8 @@ emit_unconditionalbranch_immediate(
 
     emit_patchable_relative(state->offset, target_pc, 0, table, (*num_jumps)++);
     emit_instruction(state, op);
+
+    return source_offset;
 }
 
 enum Condition
@@ -974,6 +978,21 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // occur at the end of the loop.
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
 
+
+        // If a) the previous instruction could fallthrough to this instruction and
+        //    b) this instruction starts a local function, then
+        // we have to "jump around" the code that manipulates the stack!
+        uint32_t fallthrough_jump_source = 0;
+        bool fallthrough_jump_present = false;
+        if (i != 0 && vm->int_funcs[i]) {
+            struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
+            if (ubpf_instruction_has_fallthrough(prev_inst)) {
+                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+                fallthrough_jump_present = true;
+            }
+        }
+
+
         if (i == 0 || vm->int_funcs[i]) {
             size_t prolog_start = state->offset;
             emit_movewide_immediate(state, true, temp_register, ubpf_stack_usage_for_local_func(vm, i));
@@ -985,6 +1004,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             } else {
                 assert(state->bpf_function_prolog_size == state->offset - prolog_start);
             }
+        }
+
+        if (fallthrough_jump_present) {
+            fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
         }
 
         state->pc_locs[i] = state->offset;
