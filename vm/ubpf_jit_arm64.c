@@ -961,6 +961,15 @@ to_condition(int opcode)
     }
 }
 
+/*
+ * The layout of the JIT'd code follows a certain pattern. There are
+ * several invariants in the JIT'd code as well. Those are documented
+ * in the translate function of the x86_64 JIT.
+ * Note: The amount of space used to store the eBPF program's stack
+ * usage in a location function is 8 bytes for both x86 and Arm. However,
+ * in the Arm case, the value is pushed to the stack twice to maintain
+ * 16-byte stack alignment.
+ */
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
@@ -978,10 +987,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // occur at the end of the loop.
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
 
-
-        // If a) the previous instruction could fallthrough to this instruction and
-        //    b) this instruction starts a local function, then
-        // we have to "jump around" the code that manipulates the stack!
+        // If
+        // a) the previous instruction in the eBPF program could fallthrough
+        //    to this instruction and
+        // b) the current instruction starts a local function,
+        // then there has to be a means to "jump around" the code that
+        // manipulates the stack when the program executes in the fallthrough
+        // path.
         uint32_t fallthrough_jump_source = 0;
         bool fallthrough_jump_present = false;
         if (i != 0 && vm->int_funcs[i]) {
@@ -991,7 +1003,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 fallthrough_jump_present = true;
             }
         }
-
 
         if (i == 0 || vm->int_funcs[i]) {
             size_t prolog_start = state->offset;
@@ -1089,8 +1100,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.imm == 16) {
                 /* UXTH dst, dst. */
                 emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
-            }
-            else if (inst.imm == 32) {
+            } else if (inst.imm == 32) {
                 /* UXTW dst, dst. */
                 emit_instruction(state, 0x53007c00 | (dst << 5) | dst);
             }
