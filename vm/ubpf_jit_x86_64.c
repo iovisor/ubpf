@@ -116,8 +116,11 @@ static inline void
 emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
 {
     UNUSED_PARAMETER(vm);
-    // Because the top of the stack holds the stack usage of the calling function,
-    // we adjust the base pointer down by that value!
+    // Invariant: The top of the host stack always holds the amount of space needed
+    // by the currently-executing eBPF function.
+
+    // Because the top of the host stack holds the stack usage of the currently-executing
+    // function, we adjust the eBPF base pointer down by that value!
     // sub r15, [rsp]
     emit1(state, 0x4c);
     emit1(state, 0x2B);
@@ -146,8 +149,8 @@ emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
     emit_pop(state, map_register(BPF_REG_7));
     emit_pop(state, map_register(BPF_REG_6));
 
-    // Because the top of the stack holds the stack usage of the calling function,
-    // we adjust the base pointer back up by that value!
+    // Because the top of the host tack holds the stack usage of the currently-executing
+    // function, we adjust the eBPF base pointer back up by that value!
     // add r15, [rsp]
     emit1(state, 0x4c);
     emit1(state, 0x03);
@@ -236,6 +239,9 @@ ubpf_set_register_offset(int x)
 }
 
 /*
+ * JIT'd Code Layout & Invariants:
+ *
+ * 1. Layout of external dispatcher/helpers pointers
  * In order to make it so that the generated code is completely standalone, all the necessary
  * function pointers for external helpers are embedded in the jitted code. The layout looks like:
  *
@@ -251,7 +257,13 @@ ubpf_set_register_offset(int x)
  *                                External Helper Function Pointer Idx MAX_EXT_FUNCS-1 (8 bytes, maybe NULL)
  * state->buffer + state->offset:
  *
- * The layout and operation of this mechanism is identical for code JIT compiled for Arm.
+ * 2. Invariants
+ *    a. The top of the host stack always contains an 8-byte value which is the size
+ *       of the eBPF stack usage of currently-executing eBPF function. The invariant
+ *       is maintained in the code generated for the EXIT, and CALL opcodes and in the
+ *       code generated for the first instruction in an eBPF function.
+ *
+ * The layout and invariants are identical for code JIT compiled for Arm.
  */
 
 static int
@@ -341,9 +353,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         int src = map_register(inst.src);
         uint32_t target_pc = i + inst.offset + 1;
 
-        // If a) the previous instruction could fallthrough to this instruction and
-        //    b) this instruction starts a local function, then
-        // we have to "jump around" the code that manipulates the stack!
+        // If
+        // a) the previous instruction in the eBPF program could fallthrough
+        //    to this instruction and
+        // b) the current instruction starts a local function,
+        // then there has to be a means to "jump around" the code that
+        // manipulates the stack when the program executes in the fallthrough
+        // path.
         uint32_t fallthrough_jump_source = 0;
         bool fallthrough_jump_present = false;
         if (i != 0 && vm->int_funcs[i]) {
@@ -354,12 +370,23 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
         }
 
+        /*
+         * There is an invariant that the top of the host stack always contains
+         * the amount of local space used by the currently-executing eBPF program.
+         * So, if we are at the start of an eBPF function, we will need to put the
+         * amount of its local space usage on the top of the host stack. It is safe
+         * to adjust the stack by only 8 bytes here because the `call` pushed the
+         * return address (8 bytes). In combination, there is a 16-byte change
+         * to the stack pointer which maintains the 16-byte stack alignment.
+         */
         if (i == 0 || vm->int_funcs[i]) {
             size_t prolog_start = state->offset;
             uint16_t stack_usage = ubpf_stack_usage_for_local_func(vm, i);
+            // Move the stack pointer to make space for a 64-bit integer ...
             emit_alu64_imm32(state, 0x81, 5, RSP, 8);
+            // ... that is filled with the amount of space needed for the local function.
             emit1(state, 0x48);
-            emit1(state, 0xC7);
+            emit1(state, 0xC7); // mov immediate to [rsp]
             emit1(state, 0x04); // Mod: 00b Reg: 000b RM: 100b
             emit1(state, 0x24); // Scale: 00b Index: 100b Base: 100b
             emit4(state, stack_usage);
@@ -370,9 +397,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             } else {
                 assert(state->bpf_function_prolog_size == state->offset - prolog_start);
             }
-
         }
 
+        // If there was a jump inserted to bypass the host stack manipulation code,
+        // we need to update its target.
         if (fallthrough_jump_present) {
             fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
         }
@@ -737,8 +765,11 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             break;
         case EBPF_OP_EXIT:
-            /* On entry to every local function we add an additional 8 bytes.
-             * Undo that here!
+            /* There is an invariant that the top of the host stack contains
+             * the amout of space used by the currently-executing eBPF function.
+             * 8 bytes are required for the storage. So, anytime that we leave an
+             * eBPF function, we must pop its local usage from the top of the
+             * host stack.
              */
             emit_alu64_imm32(state, 0x81, 0, RSP, 8);
             emit_ret(state);
