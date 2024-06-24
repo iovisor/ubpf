@@ -190,7 +190,7 @@ int main(int argc, char **argv)
 #if defined(UBPF_HAS_ELF_H)
         if (ubpf_load_elf(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
         {
-            std::cerr << "Failed to load program: " << error << std::endl;
+            std::cerr << "Failed to load code: " << error << std::endl;
             free(error);
             return 1;
         }
@@ -202,7 +202,7 @@ int main(int argc, char **argv)
     else {
         if (ubpf_load(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
         {
-            std::cerr << "Failed to load program: " << error << std::endl;
+            std::cerr << "Failed to load code: " << error << std::endl;
             free(error);
             return 1;
         }
