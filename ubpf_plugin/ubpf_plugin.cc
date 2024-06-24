@@ -93,6 +93,17 @@ stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
     return 64;
 }
 
+void print_help()
+{
+    std::cout << "Usage: ubpf_plugin [--program <program>] [--jit|--interpret] [--elf] [<memory>]" << std::endl;
+    std::cout << "  --program <program>  BPF program to execute in hex" << std::endl;
+    std::cout << "  --jit                Use JIT compiler" << std::endl;
+    std::cout << "  --interpret          Use interpreter" << std::endl;
+    std::cout << "  --elf                Load program as ELF" << std::endl;
+    std::cout << "  <memory>             Memory contents in hex" << std::endl;
+    std::cout << "  If <program> is not provided, it will be read from stdin" << std::endl;
+}
+
 /**
  * @brief This program reads BPF instructions from stdin and memory contents from
  * the first agument. It then executes the BPF program and prints the
@@ -134,12 +145,14 @@ int main(int argc, char **argv)
         jit = false;
         args.erase(args.begin());
     }
-#if defined(UBPF_HAS_ELF_H)
     if (args.size() > 0 && args[0] == "--elf") {
         is_elf = true;
         args.erase(args.begin());
-    }
+#if !defined(UBPF_HAS_ELF_H)
+        std::cerr << "ELF support not compiled in" << std::endl;
+        return 1;
 #endif
+    }
 
     if (args.size() > 0 && args[0].size() > 0)
     {
@@ -178,7 +191,6 @@ int main(int argc, char **argv)
         if (ubpf_load_elf(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
         {
             std::cerr << "Failed to load program: " << error << std::endl;
-            std::cout << "Failed to load code: " << error << std::endl;
             free(error);
             return 1;
         }
@@ -191,7 +203,6 @@ int main(int argc, char **argv)
         if (ubpf_load(vm.get(), program_byte.data(), static_cast<uint32_t>(program_byte.size()), &error) != 0)
         {
             std::cerr << "Failed to load program: " << error << std::endl;
-            std::cout << "Failed to load code: " << error << std::endl;
             free(error);
             return 1;
         }
