@@ -50,7 +50,7 @@ foreach(test_file ${test_descr_files})
     if (EXISTS ${potential_input_file})
         list(JOIN QEMU_RUNNER " " QEMU_RUNNER_STR)
         if(PLATFORM_WINDOWS)
-            set(test_exe ${CMAKE_BINARY_DIR}\\bin\\$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>\\${test_name}.exe)
+            set(test_exe ${CMAKE_BINARY_DIR}\\bin\\$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:RelWithDebInfo>\\${test_name}.exe)
             # Replace forward slashes with backslashes in the path to the input file
             string(REPLACE "/" "\\" potential_input_file ${potential_input_file})
             # Replace forward slashes with backslashes in the path to the test executable
