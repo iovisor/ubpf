@@ -49,10 +49,22 @@ foreach(test_file ${test_descr_files})
     set(potential_input_file ${CMAKE_SOURCE_DIR}/custom_tests/data/${test_name}.input)
     if (EXISTS ${potential_input_file})
         list(JOIN QEMU_RUNNER " " QEMU_RUNNER_STR)
-        add_test(
-            NAME ${test_name}-Custom
-	    COMMAND sh -c "cat ${potential_input_file} | ${QEMU_RUNNER_STR} $<TARGET_FILE:${test_name}>"
-        )
+        if(PLATFORM_WINDOWS)
+            set(test_exe ${CMAKE_BINARY_DIR}\\bin\\$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:RelWithDebInfo>\\${test_name}.exe)
+            # Replace forward slashes with backslashes in the path to the input file
+            string(REPLACE "/" "\\" potential_input_file ${potential_input_file})
+            # Replace forward slashes with backslashes in the path to the test executable
+            string(REPLACE "/" "\\" test_exe ${test_exe})
+            add_test(
+                NAME ${test_name}-Custom
+            COMMAND ${CMAKE_SOURCE_DIR}/custom_tests/windows/test.cmd  ${potential_input_file} ${test_exe}
+            )
+        else()
+            add_test(
+                NAME ${test_name}-Custom
+            COMMAND sh -c "cat ${potential_input_file} | ${QEMU_RUNNER_STR} $<TARGET_FILE:${test_name}>"
+            )
+        endif()
     else()
         add_test(
             NAME ${test_name}-Custom
