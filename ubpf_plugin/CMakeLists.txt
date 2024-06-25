@@ -55,11 +55,13 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR 
 else()
     if(PLATFORM_WINDOWS)
         set(PLATFORM_EXECUTABLE_EXTENSION ".exe")
+        set(PLUGIN_PATH ${CMAKE_BINARY_DIR}/bin/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION})
     else()
         set(PLATFORM_EXECUTABLE_EXTENSION "")
+        set(PLUGIN_PATH ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION})
     endif()
-    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --jit)
-    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret)
+    set(PLUGIN_JIT --plugin_path ${PLUGIN_PATH} --plugin_options --jit)
+    set(PLUGIN_INTERPRET --plugin_path ${PLUGIN_PATH} --plugin_options --interpret)
 endif()
 
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
