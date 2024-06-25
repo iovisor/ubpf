@@ -56,3 +56,14 @@ bool ubpf_setup_custom_test(ubpf_vm_up &vm,
                        ubpf_jit_fn &jit_fn,
                        std::string &error);
 
+/**
+ * @brief Get the program string object from the command line arguments or stdin.
+ *
+ * @param[in] argc The number of command line arguments.
+ * @param[in] argv The command line arguments.
+ * @param[out] program_string The program string to return.
+ * @param[out] error The error message to return if there is a problem.
+ * @return true If the program string was successfully obtained.
+ * @return false If there was a problem obtaining the program string.
+ */
+bool get_program_string(int argc, char **argv, std::string &program_string, std::string &error);
