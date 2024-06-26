@@ -77,7 +77,12 @@ ubpf_jit_update_dispatcher_null(
 
 bool
 ubpf_jit_update_helper_null(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     UNUSED_PARAMETER(new_helper);

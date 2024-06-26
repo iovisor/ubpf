@@ -554,9 +554,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 #endif
 
     // jmp call_label
-    emit1(state, 0xe9);
-    uint32_t skip_external_dispatcher_source = state->offset;
-    emit_4byte_offset_placeholder(state);
+    uint32_t skip_external_dispatcher_source = emit_jmp(state, 0);
 
     // External dispatcher:
 
