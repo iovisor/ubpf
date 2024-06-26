@@ -73,19 +73,6 @@ ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const
         vm->error_printf = fprintf;
 }
 
-static uint64_t
-ubpf_default_external_dispatcher(
-    uint64_t arg1,
-    uint64_t arg2,
-    uint64_t arg3,
-    uint64_t arg4,
-    uint64_t arg5,
-    unsigned int index,
-    external_function_t* external_fns)
-{
-    return external_fns[index](arg1, arg2, arg3, arg4, arg5);
-}
-
 struct ubpf_vm*
 ubpf_create(void)
 {
@@ -158,7 +145,7 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_f
         return -1;
     }
 
-    vm->ext_funcs[idx] = (ext_func)fn;
+    vm->ext_funcs[idx] = (extended_external_helper_t)fn;
     vm->ext_func_names[idx] = name;
 
     int success = 0;
@@ -170,7 +157,12 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_f
 
         // Now, update!
         if (!vm->jit_update_helper(
-                vm, fn, idx, (uint8_t*)vm->jitted, vm->jitted_size, vm->jitted_result.external_helper_offset)) {
+                vm,
+                (extended_external_helper_t)fn,
+                idx,
+                (uint8_t*)vm->jitted,
+                vm->jitted_size,
+                vm->jitted_result.external_helper_offset)) {
             // Can't immediately stop here because we have unprotected memory!
             success = -1;
         }
@@ -1229,8 +1221,8 @@ ubpf_exec_ex(
                     reg[0] =
                         vm->dispatcher(reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, external_dispatcher_cookie);
                 } else {
-                    reg[0] = ubpf_default_external_dispatcher(
-                        reg[1], reg[2], reg[3], reg[4], reg[5], inst.imm, vm->ext_funcs);
+                    reg[0] =
+                        vm->ext_funcs[inst.imm](reg[1], reg[2], reg[3], reg[4], reg[5], external_dispatcher_cookie);
                 }
                 if (inst.imm == vm->unwind_stack_extension_index && reg[0] == 0) {
                     *bpf_return_value = reg[0];

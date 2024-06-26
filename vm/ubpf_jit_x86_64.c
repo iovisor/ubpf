@@ -149,7 +149,7 @@ emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
     emit_pop(state, map_register(BPF_REG_7));
     emit_pop(state, map_register(BPF_REG_6));
 
-    // Because the top of the host tack holds the stack usage of the currently-executing
+    // Because the top of the host stack holds the stack usage of the currently-executing
     // function, we adjust the eBPF base pointer back up by that value!
     // add r15, [rsp]
     emit1(state, 0x4c);
@@ -1170,7 +1170,12 @@ ubpf_jit_update_dispatcher_x86_64(
 
 bool
 ubpf_jit_update_helper_x86_64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;

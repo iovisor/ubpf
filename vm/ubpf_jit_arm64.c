@@ -603,10 +603,10 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // Check whether temp_register is empty.
     emit_addsub_immediate(state, true, AS_SUBS, temp_register, temp_register, 0);
 
-    // Jump if we are ready to roll (because we are using an external dispatcher).
-    uint32_t jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
+    // Jump to the call if we are ready to roll (because we are using an external dispatcher).
+    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
 
-    // We are not ready to roll. So, load the helper function address by index.
+    // We are not ready to roll. In other words, we are going to load the helper function address by index.
     emit_movewide_immediate(state, true, R5, idx);
     emit_movewide_immediate(state, true, R6, 3);
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
@@ -616,17 +616,31 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     emit_addsub_register(state, true, AS_ADD, temp_register, temp_register, R5);
     emit_loadstore_immediate(state, LS_LDRX, temp_register, temp_register, 0);
 
-    // And now we, too, are ready to roll.
+    // Add the implicit 6th parameter (the context)
+    emit_logical_register(state, true, LOG_ORR, R5, RZ, VOLATILE_CTXT);
 
-    // Both paths meet here where we ...
-    emit_jump_target(state, jump_source);
+    // And now we, too, are ready to roll. So, let's jump around the code that sets up the additional
+    // parameters for the external dispatcher. We will end up at the call site where both paths
+    // will rendezvous.
+    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
 
-    // ... set up the final two parameters.
+    // Mark the landing spot for the jump around the code that sets up a call to a helper function
+    // when no external dispatcher is present.
+    emit_jump_target(state, external_dispatcher_jump_source);
+
+    // ... set up the final two arguments for the external dispatcher.
+
+    // The index of the helper to be invoked.
     emit_movewide_immediate(state, true, R5, idx);
+
+    // The context.
     // Use a sneaky way to copy the context register into the R6 register (as the final parameter).
     emit_logical_register(state, true, LOG_ORR, R6, RZ, VOLATILE_CTXT);
 
-    // Now, all that's left is to call!
+    // Mark the landing spot for the jump around the external-dispatcher-argument-setup code.
+    emit_jump_target(state, no_dispatcher_jump_source);
+
+    // Both paths meet here -- all that's left is to call!
     emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
@@ -1459,7 +1473,12 @@ ubpf_jit_update_dispatcher_arm64(
 
 bool
 ubpf_jit_update_helper_arm64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;
