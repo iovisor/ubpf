@@ -57,7 +57,7 @@ foreach(test_file ${test_descr_files})
             string(REPLACE "/" "\\" test_exe ${test_exe})
             add_test(
                 NAME ${test_name}-Custom
-            COMMAND ${CMAKE_SOURCE_DIR}/custom_tests/windows/test.cmd  ${potential_input_file} ${test_exe}
+            COMMAND ${test_exe} --program ${potential_input_file}
             )
         else()
             add_test(

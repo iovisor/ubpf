@@ -4,6 +4,8 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <iostream>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -94,5 +96,44 @@ bool ubpf_setup_custom_test(ubpf_vm_up &vm,
 
     assert(error_s == nullptr);
     free(error_s);
+    return true;
+}
+
+bool get_program_string(int argc, char **argv, std::string &program_string, std::string &error)
+{
+    std::vector<std::string> args(argv, argv + argc);
+
+    if (args.size() == 1)
+    {
+        std::string line;
+        while (std::getline(std::cin, line))
+        {
+            program_string += line;
+        }
+    }
+    else if (args.size() == 3 && args[1] == "--program")
+    {
+        std::ifstream file(args[2]);
+        if (file.is_open())
+        {
+            std::string line;
+            while (std::getline(file, line))
+            {
+                program_string += line;
+            }
+            file.close();
+        }
+        else
+        {
+            error = "Failed to open file: " + args[2];
+            return false;
+        }
+    }
+    else
+    {
+        error = "Usage: " + args[0] + " [program]";
+        return false;
+    }
+
     return true;
 }
