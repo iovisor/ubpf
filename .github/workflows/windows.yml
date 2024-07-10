@@ -44,17 +44,17 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@9fdb3e49720b44c48891d036bb502feb25684276
+      uses: github/codeql-action/init@b611370bb5703a7efb587f9d136a52ea24c5c38c
       with:
         languages: 'cpp'
 
@@ -73,19 +73,10 @@ jobs:
           --build build `
           --config ${{ inputs.build_type }}
 
-    # Switch this to Docker when a Windows image is available.
-    - name: Run the bpf_conformance tests (Windows)
+    - name: Run the CTest suite
       run: |
-        cd .\build\bin\${{ inputs.build_type }}
-        $BPF_CONFORMANCE_RUNNER = "..\..\external\bpf_conformance\bin\${{ inputs.build_type }}\bpf_conformance_runner.exe"
-        & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
-        if ($LastExitCode -ne 0) { throw "Test failed"; }
-        & $BPF_CONFORMANCE_RUNNER --test_file_directory ..\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
-        if ($LastExitCode -ne 0) { throw "Test failed"; }
-        & $BPF_CONFORMANCE_RUNNER --exclude_regex lock_ --test_file_directory ..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --jit
-        if ($LastExitCode -ne 0) { throw "Test failed"; }
-        & $BPF_CONFORMANCE_RUNNER --exclude_regex lock_ --test_file_directory ..\..\external\bpf_conformance\tests --plugin_path ubpf_plugin.exe --plugin_options --interpret
-        if ($LastExitCode -ne 0) { throw "Test failed"; }
+        cd build
+        ctest --output-on-failure --build-config ${{ inputs.build_type }}
 
     - name: Generate the TGZ package
       run: |
@@ -116,4 +107,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@9fdb3e49720b44c48891d036bb502feb25684276
+      uses: github/codeql-action/analyze@b611370bb5703a7efb587f9d136a52ea24c5c38c

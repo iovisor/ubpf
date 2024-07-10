@@ -22,6 +22,7 @@
  * [ArmARM-A H.a]: https://developer.arm.com/documentation/ddi0487/ha
  */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
@@ -334,10 +335,11 @@ enum UnconditionalBranchImmediateOpcode
 };
 
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
-static void
+static uint32_t
 emit_unconditionalbranch_immediate(
     struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
 {
+    uint32_t source_offset = state->offset;
     struct patchable_relative* table = state->jumps;
     int* num_jumps = &state->num_jumps;
     if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
@@ -347,6 +349,8 @@ emit_unconditionalbranch_immediate(
 
     emit_patchable_relative(state->offset, target_pc, 0, table, (*num_jumps)++);
     emit_instruction(state, op);
+
+    return source_offset;
 }
 
 enum Condition
@@ -599,10 +603,10 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // Check whether temp_register is empty.
     emit_addsub_immediate(state, true, AS_SUBS, temp_register, temp_register, 0);
 
-    // Jump if we are ready to roll (because we are using an external dispatcher).
-    uint32_t jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
+    // Jump to the call if we are ready to roll (because we are using an external dispatcher).
+    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
 
-    // We are not ready to roll. So, load the helper function address by index.
+    // We are not ready to roll. In other words, we are going to load the helper function address by index.
     emit_movewide_immediate(state, true, R5, idx);
     emit_movewide_immediate(state, true, R6, 3);
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
@@ -612,17 +616,31 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     emit_addsub_register(state, true, AS_ADD, temp_register, temp_register, R5);
     emit_loadstore_immediate(state, LS_LDRX, temp_register, temp_register, 0);
 
-    // And now we, too, are ready to roll.
+    // Add the implicit 6th parameter (the context)
+    emit_logical_register(state, true, LOG_ORR, R5, RZ, VOLATILE_CTXT);
 
-    // Both paths meet here where we ...
-    emit_jump_target(state, jump_source);
+    // And now we, too, are ready to roll. So, let's jump around the code that sets up the additional
+    // parameters for the external dispatcher. We will end up at the call site where both paths
+    // will rendezvous.
+    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
 
-    // ... set up the final two parameters.
+    // Mark the landing spot for the jump around the code that sets up a call to a helper function
+    // when no external dispatcher is present.
+    emit_jump_target(state, external_dispatcher_jump_source);
+
+    // ... set up the final two arguments for the external dispatcher.
+
+    // The index of the helper to be invoked.
     emit_movewide_immediate(state, true, R5, idx);
+
+    // The context.
     // Use a sneaky way to copy the context register into the R6 register (as the final parameter).
     emit_logical_register(state, true, LOG_ORR, R6, RZ, VOLATILE_CTXT);
 
-    // Now, all that's left is to call!
+    // Mark the landing spot for the jump around the external-dispatcher-argument-setup code.
+    emit_jump_target(state, no_dispatcher_jump_source);
+
+    // Both paths meet here -- all that's left is to call!
     emit_unconditionalbranch_register(state, BR_BLR, temp_register);
 
     /* On exit need to move result from r0 to whichever register we've mapped EBPF r0 to.  */
@@ -957,6 +975,15 @@ to_condition(int opcode)
     }
 }
 
+/*
+ * The layout of the JIT'd code follows a certain pattern. There are
+ * several invariants in the JIT'd code as well. Those are documented
+ * in the translate function of the x86_64 JIT.
+ * Note: The amount of space used to store the eBPF program's stack
+ * usage in a location function is 8 bytes for both x86 and Arm. However,
+ * in the Arm case, the value is pushed to the stack twice to maintain
+ * 16-byte stack alignment.
+ */
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
@@ -974,6 +1001,23 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // occur at the end of the loop.
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
 
+        // If
+        // a) the previous instruction in the eBPF program could fallthrough
+        //    to this instruction and
+        // b) the current instruction starts a local function,
+        // then there has to be a means to "jump around" the code that
+        // manipulates the stack when the program executes in the fallthrough
+        // path.
+        uint32_t fallthrough_jump_source = 0;
+        bool fallthrough_jump_present = false;
+        if (i != 0 && vm->int_funcs[i]) {
+            struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
+            if (ubpf_instruction_has_fallthrough(prev_inst)) {
+                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+                fallthrough_jump_present = true;
+            }
+        }
+
         if (i == 0 || vm->int_funcs[i]) {
             size_t prolog_start = state->offset;
             emit_movewide_immediate(state, true, temp_register, ubpf_stack_usage_for_local_func(vm, i));
@@ -985,6 +1029,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             } else {
                 assert(state->bpf_function_prolog_size == state->offset - prolog_start);
             }
+        }
+
+        if (fallthrough_jump_present) {
+            fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
         }
 
         state->pc_locs[i] = state->offset;
@@ -1066,8 +1114,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.imm == 16) {
                 /* UXTH dst, dst. */
                 emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
-            }
-            else if (inst.imm == 32) {
+            } else if (inst.imm == 32) {
                 /* UXTW dst, dst. */
                 emit_instruction(state, 0x53007c00 | (dst << 5) | dst);
             }
@@ -1426,7 +1473,12 @@ ubpf_jit_update_dispatcher_arm64(
 
 bool
 ubpf_jit_update_helper_arm64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;

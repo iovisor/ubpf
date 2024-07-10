@@ -1,0 +1,7 @@
+-- asm
+mov %r0, 0x12345678
+call local next
+next:
+exit
+-- result
+0x12345678

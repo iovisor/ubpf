@@ -62,16 +62,18 @@ test_helpers_validater(unsigned int idx, const struct ubpf_vm* vm)
 int
 main(int argc, char** argv)
 {
-    std::vector<std::string> args(argv, argv + argc);
     std::string program_string;
+    std::string error{};
     std::string memory_string;
 
-    std::getline(std::cin, program_string);
+    if (!get_program_string(argc, argv, program_string, error)) {
+        std::cerr << error << std::endl;
+        return 1;
+    }
 
     ubpf_jit_fn jit_fn;
     uint64_t memory{0x123456789};
     std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
-    std::string error{};
     if (!ubpf_setup_custom_test(
             vm,
             program_string,

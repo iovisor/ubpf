@@ -17,8 +17,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       -Wall
       -Werror
       -Iinc
-      -O0
-      -g
+      -O2
       -Wunused-parameter
       -fPIC
     )
@@ -27,6 +26,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
       CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
 
       target_compile_options("ubpf_settings" INTERFACE
+        -O0
         -g
       )
     endif()

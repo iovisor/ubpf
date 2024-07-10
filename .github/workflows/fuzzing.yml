@@ -24,11 +24,11 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@f086349bfa2bd1361f7909c78558e816508cdc10 # v2.8.0
+      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         submodules: 'recursive'
 
@@ -112,13 +112,13 @@ jobs:
         name: fuzzer
         path: build/bin/ubpf_fuzzer
 
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
         name: fuzzer
 

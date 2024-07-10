@@ -13,20 +13,23 @@ extern "C"
 
 #include "ubpf_custom_test_support.h"
 
-int main()
+int main(int argc, char** argv)
 {
     std::string expected_error{"Failed to load program: unknown opcode 0x8f at PC 0" };
     ubpf_jit_fn jit_fn;
     std::string program_string;
+    std::string error{};
 
     // The program's first instruction contains an invalid opcode. Attempting to load this
     // program should elicit an error alerting the user to an unknown opcode (see above).
-    std::getline(std::cin, program_string);
+    if (!get_program_string(argc, argv, program_string, error)) {
+        std::cerr << error << std::endl;
+        return 1;
+    }
 
     std::vector<ebpf_inst> program = bytes_to_ebpf_inst(base16_decode(program_string));
 
     ubpf_vm_up vm(ubpf_create(), ubpf_destroy);
-    std::string error{};
 
     if (!ubpf_setup_custom_test(
             vm,

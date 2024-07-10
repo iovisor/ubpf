@@ -39,18 +39,20 @@ external_dispatcher_validater(unsigned int idx, const struct ubpf_vm* cookie)
 
 int main(int argc, char **argv)
 {
-    std::vector<std::string> args(argv, argv + argc);
     std::string program_string{};
+    std::string error{};
     ubpf_jit_fn jit_fn;
     uint64_t memory{0x123456789};
 
     // The program modifies (eBPF) r0 (see test description) and then invokes
     // a helper function that will be invoked through the external
     // dispatcher.
-    std::getline(std::cin, program_string);
+    if (!get_program_string(argc, argv, program_string, error)) {
+        std::cerr << error << std::endl;
+        return 1;
+    }
 
     std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
-    std::string error{};
     if (!ubpf_setup_custom_test(
             vm,
             program_string,
