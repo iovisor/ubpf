@@ -173,7 +173,7 @@ jobs:
 
     - name: Upload scan-build report
       if: inputs.scan_build == true
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
@@ -268,7 +268,7 @@ jobs:
 
     - name: Upload the DEB package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: linux_deb_package
         path: ${{ steps.package_locations.outputs.REL_DEB_PACKAGE_PATH }}
@@ -276,7 +276,7 @@ jobs:
 
     - name: Upload the RPM package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: linux_rpm_package
         path: ${{ steps.package_locations.outputs.REL_RPM_PACKAGE_PATH }}
@@ -284,7 +284,7 @@ jobs:
 
     - name: Upload the Linux TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: linux_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -292,7 +292,7 @@ jobs:
 
     - name: Upload the macOS TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'macos-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
       with:
         name: macos_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
