@@ -1467,12 +1467,12 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
 
         case EBPF_OP_CALL:
             if (inst.src == 0) {
-                if (inst.imm < 0 || inst.imm >= MAX_EXT_FUNCS) {
+                if (inst.imm < 0) {
                     *errmsg = ubpf_error("invalid call immediate at PC %d", i);
                     return false;
                 }
                 if ((vm->dispatcher != NULL && !vm->dispatcher_validate(inst.imm, vm)) ||
-                    (vm->dispatcher == NULL && !vm->ext_funcs[inst.imm])) {
+                    (vm->dispatcher == NULL && (inst.imm >= MAX_EXT_FUNCS || !vm->ext_funcs[inst.imm]))) {
                     *errmsg = ubpf_error("call to nonexistent function %u at PC %d", inst.imm, i);
                     return false;
                 }
