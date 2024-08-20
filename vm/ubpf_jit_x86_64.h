@@ -161,18 +161,47 @@ emit_modrm_reg2reg(struct jit_state* state, int r, int m)
     emit_modrm(state, 0xc0, r, m);
 }
 
+/**
+ * @brief Emit a ModRM byte and accompanying displacement.
+ * Special case for the situation where the displacement is 0.
+ *
+ * @param[in] state The JIT state in which to emit this instruction.
+ * @param[in] reg The value for the reg of the ModRM byte.
+ * @param[in] rm The value for the rm of the ModRM byte.
+ * @param[in] d The displacement value
+ */
 static inline void
-emit_modrm_and_displacement(struct jit_state* state, int r, int m, int32_t d)
+emit_modrm_and_displacement(struct jit_state* state, int reg, int rm, int32_t d)
 {
-    if (d == 0 && (m & 7) != RBP) {
-        emit_modrm(state, 0x00, r, m);
-    } else if (d >= -128 && d <= 127) {
-        emit_modrm(state, 0x40, r, m);
-        emit1(state, d);
-    } else {
-        emit_modrm(state, 0x80, r, m);
-        emit4(state, d);
+    rm &= 0xf;
+    reg &= 0xf;
+
+    // Handle 0 displacement special (where we can!).
+    if (d == 0 && rm != RSP && rm != RBP && rm != R12 && rm != R13) {
+        emit_modrm(state, 0x00, reg, rm);
+        return;
     }
+
+    uint32_t near_disp = (d >= -128 && d <= 127);
+    uint8_t mod = near_disp ? 0x40 : 0x80;
+
+    emit_modrm(state, mod, reg, rm);
+    if (rm == R12) {
+        // When using R12 as the rm in (rm + disp), the actual
+        // rm has to be put in an SIB. SIB value of 0x24 means:
+        // scale (of index): N/A (see below)
+        // index: no index
+        // base: R12
+        // A SIB byte with this value means that the resulting
+        // encoded instruction will mimic the semantics when
+        // using any other register.
+        emit1(state, 0x24);
+    }
+
+    if (near_disp)
+        emit1(state, d);
+    else
+        emit4(state, d);
 }
 
 static inline void
