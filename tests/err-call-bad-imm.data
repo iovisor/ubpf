@@ -7,4 +7,4 @@ mov %r5, 5
 call 64
 exit
 -- error
-Failed to load code: invalid call immediate at PC 5
+Failed to load code: call to nonexistent function 64 at PC 5
