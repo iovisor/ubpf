@@ -1262,6 +1262,8 @@ ubpf_exec_ex(
         case EBPF_OP_ATOMIC_STORE: {
             BOUNDS_CHECK_STORE(8);
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            // If this is a fetch instruction, the destination register is used to store the result.
+            int fetch_index = inst.src;
             volatile uint64_t* destination = (volatile uint64_t*)(reg[inst.dst] + inst.offset);
             uint64_t value = reg[inst.src];
             uint64_t result;
@@ -1283,6 +1285,8 @@ ubpf_exec_ex(
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 result = UBPF_ATOMIC_COMPARE_EXCHANGE(destination, value, reg[0]);
+                // Atomic compare exchange returns the original value in register 0.
+                fetch_index = 0;
                 break;
             default:
                 vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
@@ -1290,18 +1294,15 @@ ubpf_exec_ex(
                 goto cleanup;
             }
             if (fetch) {
-                if (inst.imm != EBPF_ATOMIC_OP_CMPXCHG) {
-                    reg[inst.src] = result;
-                }
-                else {
-                    reg[0] = result;
-                }
+                reg[fetch_index] = result;
             }
         } break;
 
         case EBPF_OP_ATOMIC32_STORE: {
             BOUNDS_CHECK_STORE(4);
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            // If this is a fetch instruction, the destination register is used to store the result.
+            int fetch_index = inst.src;
             volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
             uint32_t value = u32(reg[inst.src]);
             uint32_t result;
@@ -1323,6 +1324,8 @@ ubpf_exec_ex(
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 result = UBPF_ATOMIC_COMPARE_EXCHANGE32(destination, value, u32(reg[0]));
+                // Atomic compare exchange returns the original value in register 0.
+                fetch_index = 0;
                 break;
             default:
                 vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
@@ -1330,11 +1333,7 @@ ubpf_exec_ex(
                 goto cleanup;
             }
             if (fetch) {
-                if (inst.imm != EBPF_ATOMIC_OP_CMPXCHG) {
-                    reg[inst.src] = result;
-                } else {
-                    reg[0] = result;
-                }
+                reg[fetch_index] = result;
             }
         } break;
 
@@ -1622,7 +1621,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             case (EBPF_ATOMIC_OP_CMPXCHG  & ~EBPF_ATOMIC_OP_FETCH):
                 break;
             default:
-                *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                *errmsg = ubpf_error("invalid atomic operation with opcode 0x%02x at PC %d", inst.opcode, i);
                 return false;
             }
             break;
