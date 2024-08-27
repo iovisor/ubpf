@@ -162,7 +162,7 @@ emit_modrm_reg2reg(struct jit_state* state, int r, int m)
 }
 
 /**
- * @brief Emit a ModRM byte and accompanying displacement.
+ * @brief Emit an ModRM byte and accompanying displacement.
  * Special case for the situation where the displacement is 0.
  *
  * @param[in] state The JIT state in which to emit this instruction.
@@ -675,7 +675,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 #define IS_32BIT 0
 
 /**
- * @brief Emit a atomic ALU operation without fetch.
+ * @brief Emit an atomic ALU operation without fetch.
  *
  * This applies the operation to the memory location identified by the destination register and offset, using the source
  * register as the operand.
@@ -710,7 +710,7 @@ emit_atomic_alu(struct jit_state* state, int opcode, int is_64bit, int src, int 
  * + offset] into RAX.
  */
 static inline void
-emit_atomic_compare_exchange(struct jit_state* state, int is_64bit, int src, int dst, int offset)
+emit_atomic_cmp_exch_with_rax(struct jit_state* state, int is_64bit, int src, int dst, int offset)
 {
     emit1(state, 0xf0); // lock prefix
     emit_basic_rex(state, is_64bit, src, dst);
@@ -720,14 +720,14 @@ emit_atomic_compare_exchange(struct jit_state* state, int is_64bit, int src, int
 }
 
 /**
- * @brief Atomically write the value of src into the memory location identified by dst and offset.
+ * @brief Atomically swaps the value of src into the memory location identified by dst and offset and sets src to the
+ * original value at that location.
  *
  * @param[in,out] state The JIT state
  * @param[in] is_64bit Whether the operation is 64-bit or 32-bit
  * @param[in] src The value to write.
  * @param[in] dst The base address of the destination memory location.
  * @param[in] offset The offset from the destination memory location.
- * @note This operation stores the original value in [destination + offset] into RAX.
  */
 static inline void
 emit_atomic_exchange(struct jit_state* state, int is_64bit, int src, int dst, int offset)
@@ -754,7 +754,7 @@ emit_atomic_exchange(struct jit_state* state, int is_64bit, int src, int dst, in
 static inline void
 emit_atomic_fetch_alu(struct jit_state* state, int is_64bit, int opcode, int src, int dst, int offset)
 {
-    // x64 lacks a 64-bit atomic and-fetch instruction, so we emulate it with a compare-exchange.
+    // x64 lacks a 64-bit atomic version of some alu-fetch instruction, so we emulate it with a compare-exchange.
     // This is not a problem because the compare-exchange instruction is a full memory barrier.
 
     // Compare exchange overwrites RAX, so we need to save it.
@@ -769,11 +769,11 @@ emit_atomic_fetch_alu(struct jit_state* state, int is_64bit, int opcode, int src
     // Copy RAX to RCX
     emit_mov(state, RAX, RCX);
 
-    // AND the source value into RCX
+    // Perform the ALU operation into RCX.
     emit_alu64(state, opcode, src, RCX);
 
     // Attempt to compare-exchange the value.
-    emit_atomic_compare_exchange(state, is_64bit, RCX, dst, offset);
+    emit_atomic_cmp_exch_with_rax(state, is_64bit, RCX, dst, offset);
 
     // If the compare-exchange failed, loop.
     emit1(state, 0x75);
@@ -838,13 +838,13 @@ emit_atomic_xor32(struct jit_state* state, int src, int dst, int offset)
 static inline void
 emit_atomic_compare_exchange64(struct jit_state* state, int src, int dst, int offset)
 {
-    emit_atomic_compare_exchange(state, IS_64BIT, src, dst, offset);
+    emit_atomic_cmp_exch_with_rax(state, IS_64BIT, src, dst, offset);
 }
 
 static inline void
 emit_atomic_compare_exchange32(struct jit_state* state, int src, int dst, int offset)
 {
-    emit_atomic_compare_exchange(state, IS_32BIT, src, dst, offset);
+    emit_atomic_cmp_exch_with_rax(state, IS_32BIT, src, dst, offset);
 }
 
 

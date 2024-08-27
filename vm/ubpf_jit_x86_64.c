@@ -896,6 +896,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
                 emit_atomic_exchange32(state, src, dst, inst.offset);
+                emit_truncate_u32(state, src);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 emit_atomic_compare_exchange32(state, src, dst, inst.offset);
