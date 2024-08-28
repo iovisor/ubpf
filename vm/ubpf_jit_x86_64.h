@@ -705,7 +705,7 @@ emit_atomic_alu(struct jit_state* state, int opcode, int is_64bit, int src, int 
  * @param[in] is_64bit Whether the operation is 64-bit or 32-bit
  * @param[in] src The value to write.
  * @param[in] dst The base address of the destination memory location.
- * @param[in] offset The offset from the destination memory location.
+ * @param[in] offset The offset from dst.
  * @note This implicitly uses RAX as the original value to compare against and stores the original value in [destination
  * + offset] into RAX.
  */
