@@ -55,18 +55,23 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR 
 else()
     if(PLATFORM_WINDOWS)
         set(PLATFORM_EXECUTABLE_EXTENSION ".exe")
+        set(PLUGIN_PATH ${CMAKE_BINARY_DIR}/bin/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:RelWithDebInfo>:RelWithDebInfo>/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION})
     else()
         set(PLATFORM_EXECUTABLE_EXTENSION "")
+        set(PLUGIN_PATH ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION})
     endif()
-    set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --jit)
-    set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/ubpf_plugin${PLATFORM_EXECUTABLE_EXTENSION} --plugin_options --interpret)
+    set(PLUGIN_JIT --plugin_path ${PLUGIN_PATH} --plugin_options --jit)
+    set(PLUGIN_INTERPRET --plugin_path ${PLUGIN_PATH} --plugin_options --interpret)
 endif()
 
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
 list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
-# TODO: remove this once we have a proper implementation of interlocked operations
-# and support for calling local functions.
-list(APPEND TESTS_EXPECTED_TO_FAIL "lock")
+
+# Interlocked operations are not supported on ARM64 or MacOS
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 OR CMAKE_SYSTEM_NAME STREQUAL Darwin)
+    # All files that have lock in the name are expected to fail
+    list(APPEND TESTS_EXPECTED_TO_FAIL_JIT "lock")
+endif()
 
 foreach(file ${files})
     unset(EXPECT_FAILURE)
@@ -78,12 +83,33 @@ foreach(file ${files})
             endif()
         endif()
     endforeach()
+
+    unset(EXPECT_FAILURE_JIT)
+    foreach(to_fail ${TESTS_EXPECTED_TO_FAIL_JIT})
+        if(NOT EXPECT_FAILURE_JIT)
+            string(REGEX MATCH "${to_fail}" EXPECT_FAILURE_JIT "${file}")
+            if(EXPECT_FAILURE_JIT)
+                message(STATUS "Expecting ${file} test to fail.")
+            endif()
+        endif()
+    endforeach()
+
+    unset(EXPECT_FAILURE_INTERPRET)
+    foreach(to_fail ${TESTS_EXPECTED_TO_FAIL_INTERPRET})
+        if(NOT EXPECT_FAILURE_INTERPRET)
+            string(REGEX MATCH "${to_fail}" EXPECT_FAILURE_INTERPRET "${file}")
+            if(EXPECT_FAILURE_INTERPRET)
+                message(STATUS "Expecting ${file} test to fail.")
+            endif()
+        endif()
+    endforeach()
+
     add_test(
         NAME ${file}-JIT
         COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT}
     )
 
-    if(EXPECT_FAILURE)
+    if(EXPECT_FAILURE OR EXPECT_FAILURE_JIT)
         set_tests_properties(${file}-JIT PROPERTIES WILL_FAIL TRUE)
     endif()
 
@@ -92,7 +118,7 @@ foreach(file ${files})
         COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_INTERPRET}
     )
 
-    if(EXPECT_FAILURE)
+    if(EXPECT_FAILURE OR EXPECT_FAILURE_INTERPRET)
         set_tests_properties(${file}-Interpreter PROPERTIES WILL_FAIL TRUE)
     endif()
 

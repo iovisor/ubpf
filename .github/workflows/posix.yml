@@ -61,7 +61,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+      uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
       with:
         egress-policy: audit
 
@@ -71,7 +71,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@23acc5c183826b7a8a97bce3cecc52db901f8251
+      uses: github/codeql-action/init@4dd16135b69a43b6c8efb853346f8437d92d3c93
       with:
         languages: 'cpp'
 
@@ -300,4 +300,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@23acc5c183826b7a8a97bce3cecc52db901f8251
+      uses: github/codeql-action/analyze@4dd16135b69a43b6c8efb853346f8437d92d3c93

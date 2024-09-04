@@ -15,35 +15,27 @@ extern "C"
 #include "ubpf_custom_test_support.h"
 
 uint64_t
-external_dispatcher(uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, unsigned int idx, void* cookie)
+simple_helper(uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, void* cookie)
 {
     UNREFERENCED_PARAMETER(p0);
     UNREFERENCED_PARAMETER(p1);
     UNREFERENCED_PARAMETER(p2);
     UNREFERENCED_PARAMETER(p3);
     UNREFERENCED_PARAMETER(p4);
-    UNREFERENCED_PARAMETER(idx);
     uint64_t* ccookie = (uint64_t*)cookie;
     return *ccookie;
 }
 
-bool
-external_dispatcher_validater(unsigned int idx, const struct ubpf_vm* cookie)
-{
-    UNREFERENCED_PARAMETER(idx);
-    UNREFERENCED_PARAMETER(cookie);
-    return true;
-}
-
-int main(int argc, char **argv)
+int
+main(int argc, char** argv)
 {
     std::string program_string{};
     std::string error{};
     ubpf_jit_fn jit_fn;
     uint64_t memory{0x123456789};
 
-    // The test program invokes an external function (which is invoked via the registered
-    // external helper dispatcher). The result of that external function is given as the
+    // The test program invokes an external function at index 1 (which is invoked via the
+    // default external helper dispatcher). The result of that external function is given as the
     // result of the eBPF's program execution. Therefore, ...
     if (!get_program_string(argc, argv, program_string, error)) {
         std::cerr << error << std::endl;
@@ -54,9 +46,9 @@ int main(int argc, char **argv)
     if (!ubpf_setup_custom_test(
             vm,
             program_string,
-            [](ubpf_vm_up& vm, std::string &error) {
-                if (ubpf_register_external_dispatcher(vm.get(), external_dispatcher, external_dispatcher_validater) < 0) {
-                    error = "Failed to register external dispatcher.";
+            [](ubpf_vm_up& vm, std::string& error) {
+                if (ubpf_register(vm.get(), 1, "simple helper", as_external_function_t((void*)simple_helper)) < 0) {
+                    error = "Failed to register external helper function at index 1.";
                     return false;
                 }
                 return true;
@@ -69,7 +61,21 @@ int main(int argc, char **argv)
 
     [[maybe_unused]] auto result = jit_fn(&memory, sizeof(uint64_t));
 
-    // ... because of the semantics of external_dispatcher, the result of the eBPF
+    // ... because of the semantics of external helper functions, the result of the eBPF
     // program execution should point to the same place to which &memory points.
-    return !(result == memory);
+    if (result != memory) {
+        std::cerr << "result and memory are not equal (JIT version).\n";
+        return 1;
+    }
+
+    if (ubpf_exec(vm.get(), &memory, sizeof(uint64_t), &result)) {
+        std::cerr << "There was an error interpreting the test program.\n";
+        return 1;
+    }
+
+    if (result != memory) {
+        std::cerr << "result and memory are not equal (interpreter version).\n";
+        return 1;
+    }
+    return 0;
 }

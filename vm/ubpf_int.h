@@ -29,7 +29,8 @@
 #define UNUSED_PARAMETER(x) ((void)x)
 
 struct ebpf_inst;
-typedef uint64_t (*ext_func)(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4);
+typedef uint64_t (*extended_external_helper_t)(
+    uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, void* cookie);
 
 typedef enum
 {
@@ -63,7 +64,7 @@ struct ubpf_vm
     size_t jitter_buffer_size;
     struct ubpf_jit_result jitted_result;
 
-    ext_func* ext_funcs;
+    extended_external_helper_t* ext_funcs;
     bool* int_funcs;
     const char** ext_func_names;
 
@@ -85,7 +86,12 @@ struct ubpf_vm
         size_t size,
         uint32_t offset);
     bool (*jit_update_helper)(
-        struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset);
+        struct ubpf_vm* vm,
+        extended_external_helper_t new_helper,
+        unsigned int idx,
+        uint8_t* buffer,
+        size_t size,
+        uint32_t offset);
     int unwind_stack_extension_index;
     uint64_t pointer_secret;
     ubpf_data_relocation data_relocation_function;
@@ -115,7 +121,12 @@ ubpf_jit_update_dispatcher_arm64(
     struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset);
 bool
 ubpf_jit_update_helper_arm64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset);
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset);
 
 // x86_64
 struct ubpf_jit_result
@@ -125,7 +136,12 @@ ubpf_jit_update_dispatcher_x86_64(
     struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset);
 bool
 ubpf_jit_update_helper_x86_64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset);
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset);
 
 // uhm, hello?
 struct ubpf_jit_result
@@ -135,7 +151,12 @@ ubpf_jit_update_dispatcher_null(
     struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset);
 bool
 ubpf_jit_update_helper_null(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset);
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset);
 
 char*
 ubpf_error(const char* fmt, ...);
@@ -186,5 +207,38 @@ ubpf_instruction_has_fallthrough(const struct ebpf_inst inst)
     // The only instruction that does not have a fallthrough is the EXIT.
     return inst.opcode != EBPF_OP_EXIT;
 }
+
+// If either GNU C or Clang
+#if defined(__GNUC__) || defined(__clang__)
+#define UBPF_ATOMIC_ADD_FETCH(ptr, val) __sync_fetch_and_add(ptr, val)
+#define UBPF_ATOMIC_OR_FETCH(ptr, val) __sync_fetch_and_or(ptr, val)
+#define UBPF_ATOMIC_AND_FETCH(ptr, val) __sync_fetch_and_and(ptr, val)
+#define UBPF_ATOMIC_XOR_FETCH(ptr, val) __sync_fetch_and_xor(ptr, val)
+#define UBPF_ATOMIC_EXCHANGE(ptr, val) __sync_lock_test_and_set(ptr, val);
+#define UBPF_ATOMIC_COMPARE_EXCHANGE(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
+#define UBPF_ATOMIC_ADD_FETCH32(ptr, val) __sync_fetch_and_add(ptr, val)
+#define UBPF_ATOMIC_OR_FETCH32(ptr, val) __sync_fetch_and_or(ptr, val)
+#define UBPF_ATOMIC_AND_FETCH32(ptr, val) __sync_fetch_and_and(ptr, val)
+#define UBPF_ATOMIC_XOR_FETCH32(ptr, val) __sync_fetch_and_xor(ptr, val)
+#define UBPF_ATOMIC_EXCHANGE32(ptr, val) __sync_lock_test_and_set(ptr, val);
+#define UBPF_ATOMIC_COMPARE_EXCHANGE32(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
+// If Microsoft Visual C++
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#define UBPF_ATOMIC_ADD_FETCH(ptr, val) _InterlockedExchangeAdd64((volatile int64_t*)ptr, val)
+#define UBPF_ATOMIC_OR_FETCH(ptr, val) _InterlockedOr64((volatile int64_t*)ptr, val)
+#define UBPF_ATOMIC_AND_FETCH(ptr, val) _InterlockedAnd64((volatile int64_t*)ptr, val)
+#define UBPF_ATOMIC_XOR_FETCH(ptr, val) _InterlockedXor64((volatile int64_t*)ptr, val)
+#define UBPF_ATOMIC_EXCHANGE(ptr, val) _InterlockedExchange64((volatile int64_t*)ptr, val)
+#define UBPF_ATOMIC_COMPARE_EXCHANGE(ptr, oldval, newval) \
+    _InterlockedCompareExchange64((volatile int64_t*)ptr, oldval, newval)
+#define UBPF_ATOMIC_ADD_FETCH32(ptr, val) _InterlockedExchangeAdd((volatile long*)ptr, val)
+#define UBPF_ATOMIC_OR_FETCH32(ptr, val) _InterlockedOr((volatile long*)ptr, val)
+#define UBPF_ATOMIC_AND_FETCH32(ptr, val) _InterlockedAnd((volatile long*)ptr, val)
+#define UBPF_ATOMIC_XOR_FETCH32(ptr, val) _InterlockedXor((volatile long*)ptr, val)
+#define UBPF_ATOMIC_EXCHANGE32(ptr, val) _InterlockedExchange((volatile long*)ptr, val)
+#define UBPF_ATOMIC_COMPARE_EXCHANGE32(ptr, oldval, newval) \
+    _InterlockedCompareExchange((volatile long*)ptr, oldval, newval)
+#endif
 
 #endif

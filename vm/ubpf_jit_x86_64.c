@@ -149,7 +149,7 @@ emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
     emit_pop(state, map_register(BPF_REG_7));
     emit_pop(state, map_register(BPF_REG_6));
 
-    // Because the top of the host tack holds the stack usage of the currently-executing
+    // Because the top of the host stack holds the stack usage of the currently-executing
     // function, we adjust the eBPF base pointer back up by that value!
     // add r15, [rsp]
     emit1(state, 0x4c);
@@ -820,6 +820,93 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_load_imm(state, dst, imm);
             break;
         }
+        case EBPF_OP_ATOMIC_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                if (fetch) {
+                    emit_atomic_fetch_add64(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_add64(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_OR:
+                if (fetch) {
+                    emit_atomic_fetch_or64(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_or64(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_AND:
+                if (fetch) {
+                    emit_atomic_fetch_and64(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_and64(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_XOR:
+                if (fetch) {
+                    emit_atomic_fetch_xor64(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_xor64(state, src, dst, inst.offset);
+                }
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_exchange64(state, src, dst, inst.offset);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_compare_exchange64(state, src, dst, inst.offset);
+                break;
+            default:
+                *errmsg = ubpf_error("Error: unknown atomic opcode %d at PC %d\n", inst.imm, i);
+                return -1;
+            }
+        } break;
+
+        case EBPF_OP_ATOMIC32_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                if (fetch) {
+                    emit_atomic_fetch_add32(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_add32(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_OR:
+                if (fetch) {
+                    emit_atomic_fetch_or32(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_or32(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_AND:
+                if (fetch) {
+                    emit_atomic_fetch_and32(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_and32(state, src, dst, inst.offset);
+                }
+                break;
+            case EBPF_ALU_OP_XOR:
+                if (fetch) {
+                    emit_atomic_fetch_xor32(state, src, dst, inst.offset);
+                } else {
+                    emit_atomic_xor32(state, src, dst, inst.offset);
+                }
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_exchange32(state, src, dst, inst.offset);
+                emit_truncate_u32(state, src);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_compare_exchange32(state, src, dst, inst.offset);
+                emit_truncate_u32(state, map_register(0));
+                break;
+            default:
+                *errmsg = ubpf_error("Error: unknown atomic opcode %d at PC %d\n", inst.imm, i);
+                return -1;
+            }
+        } break;
 
         default:
             state->jit_status = UnknownInstruction;
@@ -1170,7 +1257,12 @@ ubpf_jit_update_dispatcher_x86_64(
 
 bool
 ubpf_jit_update_helper_x86_64(
-    struct ubpf_vm* vm, ext_func new_helper, unsigned int idx, uint8_t* buffer, size_t size, uint32_t offset)
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset)
 {
     UNUSED_PARAMETER(vm);
     uint64_t jit_upper_bound = (uint64_t)buffer + size;
