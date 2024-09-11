@@ -167,6 +167,28 @@ def disassemble_one(data, offset):
         elif code == 0x00:
             # Second instruction of lddw
             return None
+        # Handle atomic operations
+        elif cls == BPF_CLASS_STX and mode == 6:
+            fetch = code & 0x1
+            opcode = imm & 0xf0
+            # Mask out the fetch bit
+            imm &= 0xf0
+            fetch_string = fetch and " fetch" or " "
+            size_string = size == 0 and "32" or ""
+            if opcode == 0:
+                return "lock%s add%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
+            elif opcode == 0x40:
+                return "lock%s or%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
+            elif opcode == 0x50:
+                return "lock%s and%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
+            elif opcode == 0xa0:
+                return "lock%s xor%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
+            elif opcode == 0xe0:
+                return "lock xchg%s [%s + %s], %s" % (size_string, R(dst_reg), I(off), R(src_reg))
+            elif opcode == 0xf0:
+                return "lock cmpxchg%s [%s + %s], %s" % (size_string, R(dst_reg), I(off), R(src_reg))
+            else:
+                return "opcode %d not supported" % opcode
         elif cls == BPF_CLASS_LDX:
             return "%s %s, %s" % (class_name + size_name, R(dst_reg), M(R(src_reg), off))
         elif cls == BPF_CLASS_ST:
