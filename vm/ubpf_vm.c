@@ -1300,7 +1300,8 @@ ubpf_exec_ex(
 
         case EBPF_OP_ATOMIC32_STORE: {
             BOUNDS_CHECK_STORE(4);
-            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            bool fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) | (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) |
+                         (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
             volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
@@ -1595,8 +1596,16 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             case EBPF_ALU_OP_XOR:
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                if (!(inst.imm & EBPF_ATOMIC_OP_FETCH)) {
+                    *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                    return false;
+                }
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                if (!(inst.imm & EBPF_ATOMIC_OP_FETCH)) {
+                    *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                    return false;
+                }
                 break;
             default:
                 *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
@@ -1617,8 +1626,16 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             case EBPF_ALU_OP_XOR:
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                if (!(inst.imm & EBPF_ATOMIC_OP_FETCH)) {
+                    *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                    return false;
+                }
                 break;
-            case (EBPF_ATOMIC_OP_CMPXCHG  & ~EBPF_ATOMIC_OP_FETCH):
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                if (!(inst.imm & EBPF_ATOMIC_OP_FETCH)) {
+                    *errmsg = ubpf_error("invalid atomic operation at PC %d", i);
+                    return false;
+                }
                 break;
             default:
                 *errmsg = ubpf_error("invalid atomic operation with opcode 0x%02x at PC %d", inst.opcode, i);
