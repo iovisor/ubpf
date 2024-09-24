@@ -70,10 +70,10 @@ BPF_CLASS_LD = 0
 BPF_CLASS_LDX = 1
 BPF_CLASS_ST = 2
 BPF_CLASS_STX = 3
-BPF_CLASS_ALU = 4
+BPF_CLASS_ALU32 = 4
 BPF_CLASS_JMP = 5
 BPF_CLASS_JMP32 = 6
-BPF_CLASS_ALU64 = 7
+BPF_CLASS_ALU = 7
 
 BPF_ALU_NEG = 8
 BPF_ALU_END = 13
@@ -96,116 +96,159 @@ def O(off):
     else:
         return "-" + str(65536-off)
 
-def disassemble_one(data, offset):
+def disassemble_one(data, offset, verbose = False):
     code, regs, off, imm = Inst.unpack_from(data, offset)
     dst_reg = regs & 0xf
     src_reg = (regs >> 4) & 0xf
-    cls = code & 7
+    clz = code & 7
 
-    class_name = CLASSES.get(cls)
+    increment = 8
 
-    if cls == BPF_CLASS_ALU or cls == BPF_CLASS_ALU64:
+    class Field(object):
+        def __init__(self, name, value):
+            self.name = name
+            self.used = False
+            self.value = value
+
+        def set_used(self):
+            self.used = True
+
+        def set_unused(self):
+            self.used = False
+
+    fields = {}
+    fields['off'] = Field("offset", off)
+    fields['dst_reg'] = Field("destination register", dst_reg)
+    fields['src_reg'] = Field("source register", src_reg)
+    fields['imm'] = Field("immediate", imm)
+
+    disassembled = ""
+
+    class_name = CLASSES.get(clz)
+
+    if clz == BPF_CLASS_ALU or clz == BPF_CLASS_ALU32:
         source = (code >> 3) & 1
         opcode = (code >> 4) & 0xf
         opcode_name = ALU_OPCODES.get(opcode)
-        if cls == BPF_CLASS_ALU:
+        if clz == BPF_CLASS_ALU32:
             opcode_name += "32"
 
         if opcode == BPF_ALU_END:
             opcode_name = source == 1 and "be" or "le"
-            return "%s%d %s" % (opcode_name, imm, R(dst_reg))
+            fields["imm"].used = True
+            fields["dst_reg"].used = True
+            disassembled = f'{opcode_name}{imm} {R(dst_reg)}'
         elif opcode == BPF_ALU_NEG:
-            return "%s %s" % (opcode_name, R(dst_reg))
+            fields["dst_reg"].used = True
+            disassembled = f'{opcode_name} {R(dst_reg)}'
         elif source == 0:
-            return "%s %s, %s" % (opcode_name, R(dst_reg), I(imm))
+            fields["dst_reg"].used = True
+            fields["imm"].used = True
+            disassembled = f'{opcode_name} {R(dst_reg)}, {I(imm)}'
         else:
-            return "%s %s, %s" % (opcode_name, R(dst_reg), R(src_reg))
-    elif cls == BPF_CLASS_JMP:
+            fields["dst_reg"].used = True
+            fields["src_reg"].used = True
+            disassembled = f'{opcode_name} {R(dst_reg)}, {R(src_reg)}'
+    elif clz == BPF_CLASS_JMP or clz == BPF_CLASS_JMP32:
         source = (code >> 3) & 1
         opcode = (code >> 4) & 0xf
         opcode_name = JMP_OPCODES.get(opcode)
+        if clz == BPF_CLASS_JMP32:
+            opcode_name += "32"
 
         if opcode_name == "exit":
-            return opcode_name
+            disassembled = f'{opcode_name}'
         elif opcode_name == "call":
             if src_reg == 1:
                 opcode_name += " local"
-            return "%s %s" % (opcode_name, I(imm))
+            fields["imm"].used = True
+            disassembled = f'{opcode_name} {I(imm)}'
         elif opcode_name == "ja":
-            return "%s %s" % (opcode_name, O(off))
+            fields["off"].used = True
+            disassembled = f'{opcode_name} {O(off)}'
         elif source == 0:
-            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), I(imm), O(off))
+            fields["dst_reg"].used = True
+            fields["imm"].used = True
+            fields["off"].used = True
+            disassembled = f'{opcode_name} {R(dst_reg)}, {I(imm)}, {O(off)}'
         else:
-            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), R(src_reg), O(off))
-    elif cls == BPF_CLASS_JMP32:
-        source = (code >> 3) & 1
-        opcode = (code >> 4) & 0xf
-        opcode_name = JMP_OPCODES.get(opcode) + "32"
-
-        if opcode_name == "exit":
-            return opcode_name
-        elif opcode_name == "call":
-            if src_reg == 1:
-                opcode_name += " local"
-            return "%s %s" % (opcode_name, I(imm))
-        elif opcode_name == "ja":
-            return "%s %s" % (opcode_name, O(off))
-        elif source == 0:
-            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), I(imm), O(off))
-        else:
-            return "%s %s, %s, %s" % (opcode_name, R(dst_reg), R(src_reg), O(off))
-    elif cls == BPF_CLASS_LD or cls == BPF_CLASS_LDX or cls == BPF_CLASS_ST or cls == BPF_CLASS_STX:
+            fields["dst_reg"].used = True
+            fields["src_reg"].used = True
+            fields["off"].used = True
+            disassembled = f'{opcode_name} {R(dst_reg)}, {R(src_reg)}, {O(off)}'
+    elif clz == BPF_CLASS_LD:
         size = (code >> 3) & 3
         mode = (code >> 5) & 7
         mode_name = MODES.get(mode, str(mode))
-        # TODO use different syntax for non-MEM instructions
         size_name = SIZES.get(size, str(size))
-        if code == 0x18: # lddw
+        if clz == BPF_CLASS_LD and size == 0x3 and src_reg == 0:
+            # Make sure that we skip the next instruction because we use it here!
+            increment += 8
             _, _, _, imm2 = Inst.unpack_from(data, offset+8)
             imm = (imm2 << 32) | imm
-            return "%s %s, %s" % (class_name + size_name, R(dst_reg), I(imm))
-        elif code == 0x00:
-            # Second instruction of lddw
-            return None
-        # Handle atomic operations
-        elif cls == BPF_CLASS_STX and mode == 6:
-            fetch = code & 0x1
-            opcode = imm & 0xf0
-            # Mask out the fetch bit
-            imm &= 0xf0
-            fetch_string = fetch and " fetch" or " "
-            size_string = size == 0 and "32" or ""
-            if opcode == 0:
-                return "lock%s add%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
-            elif opcode == 0x40:
-                return "lock%s or%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
-            elif opcode == 0x50:
-                return "lock%s and%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
-            elif opcode == 0xa0:
-                return "lock%s xor%s [%s + %s], %s" % (fetch_string, size_string, R(dst_reg), I(off), R(src_reg))
-            elif opcode == 0xe0:
-                return "lock xchg%s [%s + %s], %s" % (size_string, R(dst_reg), I(off), R(src_reg))
-            elif opcode == 0xf0:
-                return "lock cmpxchg%s [%s + %s], %s" % (size_string, R(dst_reg), I(off), R(src_reg))
-            else:
-                return "opcode %d not supported" % opcode
-        elif cls == BPF_CLASS_LDX:
-            return "%s %s, %s" % (class_name + size_name, R(dst_reg), M(R(src_reg), off))
-        elif cls == BPF_CLASS_ST:
-            return "%s %s, %s" % (class_name + size_name, M(R(dst_reg), off), I(imm))
-        elif cls == BPF_CLASS_STX:
-            return "%s %s, %s" % (class_name + size_name, M(R(dst_reg), off), R(src_reg))
-        else:
-            return "unknown mem instruction %#x" % code
-    else:
-        return "unknown instruction %#x" % code
 
-def disassemble(data):
+            fields["dst_reg"].used = True
+            fields["imm"].used = True
+            disassembled = f'{class_name}{size_name} {R(dst_reg)}, {I(imm)}'
+        else:
+            result = f"unknown/unsupported special LOAD instruction {code=:x}"
+
+    elif clz == BPF_CLASS_LD or clz == BPF_CLASS_LDX or clz == BPF_CLASS_ST or clz == BPF_CLASS_STX:
+        size = (code >> 3) & 3
+        mode = (code >> 5) & 7
+        mode_name = MODES.get(mode, str(mode))
+        size_name = SIZES.get(size, str(size))
+        if clz == BPF_CLASS_LDX:
+            fields["dst_reg"].used = True
+            fields["src_reg"].used = True
+            fields["off"].used = True
+            disassembled = f'{class_name}{size_name} {R(dst_reg)}, {M(R(src_reg), off)}'
+        elif clz == BPF_CLASS_ST:
+            fields["dst_reg"].used = True
+            fields["off"].used = True
+            fields["imm"].used = True
+            disassembled = f'{class_name}{size_name} {M(R(dst_reg), off)}, {I(imm)}'
+        elif clz == BPF_CLASS_STX:
+            fields["dst_reg"].used = True
+            fields["src_reg"].used = True
+            fields["off"].used = True
+            disassembled = f'{class_name}{size_name} {M(R(dst_reg), off)}, {R(src_reg)}'
+        else:
+            disassembled = f'unknown/unsupported mem instruction {code=:x}'
+    else:
+        disassembled = f'unknown/unsupported instruction {code=:x}'
+
+    warnings = ""
+    for k in fields.keys():
+        if not fields[k].used and fields[k].value != 0:
+            if len(warnings) != 0:
+                warnings += "; "
+            warnings += f"The {fields[k].name} field of the instruction has a value but it is not used by the instruction"
+
+    if len(warnings) != 0:
+        disassembled += f"\n\tWarnings: {warnings}."
+        disassembled += "\n"
+
+    if verbose:
+        disassembled += "\nDetails:\n"
+        disassembled += f"\tClass: 0x{clz:x}"
+        disassembled += "\n"
+        disassembled += f"\tRegs: 0x{regs:x}"
+        disassembled += "\n"
+        disassembled += f"\tOffset: 0x{off:x}"
+        disassembled += "\n"
+        disassembled += f"\tImmediate: 0x{imm:x}"
+        disassembled += "\n"
+        disassembled += "-----------------"
+
+    return disassembled, increment
+
+def disassemble(data, verbose = False):
     output = io()
     offset = 0
     while offset < len(data):
-        s = disassemble_one(data, offset)
+        (s, increment) = disassemble_one(data, offset, verbose)
         if s:
             output.write(s + "\n")
-        offset += 8
+        offset += increment
     return output.getvalue()
