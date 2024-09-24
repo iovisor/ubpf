@@ -186,7 +186,6 @@ def disassemble_one(data, offset, verbose = False):
             increment += 8
             _, _, _, imm2 = Inst.unpack_from(data, offset+8)
             imm = (imm2 << 32) | imm
-
             fields["dst_reg"].used = True
             fields["imm"].used = True
             disassembled = f'{class_name}{size_name} {R(dst_reg)}, {I(imm)}'
