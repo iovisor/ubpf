@@ -15,21 +15,37 @@ updates:
     schedule:
       interval: "weekly"
       day: "saturday"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "saturday"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "saturday"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "saturday"
+    groups:
+      actions:
+        patterns:
+          - "*"
