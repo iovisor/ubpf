@@ -835,8 +835,20 @@ emit_atomic_fetch_alu(struct jit_state* state, int is_64bit, int opcode, int src
     // x64 lacks a 64-bit atomic version of some alu-fetch instruction, so we emulate it with a compare-exchange.
     // This is not a problem because the compare-exchange instruction is a full memory barrier.
 
-    // Compare exchange overwrites RAX, so we need to save it.
-    emit_push(state, RAX);
+    // The atomic compare exchange instruction overwrites RAX. If RAX is the source register, then save the original
+    // value in R10 or R11, depending on which one is not the destination.
+    int actual_src = src == RAX ? (dst == R10 ? R11 : R10) : src;
+
+    if (src != RAX) {
+        // Compare exchange overwrites RAX, so we need to save it.
+        emit_push(state, RAX);
+    } else {
+        // Save the original value in actual_src (r10 or r11).
+        emit_push(state, actual_src);
+
+        // Move src into actual_src.
+        emit_mov(state, src, actual_src);
+    }
 
     // Load the original value at the destination into RAX.
     emit_load(state, is_64bit ? S64 : S32, dst, RAX, offset);
@@ -844,24 +856,31 @@ emit_atomic_fetch_alu(struct jit_state* state, int is_64bit, int opcode, int src
     // Loop until we successfully update the value.
     uint32_t loop_start = state->offset;
 
-    // Copy RAX to RCX
+    // Copy RAX to RCX (required to preserve the original value of RAX for the comparison).
     emit_mov(state, RAX, RCX);
 
     // Perform the ALU operation into RCX.
-    emit_alu64(state, opcode, src, RCX);
+    emit_alu64(state, opcode, actual_src, RCX);
 
     // Attempt to compare-exchange the value.
+    // Atomic compare exchange compares the value at [dst + offset] with RAX and if they are equal, it stores RCX into
+    // [dst + offset]. It always store the original value at [dst + offset] into RAX.
     emit_atomic_cmp_exch_with_rax(state, is_64bit, RCX, dst, offset);
 
     // If the compare-exchange failed, loop.
     emit1(state, 0x75);
     emit1(state, loop_start - state->offset - 1);
 
-    // Move RAX into the src register
-    emit_mov(state, RAX, src);
+    if (src != RAX) {
+        // Move RAX into the src register.
+        emit_mov(state, RAX, src);
 
-    // Restore RAX
-    emit_pop(state, RAX);
+        // Restore RAX
+        emit_pop(state, RAX);
+    } else {
+        // Restore the original value of actual_src.
+        emit_pop(state, actual_src);
+    }
 }
 
 static inline void
@@ -912,7 +931,6 @@ emit_atomic_xor32(struct jit_state* state, int src, int dst, int offset)
     emit_atomic_alu(state, X64_ALU_XOR, IS_32BIT, src, dst, offset);
 }
 
-
 static inline void
 emit_atomic_compare_exchange64(struct jit_state* state, int src, int dst, int offset)
 {
@@ -924,7 +942,6 @@ emit_atomic_compare_exchange32(struct jit_state* state, int src, int dst, int of
 {
     emit_atomic_cmp_exch_with_rax(state, IS_32BIT, src, dst, offset);
 }
-
 
 static inline void
 emit_atomic_exchange64(struct jit_state* state, int src, int dst, int offset)
@@ -1983,8 +2000,6 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     return 0;
 }
-
-
 
 static bool
 resolve_patchable_relatives(struct jit_state* state)
