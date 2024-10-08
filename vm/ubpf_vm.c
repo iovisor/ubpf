@@ -1300,7 +1300,7 @@ ubpf_exec_ex(
 
         case EBPF_OP_ATOMIC32_STORE: {
             BOUNDS_CHECK_STORE(4);
-            bool fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) | (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) |
+            bool fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) || (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) ||
                          (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
