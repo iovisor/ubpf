@@ -677,6 +677,11 @@ ubpf_exec_ex(
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
+        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
+        if (vm->debug_function) {
+            vm->debug_function(vm->debug_function_context, cur_pc, reg, stack_start, stack_length);
+        }
+
         if (!ubpf_validate_shadow_register(vm, &shadow_registers, inst)) {
             return_value = -1;
             goto cleanup;
@@ -1891,5 +1896,17 @@ ubpf_register_stack_usage_calculator(struct ubpf_vm* vm, stack_usage_calculator_
 {
     vm->stack_usage_calculator_cookie = cookie;
     vm->stack_usage_calculator = calculator;
+    return 0;
+}
+int
+ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_function)
+{
+    if ((vm->debug_function != NULL && debug_function != NULL) ||
+        (vm->debug_function == NULL && debug_function == NULL)) {
+        return -1;
+    }
+
+    vm->debug_function = debug_function;
+    vm->debug_function_context = context;
     return 0;
 }
