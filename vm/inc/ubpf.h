@@ -43,7 +43,19 @@ extern "C"
  * @brief Default stack size for the eBPF program. Must be divisible by 16.
  */
 #if !defined(UBPF_EBPF_STACK_SIZE)
-#define UBPF_EBPF_STACK_SIZE 512
+#define UBPF_EBPF_STACK_SIZE (8 * 1024)
+#endif
+
+/**
+ * @brief Default stack size for each local eBPF function.
+ *
+ * The size of the stack for each local eBPF function multiplied
+ * by the max call depth (\ref UBPF_EBPF_STACK_SIZE) must be
+ * less than or equal to the total stack size for the eBPF VM
+ * (\ref UBPF_EBPF_STACK_SIZE).
+ */
+#if !defined(UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE)
+#define UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE 256
 #endif
 
 #define UBPF_EBPF_NONVOLATILE_SIZE (sizeof(uint64_t) * 5)
