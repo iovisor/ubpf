@@ -27,6 +27,7 @@
 #include "ebpf.h"
 
 #define UNUSED_PARAMETER(x) ((void)x)
+#define UNUSED_LOCAL(x) ((void)x)
 
 struct ebpf_inst;
 typedef uint64_t (*extended_external_helper_t)(
@@ -47,9 +48,16 @@ struct ubpf_jit_result
     char* errmsg;
 };
 
+typedef enum
+{
+    UBPF_STACK_USAGE_UNKNOWN = 0,
+    UBPF_STACK_USAGE_CUSTOM,
+    UBPF_STACK_USAGE_DEFAULT,
+} ubpf_stack_usage_calculation_status_t;
+
 struct ubpf_stack_usage
 {
-    bool stack_usage_calculated;
+    ubpf_stack_usage_calculation_status_t stack_usage_calculated;
     uint16_t stack_usage;
 };
 
