@@ -65,7 +65,7 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       with:
         submodules: 'recursive'
 
@@ -80,7 +80,7 @@ jobs:
       run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@2cdf405574d6ef1f33a1d12acccd3ae82f47b3f2 # v4.1.0
+      uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4.1.1
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -173,7 +173,7 @@ jobs:
 
     - name: Upload scan-build report
       if: inputs.scan_build == true
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
@@ -205,7 +205,7 @@ jobs:
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
-      uses: coverallsapp/github-action@643bc377ffa44ace6394b2b5d0d3950076de9f63 # v2.3.0
+      uses: coverallsapp/github-action@1134c89e4bf10443bf8f0ec69640b667cfd91041 # v2.3.1
       with:
         github-token: ${{ secrets.github_token }}
         flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
@@ -268,7 +268,7 @@ jobs:
 
     - name: Upload the DEB package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: linux_deb_package
         path: ${{ steps.package_locations.outputs.REL_DEB_PACKAGE_PATH }}
@@ -276,7 +276,7 @@ jobs:
 
     - name: Upload the RPM package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: linux_rpm_package
         path: ${{ steps.package_locations.outputs.REL_RPM_PACKAGE_PATH }}
@@ -284,7 +284,7 @@ jobs:
 
     - name: Upload the Linux TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: linux_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -292,7 +292,7 @@ jobs:
 
     - name: Upload the macOS TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'macos-latest'
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: macos_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
