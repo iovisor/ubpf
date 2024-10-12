@@ -99,6 +99,8 @@ struct ubpf_vm
     ubpf_bounds_check bounds_check_function;
     void* bounds_check_user_data;
     int instruction_limit;
+    void* debug_function_context; ///< Context pointer that is passed to the debug function.
+    ubpf_debug_fn debug_function; ///< Debug function that is called before each instruction.
 #ifdef DEBUG
     uint64_t* regs;
 #endif

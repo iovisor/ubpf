@@ -562,6 +562,34 @@ extern "C"
      */
     bool
     ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable);
+
+    /**
+     * @brief A function to invoke before each instruction.
+     *
+     * @param[in, out] context Context passed in to ubpf_register_debug_fn.
+     * @param[in] program_counter Current instruction pointer.
+     * @param[in] registers Array of 11 registers representing the VM state.
+     * @param[in] stack_start Pointer to the beginning of the stack.
+     * @param[in] stack_length Size of the stack in bytes.
+     */
+    typedef void (*ubpf_debug_fn)(
+        void* context,
+        int program_counter,
+        const uint64_t registers[16],
+        const uint8_t* stack_start,
+        size_t stack_length);
+
+    /**
+     * @brief Add option to invoke a debug function before each instruction.
+     * Note: This only applies to the interpreter and not the JIT.
+     *
+     * @param[in] vm VM to add the option to.
+     * @param[in] debug_fn Function to invoke before each instruction. Pass NULL to remove the function.
+     * @return 0 on success.
+     * @return -1 on failure.
+     */
+    int
+    ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_function);
 #ifdef __cplusplus
 }
 #endif
