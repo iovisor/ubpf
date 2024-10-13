@@ -571,13 +571,18 @@ extern "C"
      * @param[in] registers Array of 11 registers representing the VM state.
      * @param[in] stack_start Pointer to the beginning of the stack.
      * @param[in] stack_length Size of the stack in bytes.
+     * @param[in] register_mask Bitmask of registers that have been modified since the start of the program.
+     * @param[in] stack_mask_start Bitmask of the stack that has been modified since the start of the program.
+     *  Each set bit represents 1 byte of the stack that has been modified.
      */
     typedef void (*ubpf_debug_fn)(
         void* context,
         int program_counter,
         const uint64_t registers[16],
         const uint8_t* stack_start,
-        size_t stack_length);
+        size_t stack_length,
+        uint64_t register_mask,
+        const uint8_t* stack_mask_start);
 
     /**
      * @brief Add option to invoke a debug function before each instruction.

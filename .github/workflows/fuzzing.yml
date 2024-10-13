@@ -10,13 +10,14 @@ on:
   schedule: # Run every day at 21:00 UTC
     - cron: '00 21 * * *'
   workflow_dispatch: # Run manually
+  workflow_call:
 
 jobs:
   build:
     strategy:
       matrix:
         platform:
-          - ubuntu-latest
+          - ubuntu-24.04
         arch:
           - x86_64
 
@@ -48,7 +49,7 @@ jobs:
           ccache
 
     - name: Install system dependencies (Linux)
-      if: matrix.platform == 'ubuntu-latest'
+      if: matrix.platform == 'ubuntu-24.04'
       run: |
         sudo apt-get update
 
@@ -60,7 +61,8 @@ jobs:
           libboost-dev \
           libboost-program-options-dev \
           libboost-filesystem-dev \
-          libelf-dev
+          libelf-dev \
+          libyaml-cpp-dev
 
         if [[ "${{ matrix.arch }}" == "arm64" ]] ; then
           sudo apt install -y \
@@ -70,7 +72,7 @@ jobs:
         fi
 
     - name: Build/install libbpf From Source
-      if: matrix.platform == 'ubuntu-latest'
+      if: matrix.platform == 'ubuntu-24.04'
       run: ./.github/scripts/build-libbpf.sh
       shell: bash
 
@@ -92,11 +94,11 @@ jobs:
           -G Ninja \
           -S . \
           -B build \
-          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DUBPF_ENABLE_LIBFUZZER=1 \
-          -DCMAKE_BUILD_TYPE=Debug
+          -DVERIFIER_ENABLE_TESTS=false \
           ${arch_flags}
 
     - name: Build uBPF
@@ -136,6 +138,7 @@ jobs:
         ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300
 
     - name: Merge corpus into fuzz/corpus
+      if: ${{ github.event_name == 'schedule' }}
       run: |
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
         git add fuzz/corpus

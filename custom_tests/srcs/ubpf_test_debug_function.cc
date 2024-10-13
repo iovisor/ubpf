@@ -22,8 +22,10 @@ typedef struct _vm_state {
 } vm_state_t;
 
 void
-debug_callout(void* context, int program_counter, const uint64_t registers[16], const uint8_t* stack_start, size_t stack_length)
+debug_callout(void* context, int program_counter, const uint64_t registers[16], const uint8_t* stack_start, size_t stack_length, uint64_t register_mask, const uint8_t* stack_mask)
 {
+    UNREFERENCED_PARAMETER(register_mask);
+    UNREFERENCED_PARAMETER(stack_mask);
     std::vector<vm_state_t>* vm_states = static_cast<std::vector<vm_state_t>*>(context);
     vm_state_t vm_state{};
 

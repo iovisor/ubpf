@@ -677,14 +677,22 @@ ubpf_exec_ex(
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
-        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
-        if (vm->debug_function) {
-            vm->debug_function(vm->debug_function_context, cur_pc, reg, stack_start, stack_length);
-        }
-
         if (!ubpf_validate_shadow_register(vm, &shadow_registers, inst)) {
             return_value = -1;
             goto cleanup;
+        }
+
+        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
+        if (vm->debug_function) {
+            vm->debug_function(
+                vm->debug_function_context, // The user's context pointer that was passed to ubpf_register_debug_fn.
+                cur_pc, // The current instruction pointer.
+                reg, // The array of 11 registers representing the VM state.
+                stack_start, // Pointer to the beginning of the stack.
+                stack_length, // Size of the stack in bytes.
+                shadow_registers, // Bitmask of registers that have been modified since the start of the program.
+                (uint8_t*)shadow_stack // Bitmask of the stack that has been modified since the start of the program.
+                );
         }
 
         switch (inst.opcode) {
