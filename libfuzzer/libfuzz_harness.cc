@@ -113,8 +113,8 @@ ubpf_get_helper_prototype(int32_t n)
  * function number.
  *
  * @param[in] n The helper function number.
- * @return true The helper function is usable.
- * @return false The helper function is not usable.
+ * @retval true The helper function is usable.
+ * @retval false The helper function is not usable.
  */
 bool
 ubpf_is_helper_usable(int32_t n)
@@ -128,7 +128,7 @@ ubpf_is_helper_usable(int32_t n)
 /**
  * @brief This function is called by the verifier to parse the maps section of the ELF file (if any).
  *
- * @param[in] map_descriptors The map descriptors to populate.
+ * @param[in,out] map_descriptors The map descriptors to populate.
  * @param[in] data The data in the maps section.
  * @param[in] map_record_size The size of each map record.
  * @param[in] map_count The number of maps in the maps section.
@@ -172,7 +172,7 @@ ubpf_resolve_inner_map_references(std::vector<EbpfMapDescriptor>& map_descriptor
  * @brief The function is called by the verifier to get the map descriptor for a given map file descriptor.
  *
  * @param[in] map_fd The map file descriptor.
- * @return EbpfMapDescriptor& The map descriptor.
+ * @return The map descriptor.
  */
 EbpfMapDescriptor&
 ubpf_get_map_descriptor(int map_fd)
@@ -222,8 +222,8 @@ test_helpers_dispatcher(uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint
  *
  * @param[in] idx Helper function index.
  * @param[in] vm The VM instance.
- * @return true The helper function index is valid.
- * @return false The helper function index is invalid.
+ * @retval true The helper function index is valid.
+ * @retval false The helper function index is invalid.
  */
 bool
 test_helpers_validator(unsigned int idx, const struct ubpf_vm* vm)
@@ -244,7 +244,7 @@ std::string g_error_message;
  * @param[in] format The format string.
  * @param[in] ... The arguments to the format string.
  *
- * @return int The number of characters written.
+ * @return The number of characters written.
  */
 int capture_printf(FILE* stream, const char* format, ...)
 {
@@ -271,8 +271,8 @@ int capture_printf(FILE* stream, const char* format, ...)
  * @brief Invoke the verifier to verify the given BPF program.
  *
  * @param[in] program_code The program byte code to verify.
- * @return true The program is safe to run.
- * @return false The program might be unsafe to run. Note: The verifier is conservative and may reject safe programs.
+ * @retval true The program is safe to run.
+ * @retval false The program might be unsafe to run. Note: The verifier is conservative and may reject safe programs.
  */
 bool
 verify_bpf_byte_code(const std::vector<uint8_t>& program_code)
@@ -404,7 +404,7 @@ typedef enum class _address_type
  * @retval address_type_t::Unknown The register value is unknown.
  */
 address_type_t
-ubpf_classify_address(ubpf_context_t* context, uint64_t register_value)
+ubpf_classify_address(const ubpf_context_t* context, uint64_t register_value)
 {
     uintptr_t register_value_ptr = reinterpret_cast<uintptr_t>(register_value);
     uintptr_t stack_start = reinterpret_cast<uintptr_t>(context->stack_start);
@@ -521,7 +521,7 @@ ubpf_debug_function(
  *
  * @param[in] memory Vector containing the input memory.
  * @param[in] ubpf_stack Vector containing the stack.
- * @return ubpf_context_t The context object.
+ * @return The context object.
  */
 ubpf_context_t
 ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
@@ -540,8 +540,8 @@ ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack
  * @param[in] context The context passed to ubpf_register_data_bounds_check.
  * @param[in] addr The address to check.
  * @param[in] size The size of the memory to check.
- * @return true The address and size are within the bounds of the memory or stack.
- * @return false The address and size are not within the bounds of the memory or stack.
+ * @retval true The address and size are within the bounds of the memory or stack.
+ * @retval false The address and size are not within the bounds of the memory or stack.
  */
 bool bounds_check(void* context, uint64_t addr, uint64_t size)
 {
@@ -567,8 +567,8 @@ bool bounds_check(void* context, uint64_t addr, uint64_t size)
  * @param[in,out] memory The input memory to use when executing the program. May be modified by the program.
  * @param[in,out] ubpf_stack The stack to use when executing the program. May be modified by the program.
  * @param[out] interpreter_result The result of the program execution.
- * @return true if the program executed successfully.
- * @return false if the program failed to execute.
+ * @retval true The program executed successfully.
+ * @retval false The program failed to execute.
  */
 bool
 call_ubpf_interpreter(
@@ -605,8 +605,8 @@ call_ubpf_interpreter(
  * @param[in,out] memory The input memory to use when executing the program. May be modified by the program.
  * @param[in,out] ubpf_stack The stack to use when executing the program. May be modified by the program.
  * @param[out] interpreter_result The result of the program execution.
- * @return true if the program executed successfully.
- * @return false if the program failed to execute.
+ * @retval true The program executed successfully.
+ * @retval false The program failed to execute.
  */
 bool
 call_ubpf_jit(
@@ -645,8 +645,8 @@ call_ubpf_jit(
  * @param[in] size The size of the input buffer.
  * @param[out] program The program code extracted from the input buffer.
  * @param[out] memory The input memory extracted from the input buffer.
- * @return true if the input buffer was successfully split.
- * @return false if the input buffer is malformed.
+ * @retval true The input buffer was successfully split.
+ * @retval false The input buffer is malformed.
  */
 bool
 split_input(const uint8_t* data, std::size_t size, std::vector<uint8_t>& program, std::vector<uint8_t>& memory)
@@ -700,8 +700,8 @@ split_input(const uint8_t* data, std::size_t size, std::vector<uint8_t>& program
  *
  * @param[in] data Pointer to the input buffer.
  * @param[in] size Size of the input buffer.
- * @return -1 if the input is invalid
- * @return 0 if the input is valid and processed.
+ * @retval -1 The input is invalid
+ * @retval 0 The input is valid and processed.
  */
 int
 LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
