@@ -78,6 +78,12 @@ jobs:
         cd build
         ctest --output-on-failure --build-config ${{ inputs.build_type }}
 
+    - name: Rerun failed tests with more verbose output
+      if: inputs.platform == 'ubuntu-latest' && failure()
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ctest --rerun-failed --output-on-failure
+
     - name: Generate the TGZ package
       run: |
         cmake `

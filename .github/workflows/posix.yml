@@ -191,6 +191,12 @@ jobs:
           --build build \
           --target test
 
+    - name: Rerun failed tests with more verbose output
+      if: inputs.platform == 'ubuntu-latest' && failure()
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ctest --rerun-failed --output-on-failure
+
     - name: Generate code coverage report
       if: inputs.enable_coverage == true && inputs.platform == 'macos-latest'
       run: |
