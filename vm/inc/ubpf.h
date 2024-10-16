@@ -507,6 +507,14 @@ extern "C"
     int
     ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation);
 
+    /**
+     * @brief Function that is called by the VM to check if a memory access is within bounds.
+     *
+     * @param[in] context The user context that was passed to ubpf_register_data_bounds_check.
+     * @param[in] addr The address to check.
+     * @param[in] size The size of the memory access.
+     * @return bool True if the memory access is within bounds, false otherwise.
+     */
     typedef bool (*ubpf_bounds_check)(void* context, uint64_t addr, uint64_t size);
 
     /**

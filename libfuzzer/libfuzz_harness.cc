@@ -248,19 +248,21 @@ std::string g_error_message;
  */
 int capture_printf(FILE* stream, const char* format, ...)
 {
-    if (!stream) {
-        return 0;
-    }
-    if (!format) {
-        return 0;
-    }
+    // Format the message and append it to g_error_message.
+
+    UNREFERENCED_PARAMETER(stream);
 
     va_list args;
     va_start(args, format);
-    int ret = vfprintf(stream, format, args);
+    char buffer[1024];
+    int ret = vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
-    g_error_message += format;
+    if (ret < 0) {
+        return ret;
+    }
+
+    g_error_message += buffer;
 
     return ret;
 }
@@ -533,6 +535,32 @@ ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack
 }
 
 /**
+ * @brief Function to check if the given address and size are within the bounds of the memory or stack.
+ *
+ * @param[in] context The context passed to ubpf_register_data_bounds_check.
+ * @param[in] addr The address to check.
+ * @param[in] size The size of the memory to check.
+ * @return true The address and size are within the bounds of the memory or stack.
+ * @return false The address and size are not within the bounds of the memory or stack.
+ */
+bool bounds_check(void* context, uint64_t addr, uint64_t size)
+{
+    ubpf_context_t* ubpf_context = reinterpret_cast<ubpf_context_t*>(context);
+
+    // Check if the lower bound of the address is within the bounds of the memory or stack.
+    if (ubpf_classify_address(ubpf_context, addr) == address_type_t::Unknown) {
+        return false;
+    }
+
+    // Check if the upper bound of the address is within the bounds of the memory or stack.
+    if (ubpf_classify_address(ubpf_context, addr + size - 1) == address_type_t::Unknown) {
+        return false;
+    }
+
+    return false;
+}
+
+/**
  * @brief Invoke the ubpf interpreter with the given program code and input memory.
  *
  * @param[in] program_code The program code to execute.
@@ -559,9 +587,10 @@ call_ubpf_interpreter(
     }
 
     ubpf_register_debug_fn(vm.get(), &context, ubpf_debug_function);
+    ubpf_register_data_bounds_check(vm.get(), &context, bounds_check);
 
     // Execute the program using the input memory.
-    if (ubpf_exec_ex(vm.get(), &context, 0, &interpreter_result, ubpf_stack.data(), ubpf_stack.size()) != 0) {
+    if (ubpf_exec_ex(vm.get(), &context, sizeof(context), &interpreter_result, ubpf_stack.data(), ubpf_stack.size()) != 0) {
         throw std::runtime_error("Failed to execute program with error: " + g_error_message);
     }
 
@@ -603,7 +632,7 @@ call_ubpf_jit(
         throw std::runtime_error("Failed to compile program with error: " + std::string(error_message));
     }
 
-    jit_result = fn(&context, 0, ubpf_stack.data(), ubpf_stack.size());
+    jit_result = fn(&context, sizeof(context), ubpf_stack.data(), ubpf_stack.size());
 
     // Compilation succeeded.
     return true;
