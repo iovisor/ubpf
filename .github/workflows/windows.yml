@@ -20,16 +20,19 @@ on:
         type: string
 
       upload_packages:
-        required: true
+        required: false
         type: boolean
+        default: false
 
       build_codeql:
         required: false
         type: boolean
+        default: false
 
       disable_retpolines:
         required: false
         type: boolean
+        default: false
 
 permissions:
   contents: read
