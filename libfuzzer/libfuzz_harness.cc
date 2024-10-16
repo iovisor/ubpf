@@ -382,7 +382,7 @@ create_ubpf_vm(const std::vector<uint8_t>& program_code)
 }
 
 /**
- * @brief Classify the given register value as packet, context, stack, map, or unknown.
+ * @brief Classify the given address as packet, context, stack, map, or unknown.
  */
 typedef enum class _address_type
 {
