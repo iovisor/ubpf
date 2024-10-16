@@ -580,8 +580,11 @@ extern "C"
      * @param[in] stack_start Pointer to the beginning of the stack.
      * @param[in] stack_length Size of the stack in bytes.
      * @param[in] register_mask Bitmask of registers that have been modified since the start of the program.
+     *  Each set bit represents 1 modified register. LSB corresponds to register 0 and so on.
      * @param[in] stack_mask_start Bitmask of the stack that has been modified since the start of the program.
-     *  Each set bit represents 1 byte of the stack that has been modified.
+     *  Each set bit represents 1 byte of the stack that has been modified. LSB corresponds to the first byte relative to stack_start
+     *  and the MSB corresponds to the last byte. Note that the stack grows downwards, so the byte corresponding to the MSB is the first byte
+     *  of the stack from the POV of the program and LSB is the last byte.
      */
     typedef void (*ubpf_debug_fn)(
         void* context,
