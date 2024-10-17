@@ -27,6 +27,8 @@ extern "C"
 #include "test_helpers.h"
 #include <cassert>
 
+std::string g_verifier_report;
+
 /**
  * @brief Context structure passed to the BPF program. Modeled after the context structure used by XDP.
  */
@@ -304,6 +306,8 @@ try {
 
     // Enable termination checking and pre-invariant storage.
     options.check_termination = true;
+    options.assume_assertions = true;
+    options.print_invariants = true;
 #if defined(UBPF_ENABLE_LIBFUZZER_CONSTRAINT_CHECK)
     options.store_pre_invariants = true;
 #endif
@@ -317,7 +321,10 @@ try {
     std::ostringstream error_stream;
 
     // Verify the program. This will return false or throw an exception if the program is invalid.
-    return ebpf_verify_program(error_stream, prog, raw_prog.info, &options, &stats);
+    bool result = ebpf_verify_program(error_stream, prog, raw_prog.info, &options, &stats);
+    g_verifier_report = error_stream.str();
+
+    return result;
 } catch (const std::exception& ex) {
     return false;
 }
@@ -450,6 +457,7 @@ ubpf_debug_function(
     ubpf_context_t* ubpf_context = reinterpret_cast<ubpf_context_t*>(context);
     UNREFERENCED_PARAMETER(stack_start);
     UNREFERENCED_PARAMETER(stack_length);
+    UNREFERENCED_PARAMETER(stack_mask);
 
     std::string label = std::to_string(program_counter) + ":-1";
 
@@ -492,6 +500,9 @@ ubpf_debug_function(
             constraints.insert("r" + std::to_string(i) + ".uvalue=" + std::to_string(registers[i]));
             constraints.insert(
                 "r" + std::to_string(i) + ".svalue=" + std::to_string(static_cast<int64_t>(registers[i])));
+            break;
+        case address_type_t::Map:
+            constraints.insert(register_name + ".type=shared");
             break;
         }
     }
@@ -591,6 +602,7 @@ call_ubpf_interpreter(
 
     // Execute the program using the input memory.
     if (ubpf_exec_ex(vm.get(), &context, sizeof(context), &interpreter_result, ubpf_stack.data(), ubpf_stack.size()) != 0) {
+        std::cerr << g_verifier_report << std::endl;
         throw std::runtime_error("Failed to execute program with error: " + g_error_message);
     }
 
