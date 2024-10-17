@@ -470,7 +470,7 @@ ubpf_check_shadow_stack(
  * @return false - The registers are not initialized - an error message has been printed.
  */
 static inline bool
-ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registers, struct ebpf_inst inst)
+ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint32_t pc, uint16_t* shadow_registers, struct ebpf_inst inst)
 {
     if (!vm->undefined_behavior_check_enabled) {
         return true;
@@ -497,7 +497,7 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
     // Store indirect instructions require both the source and destination registers to be initialized.
     case EBPF_CLS_STX:
         dst_register_required = true;
-        src_register_required = true;
+        src_register_required = (inst.dst != BPF_REG_10); // Writing uninitialized memory to the stack is allowed.
         break;
     case EBPF_CLS_ALU:
     case EBPF_CLS_ALU64:
@@ -521,7 +521,16 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
             dst_register_required = true;
             break;
         case 0xb0: // EBPF_OP_MOV
-            // Destination register is initialized.
+            // Special case:
+            // If the source register is not initialized, the destination register is not initialized.
+            // If the source register is initialized, the destination register is initialized.
+            src_register_required = false;
+            // If source register is not initialized, the destination register is not initialized.
+            if (!((*shadow_registers) & REGISTER_TO_SHADOW_MASK(inst.src))) {
+                *shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);
+            }   else {
+                dst_register_initialized = true;
+            }
             break;
         }
         break;
@@ -553,12 +562,12 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
     }
 
     if (src_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.src))) {
-        vm->error_printf(stderr, "Error: Source register r%d is not initialized.\n", inst.src);
+        vm->error_printf(stderr, "Error: %d: Source register r%d is not initialized.\n", pc, inst.src);
         return false;
     }
 
     if (dst_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.dst))) {
-        vm->error_printf(stderr, "Error: Destination register r%d is not initialized.\n", inst.dst);
+        vm->error_printf(stderr, "Error: %d Destination register r%d is not initialized.\n", pc, inst.dst);
         return false;
     }
 
@@ -582,7 +591,7 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
 
     if (inst.opcode == EBPF_OP_EXIT) {
         if (!(*shadow_registers & REGISTER_TO_SHADOW_MASK(0))) {
-            vm->error_printf(stderr, "Error: Return value register r0 is not initialized.\n");
+            vm->error_printf(stderr, "Error: %d: Return value register r0 is not initialized.\n", pc);
             return false;
         }
         // Mark r1-r5 as uninitialized.
@@ -658,6 +667,7 @@ ubpf_exec_ex(
         }
         if (vm->instruction_limit && instruction_limit-- <= 0) {
             return_value = -1;
+            vm->error_printf(stderr, "Error: Instruction limit exceeded.\n");
             goto cleanup;
         }
 
@@ -677,14 +687,22 @@ ubpf_exec_ex(
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
-        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
-        if (vm->debug_function) {
-            vm->debug_function(vm->debug_function_context, cur_pc, reg, stack_start, stack_length);
-        }
-
-        if (!ubpf_validate_shadow_register(vm, &shadow_registers, inst)) {
+        if (!ubpf_validate_shadow_register(vm, cur_pc, &shadow_registers, inst)) {
             return_value = -1;
             goto cleanup;
+        }
+
+        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
+        if (vm->debug_function) {
+            vm->debug_function(
+                vm->debug_function_context, // The user's context pointer that was passed to ubpf_register_debug_fn.
+                cur_pc, // The current instruction pointer.
+                reg, // The array of 11 registers representing the VM state.
+                stack_start, // Pointer to the beginning of the stack.
+                stack_length, // Size of the stack in bytes.
+                shadow_registers, // Bitmask of registers that have been modified since the start of the program.
+                (uint8_t*)shadow_stack // Bitmask of the stack that has been modified since the start of the program.
+                );
         }
 
         switch (inst.opcode) {
