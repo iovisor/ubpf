@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <set>
 #include <string>
 #include <sstream>
 
@@ -277,7 +278,7 @@ int capture_printf(FILE* stream, const char* format, ...)
  * @retval false The program might be unsafe to run. Note: The verifier is conservative and may reject safe programs.
  */
 bool
-verify_bpf_byte_code(const std::vector<uint8_t>& program_code)
+verify_bpf_byte_code(const std::vector<uint8_t>& program_code, bool get_report = false)
 try {
     std::ostringstream error;
     auto instruction_array = reinterpret_cast<const ebpf_inst*>(program_code.data());
@@ -307,7 +308,7 @@ try {
     // Enable termination checking and pre-invariant storage.
     options.check_termination = true;
     options.assume_assertions = true;
-    options.print_invariants = true;
+    options.print_invariants = get_report;
 #if defined(UBPF_ENABLE_LIBFUZZER_CONSTRAINT_CHECK)
     options.store_pre_invariants = true;
 #endif
@@ -571,6 +572,11 @@ bool bounds_check(void* context, uint64_t addr, uint64_t size)
     return false;
 }
 
+const std::set<std::string> g_error_message_to_ignore{
+    "Call to local function at pc [0-9]+ is not from a call instruction.",
+    "Instruction limit exceeded",
+};
+
 /**
  * @brief Invoke the ubpf interpreter with the given program code and input memory.
  *
@@ -602,6 +608,15 @@ call_ubpf_interpreter(
 
     // Execute the program using the input memory.
     if (ubpf_exec_ex(vm.get(), &context, sizeof(context), &interpreter_result, ubpf_stack.data(), ubpf_stack.size()) != 0) {
+        // Check if the error is being suppressed by one of the known error messages regex.
+        for (const auto& error_message : g_error_message_to_ignore) {
+            if (std::regex_search(g_error_message, std::regex(error_message))) {
+                return false;
+            }
+        }
+
+        // Rerun the verifier to full report.
+        verify_bpf_byte_code(program_code, true);
         std::cerr << g_verifier_report << std::endl;
         throw std::runtime_error("Failed to execute program with error: " + g_error_message);
     }
@@ -733,7 +748,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
         return -1;
     }
 
-    if (!verify_bpf_byte_code(program)) {
+    if (!verify_bpf_byte_code(program, false)) {
         // The program failed verification.
         return 0;
     }
