@@ -1,0 +1,25 @@
+# Copyright (c) Will Hawkins
+# SPDX-License-Identifier: Apache-2.0
+-- asm
+mov %r0, 0x55
+# Move 0x55 onto the stack (right at the top).
+stxw [%r10-4], %r0
+call local func1
+# As long as there is local stack space allocated
+# by the runtime for local functions, then the value
+# stored on the stack in func1 will not have clobbered
+# this value.
+ldxw %r0, [%r10-4]
+exit
+
+func1:
+# If the stack pointer is not properly adjusted to make space
+# for local variables for this local function, then this write
+# will clobber what "main" put on the stack and will, ultimately,
+# set as the return value.
+mov %r0, 0x66
+stxw [%r10-4], %r0
+exit
+
+-- result
+0x55

@@ -24,7 +24,6 @@
 
 #include <stdint.h>
 #define _GNU_SOURCE
-#include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
@@ -187,8 +186,27 @@ emit_addsub_immediate(
     uint32_t imm12)
 {
     const uint32_t imm_op_base = 0x11000000;
-    assert(imm12 < 0x1000);
-    emit_instruction(state, sz(sixty_four) | (op << 29) | imm_op_base | (0 << 22) | (imm12 << 10) | (rn << 5) | rd);
+    const uint32_t imm_unshifted_max = 0x1000;
+    const uint32_t imm_shifted_destroyed = 0xfff;
+    const uint32_t imm_shift_on = 1 << 22;
+
+    // When the value of the immediate needs more than 12 bits,
+    // the instruction can be encoded using a shift. However, that
+    // means that the lower 12 bits will have no bearing on the
+    // value added to the source register and stored in the destination.
+    // Make sure that matches what the user gave us.
+    uint32_t sh = 0x0;
+    if (imm12 >= imm_unshifted_max) {
+        // If we are going to use the sh field,
+        // make sure that the user does not accidentally
+        // lose any information.
+        UNUSED_LOCAL(imm_shifted_destroyed);
+        assert(!(imm12 & imm_shifted_destroyed));
+        imm12 >>= 12;
+        sh = imm_shift_on;
+    }
+    assert(imm12 < imm_unshifted_max);
+    emit_instruction(state, sz(sixty_four) | sh | (op << 29) | imm_op_base | (0 << 22) | (imm12 << 10) | (rn << 5) | rd);
 }
 
 /* [ArmARM-A H.a]: C4.1.67: Add/subtract (shifted register).  */
