@@ -22,14 +22,11 @@ set(UBPF_FUZZER_LIBS
     ubpf_settings
     ebpfverifier)
 
-# include(CheckCXXSymbolExists)
-
 set(CMAKE_REQUIRED_INCLUDES ${UBPF_FUZZER_INCLUDES})
-
-# check_cxx_symbol_exists(ebpf_verifier_options_t::store_pre_invariants "config.hpp" HAVE_EBPF_CHECK_CONSTRAINTS_AT_LABEL)
 
 include(CheckCXXSourceCompiles)
 
+# Check if the ebpf verifier supports checking constraints at labels.
 set(CHECK_CONFIG_STORE_PRE_INVARIANTS "
 #include <config.hpp>
 int main() {
