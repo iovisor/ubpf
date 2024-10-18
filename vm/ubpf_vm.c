@@ -713,6 +713,7 @@ ubpf_exec_ex(
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
         if (!ubpf_validate_shadow_register(vm, cur_pc, &shadow_registers, inst)) {
+            vm->error_printf(stderr, "Error: Invalid register state at pc %d.\n", cur_pc);
             return_value = -1;
             goto cleanup;
         }

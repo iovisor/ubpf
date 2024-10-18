@@ -669,13 +669,12 @@ call_ubpf_interpreter(
     uint64_t& interpreter_result)
 {
     auto vm = create_ubpf_vm(program_code);
-
-    ubpf_context_t context = ubpf_context_from(memory, ubpf_stack);
-
     if (vm == nullptr) {
         // VM creation failed.
         return false;
     }
+
+    ubpf_context_t context = ubpf_context_from(memory, ubpf_stack);
 
     ubpf_register_debug_fn(vm.get(), &context, ubpf_debug_function);
     ubpf_register_data_bounds_check(vm.get(), &context, bounds_check);
@@ -730,7 +729,9 @@ call_ubpf_jit(
     auto fn = ubpf_compile_ex(vm.get(), &error_message, JitMode::ExtendedJitMode);
 
     if (fn == nullptr) {
-        throw std::runtime_error("Failed to compile program with error: " + std::string(error_message));
+        std::string error_message_str = error_message ? error_message : "unknown error";
+        free(error_message);
+        throw std::runtime_error("Failed to compile program with error: " + error_message_str);
     }
 
     jit_result = fn(&context, sizeof(context), ubpf_stack.data(), ubpf_stack.size());
@@ -834,7 +835,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size)
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
         if (!call_ubpf_interpreter(program, memory, ubpf_stack, interpreter_result)) {
-            // Failed to load or execute the program in the JIT.
+            // Failed to load or execute the program in the interpreter.
             // This is not interesting, as the fuzzer input is invalid.
             return 0;
         }
