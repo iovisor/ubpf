@@ -11,7 +11,7 @@
 name: Main
 
 permissions:
-  contents: read
+  contents: write # Required by fuzzing task.
   security-events: write # Required by codeql task.
   actions: read
 
@@ -339,6 +339,9 @@ jobs:
       build_type: Debug
       build_codeql: true
       disable_retpolines: true
+
+  linux_release_fuzzing:
+    uses: ./.github/workflows/fuzzing.yml
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:

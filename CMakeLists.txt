@@ -43,4 +43,5 @@ endif()
 
 if (UBPF_ENABLE_LIBFUZZER)
   add_subdirectory("libfuzzer")
+  add_subdirectory("external/ebpf-verifier")
 endif()
