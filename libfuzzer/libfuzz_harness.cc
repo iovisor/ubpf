@@ -28,6 +28,16 @@ extern "C"
 #include "test_helpers.h"
 #include <cassert>
 
+#if defined(_MSC_VER)
+#if defined(DEBUG)
+#pragma comment(lib, "clang_rt.fuzzer_MDd-x86_64.lib")
+#pragma comment(lib, "libsancov.lib")
+#else
+#pragma comment(lib, "clang_rt.fuzzer_MD-x86_64.lib")
+#pragma comment(lib, "libsancov.lib")
+#endif
+#endif
+
 /**
  * @brief Class to read the options from the environment and provide them to
  * the fuzzer.
@@ -461,13 +471,13 @@ typedef enum class _address_type
 address_type_t
 ubpf_classify_address(const ubpf_context_t* context, uint64_t register_value)
 {
-    uintptr_t register_value_ptr = reinterpret_cast<uintptr_t>(register_value);
-    uintptr_t stack_start = reinterpret_cast<uintptr_t>(context->stack_start);
-    uintptr_t stack_end = reinterpret_cast<uintptr_t>(context->stack_end);
+    uintptr_t register_value_ptr = static_cast<uintptr_t>(register_value);
+    uintptr_t stack_start = static_cast<uintptr_t>(context->stack_start);
+    uintptr_t stack_end = static_cast<uintptr_t>(context->stack_end);
     uintptr_t context_start = reinterpret_cast<uintptr_t>(context);
     uintptr_t context_end = context_start + sizeof(ubpf_context_t);
-    uintptr_t packet_start = reinterpret_cast<uintptr_t>(context->data);
-    uintptr_t packet_end = reinterpret_cast<uintptr_t>(context->data_end);
+    uintptr_t packet_start = static_cast<uintptr_t>(context->data);
+    uintptr_t packet_end = static_cast<uintptr_t>(context->data_end);
 
     if (register_value_ptr >= stack_start && register_value_ptr < stack_end) {
         return address_type_t::Stack;
