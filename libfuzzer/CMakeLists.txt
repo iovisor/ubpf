@@ -6,6 +6,11 @@ if (UBPF_SKIP_EXTERNAL)
     return()
 endif()
 
+if (PLATFORM_WINDOWS)
+set(Boost_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/packages/boost/lib/native/include)
+set(Boost_LIBRARY_DIRS ${CMAKE_BINARY_DIR}/packages/boost_filesystem-vc143/lib/native)
+endif()
+
 set(UBPF_FUZZER_INCLUDES "${CMAKE_SOURCE_DIR}/vm"
     "${CMAKE_BINARY_DIR}/vm"
     "${CMAKE_BINARY_DIR}/_deps/gsl-src/include"
@@ -15,7 +20,8 @@ set(UBPF_FUZZER_INCLUDES "${CMAKE_SOURCE_DIR}/vm"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/crab"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/crab_utils"
-    "${CMAKE_CURRENT_BINARY_DIR}")
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${Boost_INCLUDE_DIRS}")
 
 set(UBPF_FUZZER_LIBS
     ubpf
@@ -52,5 +58,8 @@ add_executable(
 
 target_include_directories("ubpf_fuzzer" PRIVATE ${UBPF_FUZZER_INCLUDES})
 
-target_link_libraries(ubpf_fuzzer PRIVATE ${UBPF_FUZZER_LIBS})
+if (PLATFORM_WINDOWS)
+  set(CMAKE_EXE_LINKER_FLAGS_FUZZERDEBUG libsancov.lib clang_rt.fuzzer_MDd-x86_64.lib)
+endif()
 
+target_link_libraries(ubpf_fuzzer PRIVATE ${UBPF_FUZZER_LIBS})
