@@ -108,18 +108,20 @@ jobs:
     - name: Configure uBPF - Windows
       if: matrix.platform == 'windows-latest'
       run: |
-        cmake \
-          -S . \
-          -B build \
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          -DUBPF_ENABLE_LIBFUZZER=1
+        cmake -S . -B build -DUBPF_ENABLE_LIBFUZZER=1
 
     - name: Build uBPF
+      if: matrix.platform == 'ubuntu-24.04'
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
         cmake \
           --build build
+
+    - name: Build uBPF
+      if: matrix.platform == 'windows-latest'
+      run: |
+        cmake --build build --config RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
