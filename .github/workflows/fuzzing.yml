@@ -108,8 +108,6 @@ jobs:
     - name: Configure uBPF - Windows
       if: matrix.platform == 'windows-latest'
       run: |
-        export CCACHE_DIR="$(pwd)/ccache"
-
         cmake \
           -S . \
           -B build \
