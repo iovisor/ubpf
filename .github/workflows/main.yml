@@ -340,7 +340,7 @@ jobs:
       build_codeql: true
       disable_retpolines: true
 
-  fuzzing:
+  linux_release_fuzzing:
     uses: ./.github/workflows/fuzzing.yml
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.

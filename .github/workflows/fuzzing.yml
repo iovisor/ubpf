@@ -18,7 +18,6 @@ jobs:
       matrix:
         platform:
           - ubuntu-24.04
-          - windows-latest
         arch:
           - x86_64
 
@@ -35,19 +34,16 @@ jobs:
         submodules: 'recursive'
 
     - name: Generate the cache key
-      if: matrix.platform == 'ubuntu-24.04'
       id: cache_key
       run: echo "VALUE=platform-${{ matrix.platform }}_arch=${{ matrix.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      if: matrix.platform == 'ubuntu-24.04'
       uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4.1.1
       with:
         path: ccache
-        key: ${{ steps.cache_key.outputs.VALUE }}_ccache_${{ hashFiles('**/CMakeLists.txt') }}_ubpf_${{env.platform}}_${{env.arch}}
+        key: ${{ steps.cache_key.outputs.VALUE }}_ccache
 
     - name: Create the build folders
-      if: matrix.platform == 'ubuntu-24.04'
       run: |
         mkdir -p \
           ccache
@@ -90,12 +86,11 @@ jobs:
           lcov \
           boost
 
-    - name: Configure uBPF - Ubuntu
-      if: matrix.platform == 'ubuntu-24.04'
+    - name: Configure uBPF
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
-        cmake \
+        ${command_prefix} cmake \
           -G Ninja \
           -S . \
           -B build \
@@ -103,46 +98,33 @@ jobs:
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DUBPF_ENABLE_LIBFUZZER=1 \
-          -DVERIFIER_ENABLE_TESTS=false
-
-    - name: Configure uBPF - Windows
-      if: matrix.platform == 'windows-latest'
-      run: |
-        cmake -S . -B build -DUBPF_ENABLE_LIBFUZZER=1
+          -DVERIFIER_ENABLE_TESTS=false \
+          ${arch_flags}
 
     - name: Build uBPF
-      if: matrix.platform == 'ubuntu-24.04'
       run: |
         export CCACHE_DIR="$(pwd)/ccache"
 
-        cmake \
+        ${command_prefix} cmake \
           --build build
-
-    - name: Build uBPF
-      if: matrix.platform == 'windows-latest'
-      run: |
-        cmake --build build --config RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
-        name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
+        name: fuzzer
         path: build/bin/ubpf_fuzzer
 
     - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      if: matrix.platform == 'ubuntu-24.04'
       with:
         submodules: 'recursive'
         ref: fuzz/corpus
 
     - name: Download fuzzer artifacts
-      if: matrix.platform == 'ubuntu-24.04'
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
       with:
-        name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
+        name: fuzzer
 
     - name: Setup directory for fuzzing
-      if: matrix.platform == 'ubuntu-24.04'
       run: |
         ls -la
         mkdir -p new_corpus
@@ -151,14 +133,12 @@ jobs:
         mkdir -p artifacts
         chmod a+x ubpf_fuzzer
 
-
     - name: Run fuzzing
-      if: matrix.platform == 'ubuntu-24.04'
       run: |
         ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300
 
     - name: Merge corpus into fuzz/corpus
-      if: ${{ github.event_name == 'schedule' }} && matrix.platform == 'ubuntu-24.04'
+      if: ${{ github.event_name == 'schedule' }}
       run: |
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
         git add fuzz/corpus
@@ -172,5 +152,5 @@ jobs:
       if: always()
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
-        name: fuzzing-artifacts-${{ matrix.platform }}-${{ matrix.arch }}
+        name: fuzzing-artifacts
         path: artifacts/
