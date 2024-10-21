@@ -11,7 +11,7 @@
 name: Main
 
 permissions:
-  contents: read
+  contents: write # Required by fuzzing task.
   security-events: write # Required by codeql task.
   actions: read
 
@@ -44,7 +44,6 @@ jobs:
     with:
       platform: windows-2019
       build_type: RelWithDebInfo
-      upload_packages: true
       disable_retpolines: true
 
   windows_debug:
@@ -52,14 +51,12 @@ jobs:
     with:
       platform: windows-2019
       build_type: Debug
-      upload_packages: true
 
   windows_debug_no_retpolines:
     uses: ./.github/workflows/windows.yml
     with:
       platform: windows-2019
       build_type: Debug
-      upload_packages: true
       disable_retpolines: true
 
   macos_release:
@@ -76,7 +73,6 @@ jobs:
       arch: x86_64
       platform: macos-latest
       build_type: RelWithDebInfo
-      upload_packages: true
       disable_retpolines: true
 
   macos_release_coverage:
@@ -267,7 +263,6 @@ jobs:
       arch: arm64
       platform: ubuntu-latest
       build_type: Debug
-      upload_packages: true
 
   linux_debug_coverage:
     uses: ./.github/workflows/posix.yml
@@ -345,6 +340,9 @@ jobs:
       build_codeql: true
       disable_retpolines: true
 
+  linux_release_fuzzing:
+    uses: ./.github/workflows/fuzzing.yml
+
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:
   #   uses: ./.github/workflows/posix.yml
@@ -373,7 +371,7 @@ jobs:
         egress-policy: audit
 
     - name: Coveralls Finished
-      uses: coverallsapp/github-action@643bc377ffa44ace6394b2b5d0d3950076de9f63 # v2.3.0
+      uses: coverallsapp/github-action@4cdef0b2dbe0c9aa26bed48edb868db738625e79 # v2.3.3
       with:
         github-token: ${{ secrets.github_token }}
         parallel-finished: true

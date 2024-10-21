@@ -477,41 +477,57 @@ ubpf_check_shadow_stack(
  * @return false - The registers are not initialized - an error message has been printed.
  */
 static inline bool
-ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registers, struct ebpf_inst inst)
+ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint32_t pc, uint16_t* shadow_registers, struct ebpf_inst inst)
 {
     if (!vm->undefined_behavior_check_enabled) {
         return true;
     }
 
-    bool src_register_required = false;
-    bool dst_register_required = false;
-    bool dst_register_initialized = false;
+    // Determine which registers are valid before and after the instruction.
+    bool source_register_valid_before_instruction = (*shadow_registers) & REGISTER_TO_SHADOW_MASK(inst.src);
+    bool destination_register_valid_before_instruction = (*shadow_registers) & REGISTER_TO_SHADOW_MASK(inst.dst);
+    bool destination_register_valid_after_instruction = destination_register_valid_before_instruction;
 
     switch (inst.opcode & EBPF_CLS_MASK) {
     // Load instructions initialize the destination register.
     case EBPF_CLS_LD:
-        dst_register_initialized = true;
+        // Load of immediate values makes the destination register valid.
+        destination_register_valid_after_instruction = true;
         break;
     // Load indirect instructions initialize the destination register and require the source register to be initialized.
     case EBPF_CLS_LDX:
-        src_register_required = true;
-        dst_register_initialized = true;
+        if (!source_register_valid_before_instruction) {
+            vm->error_printf(stderr, "Error: %d: Source register r%d is not initialized.\n", pc, inst.src);
+            return false;
+        }
+        destination_register_valid_after_instruction = true;
         break;
-    // Store instructions require the destination register to be initialized.
+    // Store indirect instructions require the destination register to be initialized, but has no source register.
     case EBPF_CLS_ST:
-        dst_register_required = true;
+        if (inst.dst != BPF_REG_10 && !destination_register_valid_before_instruction) {
+            vm->error_printf(stderr, "Error: %d: Destination register r%d is not initialized.\n", pc, inst.dst);
+            return false;
+        }
         break;
-    // Store indirect instructions require both the source and destination registers to be initialized.
+    // Store indirect instructions require both the source and destination registers to be initialized, except for
+    // writes to the stack.
     case EBPF_CLS_STX:
-        dst_register_required = true;
-        src_register_required = true;
+        if (inst.dst != BPF_REG_10 && !source_register_valid_before_instruction) {
+            vm->error_printf(stderr, "Error: %d: Source register r%d is not initialized.\n", pc, inst.src);
+            return false;
+        }
+        if (inst.dst != BPF_REG_10 && !destination_register_valid_before_instruction) {
+            vm->error_printf(stderr, "Error: %d: Destination register r%d is not initialized.\n", pc, inst.dst);
+            return false;
+        }
         break;
+    // ALU operations either use an immediate value or a source register.
+    // If the source register is used, it's initialized state is transferred to the destination register.
+    // If it's a unary operation, the initialized state of the source register is unchanged.
     case EBPF_CLS_ALU:
     case EBPF_CLS_ALU64:
-        // Source register is required if the EBPF_SRC_REG bit is set.
-        src_register_required = inst.opcode & EBPF_SRC_REG;
-        dst_register_initialized = true;
         switch (inst.opcode & EBPF_ALU_OP_MASK) {
+        // Binary ops.
         case 0x00: // EBPF_OP_ADD
         case 0x10: // EBPF_OP_SUB
         case 0x20: // EBPF_OP_MUL
@@ -520,28 +536,36 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
         case 0x50: // EBPF_OP_AND
         case 0x60: // EBPF_OP_LSH
         case 0x70: // EBPF_OP_RSH
-        case 0x80: // EBPF_OP_NEG
         case 0x90: // EBPF_OP_MOD
         case 0xa0: // EBPF_OP_XOR
         case 0xc0: // EBPF_OP_ARSH
-        case 0xd0: // EBPF_OP_LE
-            dst_register_required = true;
-            break;
         case 0xb0: // EBPF_OP_MOV
-            // Destination register is initialized.
+            // Permit operations on uninitialized registers, but mark the destination register as uninitialized.
+            if (inst.opcode & EBPF_SRC_REG) {
+                destination_register_valid_after_instruction = source_register_valid_before_instruction;
+            } else {
+                destination_register_valid_after_instruction = true;
+            }
             break;
+        // Unary ops
+        case 0x80: // EBPF_OP_NEG
+        case 0xd0: // EBPF_OP_LE
+            // Doesn't change the initialized state of the either register.
+            break;
+        default:
+            vm->error_printf(stderr, "Error: %d: Unknown ALU opcode %x.\n", pc, inst.opcode);
+            return false;
         }
         break;
     case EBPF_CLS_JMP:
     case EBPF_CLS_JMP32:
-        // Source register is required if the EBPF_SRC_REG bit is set.
-        src_register_required = inst.opcode & EBPF_SRC_REG;
         switch (inst.opcode & EBPF_JMP_OP_MASK) {
-        case EBPF_MODE_JA:
+        // Unconditional jumps don't require any registers to be initialized.
         case EBPF_MODE_CALL:
+        case EBPF_MODE_JA:
         case EBPF_MODE_EXIT:
-            src_register_required = false;
             break;
+        // Conditional jumps require the destination register to be initialized and also the source register if it the EBPF_SRC_REG flag is set.
         case EBPF_MODE_JEQ:
         case EBPF_MODE_JGT:
         case EBPF_MODE_JGE:
@@ -553,24 +577,34 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
         case EBPF_MODE_JLE:
         case EBPF_MODE_JSLT:
         case EBPF_MODE_JSLE:
-            dst_register_required = true;
+            // If the jump offset is 0, then this is a no-op.
+            if (inst.offset == 0) {
+                break;
+            }
+            if (!destination_register_valid_before_instruction) {
+                vm->error_printf(stderr, "Error: %d: Destination register r%d is not initialized.\n", pc, inst.dst);
+                return false;
+            }
+            if (inst.opcode & EBPF_SRC_REG && !source_register_valid_before_instruction) {
+                vm->error_printf(stderr, "Error: %d: Source register r%d is not initialized.\n", pc, inst.src);
+                return false;
+            }
             break;
+        default:
+            vm->error_printf(stderr, "Error: %d: Unknown JMP opcode %x.\n", pc, inst.opcode);
+            return false;
         }
-        break;
-    }
-
-    if (src_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.src))) {
-        vm->error_printf(stderr, "Error: Source register r%d is not initialized.\n", inst.src);
+    break;
+    default:
+        vm->error_printf(stderr, "Error: %d: Unknown opcode %x.\n", pc, inst.opcode);
         return false;
     }
 
-    if (dst_register_required && !(*shadow_registers & REGISTER_TO_SHADOW_MASK(inst.dst))) {
-        vm->error_printf(stderr, "Error: Destination register r%d is not initialized.\n", inst.dst);
-        return false;
-    }
-
-    if (dst_register_initialized) {
+    // Update the shadow register state.
+    if (destination_register_valid_after_instruction) {
         *shadow_registers |= REGISTER_TO_SHADOW_MASK(inst.dst);
+    } else {
+        *shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);
     }
 
     if (inst.opcode == EBPF_OP_CALL) {
@@ -589,7 +623,7 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint16_t* shadow_registe
 
     if (inst.opcode == EBPF_OP_EXIT) {
         if (!(*shadow_registers & REGISTER_TO_SHADOW_MASK(0))) {
-            vm->error_printf(stderr, "Error: Return value register r0 is not initialized.\n");
+            vm->error_printf(stderr, "Error: %d: Return value register r0 is not initialized.\n", pc);
             return false;
         }
         // Mark r1-r5 as uninitialized.
@@ -665,6 +699,7 @@ ubpf_exec_ex(
         }
         if (vm->instruction_limit && instruction_limit-- <= 0) {
             return_value = -1;
+            vm->error_printf(stderr, "Error: Instruction limit exceeded.\n");
             goto cleanup;
         }
 
@@ -684,9 +719,23 @@ ubpf_exec_ex(
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
 
-        if (!ubpf_validate_shadow_register(vm, &shadow_registers, inst)) {
+        if (!ubpf_validate_shadow_register(vm, cur_pc, &shadow_registers, inst)) {
+            vm->error_printf(stderr, "Error: Invalid register state at pc %d.\n", cur_pc);
             return_value = -1;
             goto cleanup;
+        }
+
+        // Invoke the debug function to allow the user to inspect the state of the VM if it is enabled.
+        if (vm->debug_function) {
+            vm->debug_function(
+                vm->debug_function_context, // The user's context pointer that was passed to ubpf_register_debug_fn.
+                cur_pc,                     // The current instruction pointer.
+                reg,                        // The array of 11 registers representing the VM state.
+                stack_start,                // Pointer to the beginning of the stack.
+                stack_length,               // Size of the stack in bytes.
+                shadow_registers,      // Bitmask of registers that have been modified since the start of the program.
+                (uint8_t*)shadow_stack // Bitmask of the stack that has been modified since the start of the program.
+            );
         }
 
         switch (inst.opcode) {
@@ -1899,5 +1948,17 @@ ubpf_register_stack_usage_calculator(struct ubpf_vm* vm, stack_usage_calculator_
 {
     vm->stack_usage_calculator_cookie = cookie;
     vm->stack_usage_calculator = calculator;
+    return 0;
+}
+int
+ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_function)
+{
+    if ((vm->debug_function != NULL && debug_function != NULL) ||
+        (vm->debug_function == NULL && debug_function == NULL)) {
+        return -1;
+    }
+
+    vm->debug_function = debug_function;
+    vm->debug_function_context = context;
     return 0;
 }

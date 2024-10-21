@@ -368,7 +368,7 @@ extern "C"
      *
      * @param[in] vm The VM to compile the program in.
      * @param[out] errmsg The error message, if any. This should be freed by the caller.
-     * @return ubpf_jit_fn A pointer to the compiled program, or NULL on failure.
+     * @return A pointer to the compiled program, or NULL on failure.
      */
     ubpf_jit_fn
     ubpf_compile(struct ubpf_vm* vm, char** errmsg);
@@ -387,7 +387,7 @@ extern "C"
      * @param[in] vm The VM to compile the program in.
      * @param[out] errmsg The error message, if any. This should be freed by the caller.
      * @param[in] jit_mode The mode in which to execute the JITer -- basic or extended.
-     * @return ubpf_jit_fn A pointer to the compiled program, or NULL on failure.
+     * @return A pointer to the compiled program, or NULL on failure.
      */
     ubpf_jit_ex_fn
     ubpf_compile_ex(struct ubpf_vm* vm, char** errmsg, enum JitMode jit_mode);
@@ -403,7 +403,7 @@ extern "C"
      *
      * @param[in] vm The VM of the already JIT'd program.
      * @param[out] errmsg The error message, if any. This should be freed by the caller.
-     * @return ubpf_jit_fn A pointer to the compiled program (the same as buffer), or
+     * @return A pointer to the compiled program (the same as buffer), or
      *         NULL on failure.
      */
     ubpf_jit_fn
@@ -473,7 +473,7 @@ extern "C"
      * @brief Retrieve the storage location for the BPF registers in the VM.
      *
      * @param[in] vm The VM to get the register storage from.
-     * @return uint64_t* A pointer to the register storage.
+     * @return A pointer to the register storage.
      */
     uint64_t*
     ubpf_get_registers(const struct ubpf_vm* vm);
@@ -499,7 +499,7 @@ extern "C"
      * @param[in] symbol_name Name of the symbol that is referenced.
      * @param[in] symbol_offset Offset of the symbol relative to the start of the map section.
      * @param[in] symbol_size Size of the symbol.
-     * @return uint64_t The value to insert into the BPF program.
+     * @return The value to insert into the BPF program.
      */
     typedef uint64_t (*ubpf_data_relocation)(
         void* user_context,
@@ -514,11 +514,20 @@ extern "C"
      *
      * @param[in] vm The VM to set the relocation function for.
      * @param[in] relocation The relocation function.
-     * @return int The value to insert into the BPF program.
+     * @return The value to insert into the BPF program.
      */
     int
     ubpf_register_data_relocation(struct ubpf_vm* vm, void* user_context, ubpf_data_relocation relocation);
 
+    /**
+     * @brief Function that is called by the VM to check if a memory access is within bounds.
+     *
+     * @param[in] context The user context that was passed to ubpf_register_data_bounds_check.
+     * @param[in] addr The address to check.
+     * @param[in] size The size of the memory access.
+     * @retval True The memory access is within bounds.
+     * @retval False The memory access is out of bounds.
+     */
     typedef bool (*ubpf_bounds_check)(void* context, uint64_t addr, uint64_t size);
 
     /**
@@ -556,8 +565,8 @@ extern "C"
      * @param[in] vm The VM to set the instruction limit for.
      * @param[in] limit The maximum number of instructions that a program may execute or 0 for no limit.
      * @param[out] previous_limit Optional pointer to store the previous instruction limit.
-     * @return 0 Success.
-     * @return -1 Failure.
+     * @retval 0 Success.
+     * @retval -1 Failure.
      */
     int
     ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previous_limit);
@@ -569,11 +578,47 @@ extern "C"
      *
      * @param[in] vm VM to enable or disable undefined behavior checks on.
      * @param[in] enable Enable undefined behavior checks if true, disable if false.
-     * @return true if undefined behavior checks were previously enabled.
-     * @return false if undefined behavior checks were previously disabled.
+     * @retval true Undefined behavior checks were previously enabled.
+     * @retval false Undefined behavior checks were previously disabled.
      */
     bool
     ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable);
+
+    /**
+     * @brief A function to invoke before each instruction.
+     *
+     * @param[in, out] context Context passed in to ubpf_register_debug_fn.
+     * @param[in] program_counter Current instruction pointer.
+     * @param[in] registers Array of 11 registers representing the VM state.
+     * @param[in] stack_start Pointer to the beginning of the stack.
+     * @param[in] stack_length Size of the stack in bytes.
+     * @param[in] register_mask Bitmask of registers that have been modified since the start of the program.
+     *  Each set bit represents 1 modified register. LSB corresponds to register 0 and so on.
+     * @param[in] stack_mask_start Bitmask of the stack that has been modified since the start of the program.
+     *  Each set bit represents 1 byte of the stack that has been modified. LSB corresponds to the first byte relative
+     * to stack_start and the MSB corresponds to the last byte. Note that the stack grows downwards, so the byte
+     * corresponding to the MSB is the first byte of the stack from the POV of the program and LSB is the last byte.
+     */
+    typedef void (*ubpf_debug_fn)(
+        void* context,
+        int program_counter,
+        const uint64_t registers[16],
+        const uint8_t* stack_start,
+        size_t stack_length,
+        uint64_t register_mask,
+        const uint8_t* stack_mask_start);
+
+    /**
+     * @brief Add option to invoke a debug function before each instruction.
+     * Note: This only applies to the interpreter and not the JIT.
+     *
+     * @param[in] vm VM to add the option to.
+     * @param[in] debug_fn Function to invoke before each instruction. Pass NULL to remove the function.
+     * @retval 0 Success.
+     * @retval -1 Failure.
+     */
+    int
+    ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_function);
 #ifdef __cplusplus
 }
 #endif

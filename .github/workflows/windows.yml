@@ -20,16 +20,19 @@ on:
         type: string
 
       upload_packages:
-        required: true
+        required: false
         type: boolean
+        default: false
 
       build_codeql:
         required: false
         type: boolean
+        default: false
 
       disable_retpolines:
         required: false
         type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -48,13 +51,13 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@c36620d31ac7c881962c3d9dd939c40ec9434f2b
+      uses: github/codeql-action/init@f779452ac5af1c261dce0346a8f964149f49322b
       with:
         languages: 'cpp'
 
@@ -78,6 +81,12 @@ jobs:
         cd build
         ctest --output-on-failure --build-config ${{ inputs.build_type }}
 
+    - name: Rerun failed tests with more verbose output
+      if: inputs.platform == 'ubuntu-latest' && failure()
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ctest --rerun-failed --output-on-failure
+
     - name: Generate the TGZ package
       run: |
         cmake `
@@ -99,7 +108,7 @@ jobs:
 
     - name: Upload the Windows TGZ package
       if: inputs.upload_packages == true
-      uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32
+      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
       with:
         name: windows_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -107,4 +116,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@c36620d31ac7c881962c3d9dd939c40ec9434f2b
+      uses: github/codeql-action/analyze@f779452ac5af1c261dce0346a8f964149f49322b
