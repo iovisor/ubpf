@@ -47,9 +47,6 @@ if (UBPF_ENABLE_LIBFUZZER)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address /fsanitize-coverage=inline-bool-flag /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address /fsanitize-coverage=inline-bool-flag /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
   endif()
-  set(VERIFIER_ENABLE_TESTS false)
-
-
   add_subdirectory("libfuzzer")
   add_subdirectory("external/ebpf-verifier")
 endif()
