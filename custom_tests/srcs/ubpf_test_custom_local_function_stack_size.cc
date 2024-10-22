@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <stdint.h>
-#include <vector>
 #include <string>
 
 extern "C"
@@ -30,6 +30,8 @@ main(int argc, char** argv)
     std::string program_string{};
     std::string error{};
     ubpf_jit_fn jit_fn;
+    uint64_t jit_result{};
+    uint64_t interp_result{};
 
     if (!get_program_string(argc, argv, program_string, error)) {
         std::cerr << error << std::endl;
@@ -65,12 +67,50 @@ main(int argc, char** argv)
     uint8_t external_stack[stack_size] = {
         0,
     };
-    jit_ex_fn(nullptr, 0, external_stack, stack_size);
+    jit_result = jit_ex_fn(nullptr, 0, external_stack, stack_size);
+
+    if (jit_result) {
+        std::cerr << "Execution of the JIT'd program gave a non-0 result.\n";
+        return 1;
+    }
 
     for (size_t i = 0; i < stack_size; i++) {
         if (external_stack[i] != expected_result[i]) {
+            std::cerr << "Byte 0x" << std::hex << i << " different between expected (0x" << (uint32_t)expected_result[i]
+                      << ") and actual (0x" << (uint32_t)external_stack[i] << ")\n";
             success = false;
         }
     }
-    return !success;
+
+    if (!success) {
+        return !success;
+    }
+
+    std::memset(external_stack, 0x0, sizeof(external_stack));
+    int interp_success{ubpf_exec_ex(vm.get(), nullptr, 0, &interp_result, external_stack, stack_size)};
+
+    if (interp_success < 0) {
+        std::cerr << "There was an error interpreting the program: " << success << "\n";
+        return 1;
+    }
+
+    if (interp_result) {
+        std::cerr << "Execution of the interpreted program gave a non-0 result.\n";
+        return 1;
+    }
+
+    for (size_t i = 0; i < stack_size; i++) {
+        if (external_stack[i] != expected_result[i]) {
+            std::cerr << "Byte 0x" << std::hex << i << " different between expected (0x" << (uint32_t)expected_result[i]
+                      << ") and actual (0x" << (uint32_t)external_stack[i] << ")\n";
+            success = false;
+        }
+    }
+
+    if (!success) {
+        return !success;
+    }
+
+    return 0;
+
 }

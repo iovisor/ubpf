@@ -74,26 +74,6 @@ bytes_to_ebpf_inst(std::vector<uint8_t> bytes)
 }
 
 /**
- * @brief The handler to determine the stack usage of local functions.
- *
- * @param[in] vm Pointer to the VM of which the local function at pc is a part.
- * @param[in] pc The instruction address of the local function.
- * @param[in] cookie A pointer to the context cookie given when this callback
- *                   was registered.
- * @return The amount of stack used by the local function starting at pc.
- */
-int
-stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
-{
-    UNREFERENCED_PARAMETER(pc);
-    UNREFERENCED_PARAMETER(cookie);
-    UNREFERENCED_PARAMETER(vm);
-    // We will default to a conservative 64 bytes of stack usage for each local function.
-    // That should be enough for all the conformance tests.
-    return 64;
-}
-
-/**
  * @brief This program reads BPF instructions from stdin and memory contents from
  * the first agument. It then executes the BPF program and prints the
  * value of %r0 at the end of execution.
@@ -158,8 +138,6 @@ int main(int argc, char **argv)
 
     ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
 
-    ubpf_register_stack_usage_calculator(vm.get(), stack_usage_calculator, nullptr);
-
     if (ubpf_set_unwind_function_index(vm.get(), 5) != 0)
     {
         std::cerr << "Failed to set unwind function index" << std::endl;
@@ -195,7 +173,6 @@ int main(int argc, char **argv)
 
         // ... execute the original copy of the JIT'd code ...
         external_dispatcher_result = fn(usable_program_memory_pointer, usable_program_memory.size());
-
 
         // ... execute original code but with indexed dispatcher to helper functions ...
         ubpf_register_external_dispatcher(vm.get(), nullptr, test_helpers_validater);

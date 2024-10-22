@@ -20,6 +20,9 @@
 
 #include "ubpf.h"
 #include "ebpf.h"
+#include "ubpf_int.h"
+
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,7 +30,6 @@
 #include <stdarg.h>
 #include <sys/mman.h>
 #include <endian.h>
-#include "ubpf_int.h"
 #include <unistd.h>
 
 #define SHIFT_MASK_32_BIT(X) ((X) & 0x1f)
@@ -286,6 +288,11 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
 void
 ubpf_unload_code(struct ubpf_vm* vm)
 {
+
+    // Reset the stack usage amounts when code is unloaded.
+    free(vm->local_func_stack_usage);
+    vm->local_func_stack_usage = calloc(UBPF_MAX_INSTS, sizeof(struct ubpf_stack_usage));
+
     if (vm->jitted) {
         munmap(vm->jitted, vm->jitted_size);
         vm->jitted = NULL;
@@ -1904,18 +1911,17 @@ ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previou
 bool
 ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg)
 {
-    // If there is a stack usage calculator and we have not invoked it before for the target,
-    // then now is the time to call it!
-    if (vm->stack_usage_calculator && !vm->local_func_stack_usage[pc].stack_usage_calculated) {
-        uint16_t stack_usage = (vm->stack_usage_calculator)(vm, pc, vm->stack_usage_calculator_cookie);
-        vm->local_func_stack_usage[pc].stack_usage = stack_usage;
+    if (vm->local_func_stack_usage[pc].stack_usage_calculated == UBPF_STACK_USAGE_UNKNOWN) {
+        vm->local_func_stack_usage[pc].stack_usage_calculated = UBPF_STACK_USAGE_DEFAULT;
+        if (vm->stack_usage_calculator) {
+            vm->local_func_stack_usage[pc].stack_usage =
+                (vm->stack_usage_calculator)(vm, pc, vm->stack_usage_calculator_cookie);
+            vm->local_func_stack_usage[pc].stack_usage_calculated = UBPF_STACK_USAGE_CUSTOM;
+        }
     }
-    vm->local_func_stack_usage[pc].stack_usage_calculated = true;
-    // Now that we are guaranteed to have a value for the amount of the stack used by the function
-    // starting at call_target, let's make sure that it is 16-byte aligned. Note: The amount of stack
-    // used might be 0 (in the case where there is no registered stack usage calculator callback). That
-    // is okay because ubpf_stack_usage_for_local_func will give us a meaningful default.
-    if (vm->local_func_stack_usage[pc].stack_usage % 16) {
+
+    // Make sure that it is 16-byte aligned.
+    if (ubpf_stack_usage_for_local_func(vm, pc) % 16) {
         *errmsg = ubpf_error(
             "local function (at PC %d) has improperly sized stack use (%d)",
             pc,
@@ -1928,8 +1934,10 @@ ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc,
 uint16_t
 ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc)
 {
-    uint16_t stack_usage = UBPF_EBPF_STACK_SIZE;
-    if (vm->local_func_stack_usage[pc].stack_usage_calculated) {
+    assert((vm->local_func_stack_usage[pc].stack_usage_calculated != UBPF_STACK_USAGE_UNKNOWN));
+
+    uint16_t stack_usage = UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE;
+    if (vm->local_func_stack_usage[pc].stack_usage_calculated == UBPF_STACK_USAGE_CUSTOM) {
         stack_usage = vm->local_func_stack_usage[pc].stack_usage;
     }
     return stack_usage;
