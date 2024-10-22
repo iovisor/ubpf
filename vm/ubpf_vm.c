@@ -653,8 +653,6 @@ ubpf_exec_ex(
     void* external_dispatcher_cookie = mem;
     void* shadow_stack = NULL;
 
-    struct ebpf_inst previous_inst = {.opcode = 0};
-
     if (!insts) {
         /* Code must be loaded before we can execute */
         return -1;
@@ -704,16 +702,6 @@ ubpf_exec_ex(
         }
 
         if ((pc == 0 || vm->int_funcs[pc]) && stack_frame_index < UBPF_MAX_CALL_DEPTH) {
-            // If this is neither the first instruction nor a local function call, then the behavior is undefined.
-            if (previous_inst.opcode != 0 && !(previous_inst.opcode == EBPF_OP_CALL && previous_inst.src == 1)) {
-                // Previous instruction wasn't a call to this instruction, so behavior is undefined.
-                if (vm->undefined_behavior_check_enabled) {
-                    vm->error_printf(
-                        stderr, "Error: Call to local function at pc %d is not from a call instruction.\n", pc);
-                    return_value = -1;
-                    goto cleanup;
-                }
-            }
             stack_frames[stack_frame_index].stack_usage = ubpf_stack_usage_for_local_func(vm, pc);
         }
 
@@ -1402,8 +1390,6 @@ ubpf_exec_ex(
         if (((inst.opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU) && (inst.opcode & EBPF_ALU_OP_MASK) != 0xd0) {
             reg[inst.dst] &= UINT32_MAX;
         }
-        // Save the previous instruction for detecting falling through to the start of another function.
-        previous_inst = inst;
     }
 
 cleanup:
@@ -1432,6 +1418,18 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 #endif
     return result;
 }
+
+/**
+ * @brief Check if the BPF byte code sequence consists of self-contained sub-programs.
+ * This means programs that only enter via a call and leave via the EXIT instruction (no jumps out of one program into another).
+ *
+ * @param[in] insts Array of instructions
+ * @param[in] num_insts Count of instructions
+ * @param[out] errmsg Error message
+ * @retval true if the program consists of self-contained sub-programs.
+ * @return false if the program contains jumps out of one program into another.
+ */
+static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
@@ -1715,7 +1713,8 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         }
     }
 
-    return true;
+    // If the program is syntactically valid, check if it consists of self-contained sub-programs.
+    return check_for_self_contained_sub_programs(insts, num_insts, errmsg);
 }
 
 static bool
@@ -1961,4 +1960,143 @@ ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_fu
     vm->debug_function = debug_function;
     vm->debug_function_context = context;
     return 0;
+}
+
+/**
+ * @brief Compare function for sorting an array of uint32_t.
+ *
+ * @param[in] a Pointer to the first element.
+ * @param[in] b Pointer to the second element.
+ * @return Comparison result.
+ */
+static int compare_uint32_t(const void* a, const void* b)
+{
+    uint32_t value_a = *(uint32_t*)a;
+    uint32_t value_b = *(uint32_t*)b;
+    if (value_a < value_b) {
+        return -1;
+    } else if (value_a > value_b) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+/**
+ * @brief Given an array of uint32_t, remove duplicates and update the count.
+ *
+ * @param[in,out] array Array of uint32_t.
+ * @param[in,out] count On input, the number of elements in the array. On output, the number of unique elements.
+ */
+static void deduplicate_array_of_uint32(uint32_t* array, uint32_t* count)
+{
+    uint32_t write_index = 0;
+
+    qsort(array, *count, sizeof(uint32_t), compare_uint32_t);
+
+    for (uint32_t read_index = 1; read_index < *count; read_index++) {
+        if (array[read_index] != array[write_index]) {
+            array[++write_index] = array[read_index];
+        }
+    }
+    *count = write_index + 1;
+}
+
+static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
+{
+    uint32_t local_call_count = 0;
+    uint32_t sub_program_count = 0;
+    uint32_t * sub_program_start_indices = NULL;
+    bool result = false;
+
+    // Count the number of calls to local functions as a proxy for the number of sub-programs.
+    // Call targets are assumed to define the start of a sub-program and sub-programs are assumed to end at the next call target or at the end of the program.
+    for (uint32_t i = 0; i < num_insts; i++) {
+        if (insts[i].opcode == EBPF_OP_CALL && insts[i].src == 1) {
+            local_call_count++;
+        }
+    }
+
+    // If there are no calls to local functions, then the program is self-contained.
+    if (local_call_count == 0) {
+        result = true;
+        goto exit;
+    }
+
+    sub_program_count = local_call_count + 1;
+
+    // Allocate memory for the sub-program start indices.
+    sub_program_start_indices = calloc(sub_program_count, sizeof(uint32_t));
+    if (sub_program_start_indices == NULL) {
+        *errmsg = ubpf_error("failed to allocate memory for sub-program start indices");
+        goto exit;
+    }
+
+    int sub_program_index = 0;
+    for (uint32_t i = 0; i < num_insts; i++) {
+        if (insts[i].opcode == EBPF_OP_CALL && insts[i].src == 1) {
+            // Compute jump target:
+            uint32_t jump_target = i + 1 + insts[i].imm;
+            sub_program_start_indices[sub_program_index++] = jump_target;
+        }
+    }
+
+    // At this point the sub_program_start_indices array contains the start indices of the sub-programs, but there may be duplicates and the array may not be sorted.
+
+    deduplicate_array_of_uint32(sub_program_start_indices, &sub_program_count);
+
+
+    // Now that we have the sub-program start indices, we can check if the program is self-contained.
+    // For each sub-program, check for jumps that go outside of the sub-program.
+
+    for (uint32_t i = 0; i < sub_program_count; i++) {
+        uint32_t start_index = sub_program_start_indices[i]; ///< First instruction of the sub-program.
+        uint32_t end_index = (i == sub_program_count - 1) ? num_insts : sub_program_start_indices[i + 1]; ///< First instruction after the sub-program.
+
+        for (uint32_t j = start_index; j < end_index; j++) {
+            switch (insts[j].opcode & EBPF_CLS_MASK) {
+            // Only jumps with a target in the range [start_index, end_index) are allowed.
+            case EBPF_CLS_JMP:
+            case EBPF_CLS_JMP32:
+                switch (insts[j].opcode) {
+                case EBPF_OP_CALL:
+                    // Calls to local functions are assumed to be within the same sub-program.
+                    break;
+                case EBPF_OP_EXIT:
+                    // The EXIT instruction is assumed to be the end of the sub-program.
+                    break;
+                default: {
+                    // Compute jump target and bounds:
+                    uint32_t jump_target = j + 1 + insts[j].offset;
+                    uint32_t jump_target_lower_bound = start_index;
+                    uint32_t jump_target_upper_bound = end_index - 1;
+
+                    // All other jumps must to be within the same sub-program.
+                    if (jump_target < jump_target_lower_bound || jump_target > jump_target_upper_bound) {
+                        *errmsg = ubpf_error("jump out of bounds at PC %d", j);
+                        goto exit;
+                    }
+                } break;
+                };
+                break;
+            default:
+                break;
+            }
+        }
+        // Last instruction of the sub-program must be EXIT or a jump to the current program.
+        bool ends_with_exit = insts[end_index - 1].opcode == EBPF_OP_EXIT;
+        bool ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA;
+
+        if (!(ends_with_exit || ends_with_jump)) {
+            *errmsg = ubpf_error("sub-program does not end with EXIT at PC %d", end_index - 1);
+            goto exit;
+        }
+    }
+
+    // If we reached here, the program is self-contained.
+    result = true;
+
+exit:
+    free(sub_program_start_indices);
+    return result;
 }
