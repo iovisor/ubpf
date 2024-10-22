@@ -190,10 +190,6 @@ jobs:
         sudo apt-get update
 
         sudo apt-get install -y \
-          ccache \
-          ninja-build \
-          cmake \
-          lcov \
           libboost-dev \
           libboost-program-options-dev \
           libboost-filesystem-dev \
@@ -207,12 +203,15 @@ jobs:
 
     - name: Setup directory for fuzzing
       run: |
-        ls -la
+        ls
         mkdir -p new_corpus
         mkdir -p fuzz/corpus
         cp -r fuzz/corpus/* new_corpus
         mkdir -p artifacts
-        chmod a+x ubpf_fuzzer
+
+    - name: Make fuzzer executable
+      if: matrix.platform == 'ubuntu-24.04'
+      run: chmod a+x ubpf_fuzzer
 
     - name: Run fuzzing
       run: |
