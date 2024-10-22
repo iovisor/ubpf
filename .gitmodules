@@ -6,4 +6,4 @@
 	url = https://github.com/Alan-Jowett/bpf_conformance.git
 [submodule "external/ebpf-verifier"]
 	path = external/ebpf-verifier
-	url = https://github.com/vbpf/ebpf-verifier.git
+	url = https://github.com/alan-jowett/ebpf-verifier.git
