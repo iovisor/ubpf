@@ -205,7 +205,6 @@ jobs:
       run: |
         ls
         mkdir -p new_corpus
-        mkdir -p fuzz/corpus
         cp -r fuzz/corpus/* new_corpus
         mkdir -p artifacts
 
