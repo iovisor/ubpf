@@ -1,0 +1,13 @@
+-- asm
+begin:
+mov %r1, 0x12345678
+call local next
+exit
+next:
+add %r1, 1
+ja begin # Intentionally jump from the sub-program back to the main program.
+exit
+-- result
+0x12345678
+-- errror
+Failed to load code: jump out of bounds at PC 4
