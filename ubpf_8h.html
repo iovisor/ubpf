@@ -87,9 +87,12 @@ Macros</h2></td></tr>
 <tr class="memitem:a7b029668bfe717c5d7b33fba3847a00f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">UBPF_MAX_INSTS</a>&#160;&#160;&#160;65536</td></tr>
 <tr class="memdesc:a7b029668bfe717c5d7b33fba3847a00f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of instructions that a program can contain.  <a href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">More...</a><br /></td></tr>
 <tr class="separator:a7b029668bfe717c5d7b33fba3847a00f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>&#160;&#160;&#160;512</td></tr>
+<tr class="memitem:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>&#160;&#160;&#160;(8 * 1024)</td></tr>
 <tr class="memdesc:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default stack size for the eBPF program. Must be divisible by 16.  <a href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">More...</a><br /></td></tr>
 <tr class="separator:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a62c7fa1f07bf5c6d3734a1fcd4e6d6cf">UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE</a>&#160;&#160;&#160;256</td></tr>
+<tr class="memdesc:a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default stack size for each local eBPF function.  <a href="ubpf_8h.html#a62c7fa1f07bf5c6d3734a1fcd4e6d6cf">More...</a><br /></td></tr>
+<tr class="separator:a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae89d6c1d7d2bda6006e9969e731826a3">UBPF_EBPF_NONVOLATILE_SIZE</a>&#160;&#160;&#160;(sizeof(uint64_t) * 5)</td></tr>
 <tr class="separator:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a>&#160;&#160;&#160;10</td></tr>
@@ -218,6 +221,23 @@ Functions</h2></td></tr>
 <tr class="separator:aae07506453000ed9fc787a27fa3b9f9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a62c7fa1f07bf5c6d3734a1fcd4e6d6cf">&#9670;&nbsp;</a></span>UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE&#160;&#160;&#160;256</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Default stack size for each local eBPF function. </p>
+<p>The size of the stack for each local eBPF function multiplied by the max call depth (<a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>) must be less than or equal to the total stack size for the eBPF VM (<a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>). </p>
+
+</div>
+</div>
 <a id="ae89d6c1d7d2bda6006e9969e731826a3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae89d6c1d7d2bda6006e9969e731826a3">&#9670;&nbsp;</a></span>UBPF_EBPF_NONVOLATILE_SIZE</h2>
 
@@ -239,7 +259,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define UBPF_EBPF_STACK_SIZE&#160;&#160;&#160;512</td>
+          <td class="memname">#define UBPF_EBPF_STACK_SIZE&#160;&#160;&#160;(8 * 1024)</td>
         </tr>
       </table>
 </div><div class="memdoc">
