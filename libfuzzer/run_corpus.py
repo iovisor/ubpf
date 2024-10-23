@@ -11,9 +11,17 @@ import subprocess
 
 def parse_plugin_options(options_str: str) -> str | list[str]:
     """Parse plugin options string into either a single string or list of options."""
-    if options_str and options_str[0] == "'":
-        return options_str[1:-1]
-    return options_str.split() if options_str else []
+    if not options_str:
+        return []
+    # Handle quoted string with potential escaped quotes
+    if options_str[0] in ["'", '"']:
+        quote = options_str[0]
+        if len(options_str) >= 2 and options_str[-1] == quote:
+            # Remove outer quotes and handle escaped quotes
+            return options_str[1:-1].replace(f"\\{quote}", quote)
+    # Split by spaces, preserving quoted substrings
+    import shlex
+    return shlex.split(options_str)
 
 def parse_corpus_file(corpus_file: str) -> tuple[bytes, bytes]:
     """Parse a corpus file into instructions and memory."""
