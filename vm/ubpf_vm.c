@@ -444,7 +444,7 @@ ubpf_check_shadow_stack(
     uintptr_t stack_end = stack_start + stack_length;
 
     if (access_start > access_end) {
-        // Overflow
+        // Not a stack location.
         return true;
     }
 
@@ -929,8 +929,7 @@ ubpf_exec_ex(
     do {                                                                                                  \
         if (!ubpf_check_shadow_stack(                                                                     \
                 vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.src] + inst.offset, size)) { \
-            return_value = -1;                                                                            \
-            goto cleanup;                                                                                 \
+                shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
         }                                                                                                 \
         if (!bounds_check(                                                                                \
                 vm,                                                                                       \
