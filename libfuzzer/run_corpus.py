@@ -137,9 +137,13 @@ for program in corpus_files:
     if instructions is None:
         continue
 
-    # Convert the instructions and memory to hex strings.
+    # Convert the instructions and memory to hex strings with space between bytes.
     instructions_hex = instructions.hex()
-    memory_hex = memory.hex()
+    memory_hex = memory.hex() if memory else ''
+
+    # Rewrite instructions and memory to hex strings with spaces.
+    instructions_hex = ' '.join(instructions_hex[i:i+2] for i in range(0, len(instructions_hex), 2))
+    memory_hex = ' '.join(memory_hex[i:i+2] for i in range(0, len(memory_hex), 2))
 
     if args.debug:
         print(f'Program: {program}')

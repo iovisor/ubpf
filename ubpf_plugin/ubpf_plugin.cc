@@ -6,6 +6,7 @@
 // value of %r0 at the end of execution.
 // The program is intended to be used with the bpf conformance test suite.
 
+#include <cstdarg>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -73,6 +74,39 @@ bytes_to_ebpf_inst(std::vector<uint8_t> bytes)
     return instructions;
 }
 
+std::string g_error_message;
+
+/**
+ * @brief Capture the output of printf to a string.
+ *
+ * @param[in,out] stream The stream to write to.
+ * @param[in] format The format string.
+ * @param[in] ... The arguments to the format string.
+ *
+ * @return The number of characters written.
+ */
+int capture_printf(FILE* stream, const char* format, ...)
+{
+    // Format the message and append it to g_error_message.
+
+    UNREFERENCED_PARAMETER(stream);
+
+    va_list args;
+    va_start(args, format);
+    char buffer[1024];
+    int ret = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    g_error_message += buffer;
+
+    return ret;
+}
+
+
 /**
  * @brief This program reads BPF instructions from stdin and memory contents from
  * the first agument. It then executes the BPF program and prints the
@@ -135,6 +169,9 @@ int main(int argc, char **argv)
         std::cerr << "Failed to create VM" << std::endl;
         return 1;
     }
+
+    // Capture any error messages from the uBPF library.
+    ubpf_set_error_print(vm.get(), capture_printf);
 
     ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
 
@@ -253,7 +290,7 @@ int main(int argc, char **argv)
 
         if (ubpf_exec(vm.get(), usable_program_memory_pointer, usable_program_memory.size(), &external_dispatcher_result) != 0)
         {
-            std::cerr << "Failed to execute program" << std::endl;
+            std::cerr << "Failed to execute program: " << g_error_message << std::endl;
             return 1;
         }
 
@@ -276,7 +313,7 @@ int main(int argc, char **argv)
         uint64_t index_helper_result;
         if (ubpf_exec(vm.get(), usable_program_memory_pointer, usable_program_memory.size(), &index_helper_result) != 0)
         {
-            std::cerr << "Failed to execute program" << std::endl;
+            std::cerr << "Failed to execute program: " << g_error_message << std::endl;
             return 1;
         }
 
@@ -303,7 +340,7 @@ int main(int argc, char **argv)
                 &external_memory_index_helper_result,
                 (uint8_t*)external_stack,
                 512) != 0) {
-            std::cerr << "Failed to execute program" << std::endl;
+            std::cerr << "Failed to execute program: " << g_error_message << std::endl;
             return 1;
         }
 
@@ -312,7 +349,7 @@ int main(int argc, char **argv)
         // ... and make sure the results are the same.
         if (external_dispatcher_result != index_helper_result) {
             std::cerr << "Execution of the interpreted code with external and indexed helpers gave difference results: 0x"
-                      << std::hex << external_dispatcher_result 
+                      << std::hex << external_dispatcher_result
                       << " vs 0x" << std::hex << index_helper_result << "." << std::endl;
             return 1;
         }
