@@ -15,6 +15,50 @@ def parse_plugin_options(options_str: str) -> str | list[str]:
         return options_str[1:-1]
     return options_str.split() if options_str else []
 
+def parse_corpus_file(corpus_file: str) -> tuple[bytes, bytes]:
+    """Parse a corpus file into instructions and memory."""
+    try:
+        with open(corpus_file, 'rb') as f:
+            header = f.read(4)
+            if len(header) != 4:
+                print(f'Invalid file format (header too short): {corpus_file}')
+                return None, None
+            instructions_length = int.from_bytes(header, byteorder='little')
+            if instructions_length <= 0 or instructions_length > 1024*1024:  # 1MB limit
+                print(f'Invalid instructions length: {instructions_length}')
+                return None, None
+            instructions = f.read(instructions_length)
+            if len(instructions) != instructions_length:
+                print(f'Truncated instructions in file: {corpus_file}')
+                return None, None
+            memory = f.read(1024*1024)  # Read max 1MB of memory
+            return instructions, memory
+    except IOError as e:
+        print(f'Error reading file {corpus_file}: {e}')
+        return None, None
+
+def run_plugin(plugin_path: str, memory_hex: str, options: str | list[str],
+               instructions: bytes, program: str, debug: bool) -> tuple[bytes | None, str | None]:
+    """Execute a plugin and return its output and error message if any."""
+    if debug:
+        print(f'Running plugin: {plugin_path} {memory_hex} {options}')
+
+    try:
+        process = subprocess.Popen(
+            [plugin_path, memory_hex, options],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+        output, stderr = process.communicate(input=instructions, timeout=30)
+        if process.returncode != 0:
+            return None, f'Plugin failed with error: {stderr.decode()}'
+        return output, None
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return None, f'Plugin timed out on {program}'
+    except Exception as e:
+        return None, f'Error running plugin: {e}'
+
 # Read the two plugins and their options from the command line.
 # Command line arguments are expected to be in the following format:
 # ./run_corpus.py --plugin_a <plugin_a> --options_a <options_a> --plugin_b <plugin_b> --options_b <options_b> --corpus <corpus>
@@ -63,23 +107,10 @@ options_b = parse_plugin_options(args.options_b)
 for program in corpus_files:
     # Split the program into instructions and memory.
     # Corpus files are binary, with the first 4 bytes representing the number of bytes of instructions and the rest representing the instructions and memory.
-    try:
-        with open(os.path.join(args.corpus, program), 'rb') as f:
-            header = f.read(4)
-            if len(header) != 4:
-                print(f'Invalid file format (header too short): {program}')
-                continue
-            instructions_length = int.from_bytes(header, byteorder='little')
-            if instructions_length <= 0 or instructions_length > 1024*1024:  # 1MB limit
-                print(f'Invalid instructions length: {instructions_length}')
-                continue
-            instructions = f.read(instructions_length)
-            if len(instructions) != instructions_length:
-                print(f'Truncated instructions in file: {program}')
-                continue
-            memory = f.read(1024*1024)  # Read max 1MB of memory
-    except IOError as e:
-        print(f'Error reading file {program}: {e}')
+    instructions, memory = parse_corpus_file(os.path.join(args.corpus, program))
+
+    # File must contain both instructions, but memory is optional.
+    if instructions is None:
         continue
 
     # Convert the instructions and memory to hex strings.
@@ -91,54 +122,18 @@ for program in corpus_files:
         print(f'Instructions: {instructions_hex}')
         print(f'Memory: {memory_hex}')
 
-    # Run the first plugin.
-    if args.debug:
-        print(f'Running plugin: {args.plugin_a} {memory_hex} {options_a}')
-
-    try:
-        process_a = subprocess.Popen(
-            [args.plugin_a, memory_hex, options_a],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-        output_a, stderr_a = process_a.communicate(input=instructions, timeout=30)
-        if process_a.returncode != 0:
-            print(f'Plugin A failed with error: {stderr_a.decode()}')
-            continue
-    except subprocess.TimeoutExpired:
-        process_a.kill()
-        print(f'Plugin A timed out on {program}')
-        continue
-    except Exception as e:
-        print(f'Error running plugin A: {e}')
+    # Run plugins
+    output_a, error_a = run_plugin(args.plugin_a, memory_hex, options_a,
+                                  instructions_hex.encode('utf-8'), program, args.debug)
+    if error_a:
+        print(error_a)
         continue
 
-    if args.debug:
-        print(f'Output A {output_a}')
-
-    # Run the second plugin.
-    if args.debug:
-        print(f'Running plugin: {args.plugin_b} {memory_hex} {options_b}')
-
-    try:
-        process_b = subprocess.Popen(
-            [args.plugin_b, memory_hex, options_b],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-        output_b, stderr_b = process_b.communicate(input=instructions, timeout=30)
-        if process_b.returncode != 0:
-            print(f'Plugin B failed with error: {stderr_b.decode()}')
-            continue
-    except subprocess.TimeoutExpired:
-        process_b.kill()
-        print(f'Plugin B timed out on {program}')
+    output_b, error_b = run_plugin(args.plugin_b, memory_hex, options_b,
+                                  instructions_hex.encode('utf-8'), program, args.debug)
+    if error_b:
+        print(error_b)
         continue
-    except Exception as e:
-        print(f'Error running plugin B: {e}')
-        continue
-    if args.debug:
-        print(f'Output B {output_b}')
 
     # Compare the output of the two plugins.
     if output_a != output_b:
@@ -146,24 +141,7 @@ for program in corpus_files:
         print(f'Memory: {memory_hex}')
         print(f'Output A ({args.plugin_a}): {output_a}')
         print(f'Output B ({args.plugin_b}): {output_b}')
-        # Clean up before exit
-        for p in [process_a, process_b]:
-            try:
-                if p.poll() is None:
-                    p.kill()
-                    p.wait(timeout=5)
-            except Exception:
-                pass
         exit(1)
-
-    # Ensure processes are properly cleaned up
-    for p in [process_a, process_b]:
-        try:
-            if p.poll() is None:
-                p.kill()
-                p.wait(timeout=5)
-        except Exception as e:
-            print(f'Error cleaning up process: {e}')
 
     # Print that this program passed.
     print(f'Program: {program} passed.')
