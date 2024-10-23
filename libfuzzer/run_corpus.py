@@ -90,11 +90,20 @@ args = parser.parse_args()
 if not os.path.isfile(args.plugin_a):
     print(f'Plugin A not found: {args.plugin_a}')
     exit(1)
+if not os.access(args.plugin_a, os.X_OK):
+    print(f'Plugin A is not executable: {args.plugin_a}')
+    exit(1)
 if not os.path.isfile(args.plugin_b):
     print(f'Plugin B not found: {args.plugin_b}')
     exit(1)
+if not os.access(args.plugin_b, os.X_OK):
+    print(f'Plugin B is not executable: {args.plugin_b}')
+    exit(1)
 if not os.path.isdir(args.corpus):
     print(f'Corpus directory not found: {args.corpus}')
+    exit(1)
+if not os.access(args.corpus, os.R_OK):
+    print(f'Corpus directory is not readable: {args.corpus}')
     exit(1)
 
 # Enumerate the files in the corpus directory.
@@ -146,10 +155,10 @@ for program in corpus_files:
     # Compare the output of the two plugins.
     if output_a != output_b:
         print(f'Mismatch found in program: {program}')
+        print(f'Instructions: {instructions_hex}')
         print(f'Memory: {memory_hex}')
-        print(f'Output A ({args.plugin_a}): {output_a}')
-        print(f'Output B ({args.plugin_b}): {output_b}')
-        exit(1)
+        print(f'Output A ({args.plugin_a}): {output_a.decode() if output_a else None}')
+        print(f'Output B ({args.plugin_b}): {output_b.decode() if output_b else None}')
 
     # Print that this program passed.
     print(f'Program: {program} passed.')
