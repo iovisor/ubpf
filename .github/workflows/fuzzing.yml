@@ -107,11 +107,15 @@ jobs:
         ${command_prefix} cmake \
           --build build
 
+    - name: Generate dictionary
+      run: |
+        python ubpf/dictionary_generator.py >build/bin/dictionary.txt
+
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
         name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
-        path: build/bin/ubpf_fuzzer
+        path: build/bin/*
 
   build-windows:
     strategy:
@@ -149,6 +153,10 @@ jobs:
       run: |
         cmake --build build --config RelWithDebInfo
 
+    - name: Generate dictionary
+      run: |
+        python ubpf\dictionary_generator.py >build\bin\RelWithDebInfo\dictionary.txt
+
     - name: Gather dependencies
       shell: cmd
       run: |
@@ -162,8 +170,8 @@ jobs:
       uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:
         name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
-        path: build/bin/RelWithDebInfo/*
-
+        path: |
+          build/bin/RelWithDebInfo
 
   run_fuzzer:
     needs:
@@ -213,7 +221,15 @@ jobs:
       run: chmod a+x ubpf_fuzzer
 
     - name: Run fuzzing
+      if: matrix.platform == 'ubuntu-24.04'
       run: |
+        ls
+        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300 -dict=dictionary.txt
+
+    - name: Run fuzzing
+      if: matrix.platform == 'windows-latest'
+      run: |
+        ls
         ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300
 
     - name: Merge corpus into fuzz/corpus
