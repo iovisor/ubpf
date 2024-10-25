@@ -224,7 +224,7 @@ jobs:
       if: matrix.platform == 'ubuntu-24.04'
       run: |
         ls
-        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300 -dict=dictionary.txt
+        UBPF_FUZZER_CONSTRAINT_CHECK=1 ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300 -dict=dictionary.txt
 
     - name: Run fuzzing
       if: matrix.platform == 'windows-latest'
