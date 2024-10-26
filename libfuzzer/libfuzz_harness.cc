@@ -611,7 +611,7 @@ ubpf_debug_function(
 ubpf_context_t
 ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
 {
-    ubpf_context_t context;
+    ubpf_context_t context{};
     context.data = reinterpret_cast<uint64_t>(memory.data());
     context.data_end = context.data + memory.size();
     context.original_data = context.data;
