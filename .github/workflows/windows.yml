@@ -51,18 +51,18 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@f779452ac5af1c261dce0346a8f964149f49322b
+      uses: github/codeql-action/init@662472033e021d55d94146f66f6058822b0b39fd
       with:
         languages: 'cpp'
 
     - name: Cache the build folder
-      uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8
+      uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a
       env:
         cache-name: cache-nuget-modules
       with:
@@ -124,4 +124,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@f779452ac5af1c261dce0346a8f964149f49322b
+      uses: github/codeql-action/analyze@662472033e021d55d94146f66f6058822b0b39fd
