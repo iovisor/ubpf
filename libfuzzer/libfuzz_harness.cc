@@ -85,6 +85,8 @@ typedef struct _ubpf_context
 {
     uint64_t data;
     uint64_t data_end;
+    uint64_t original_data;
+    uint64_t original_data_end;
     uint64_t stack_start;
     uint64_t stack_end;
 } ubpf_context_t;
@@ -94,7 +96,7 @@ typedef struct _ubpf_context
  * structure in memory.
  */
 ebpf_context_descriptor_t g_ebpf_context_descriptor_ubpf = {
-    .size = sizeof(ubpf_context_t),
+    .size = offsetof(ubpf_context_t, original_data),
     .data = offsetof(ubpf_context_t, data),
     .end = offsetof(ubpf_context_t, data_end),
     .meta = -1,
@@ -476,8 +478,8 @@ ubpf_classify_address(const ubpf_context_t* context, uint64_t register_value)
     uintptr_t stack_end = static_cast<uintptr_t>(context->stack_end);
     uintptr_t context_start = reinterpret_cast<uintptr_t>(context);
     uintptr_t context_end = context_start + sizeof(ubpf_context_t);
-    uintptr_t packet_start = static_cast<uintptr_t>(context->data);
-    uintptr_t packet_end = static_cast<uintptr_t>(context->data_end);
+    uintptr_t packet_start = static_cast<uintptr_t>(context->original_data);
+    uintptr_t packet_end = static_cast<uintptr_t>(context->original_data_end);
 
     if (register_value_ptr >= stack_start && register_value_ptr < stack_end) {
         return address_type_t::Stack;
@@ -539,6 +541,7 @@ ubpf_debug_function(
 
         // Build set of string constraints from the register values.
         std::set<std::string> constraints;
+        constraints.insert("packet_size=" + std::to_string(ubpf_context->original_data_end - ubpf_context->original_data));
         for (int i = 0; i < 10; i++) {
             if ((register_mask & (1 << i)) == 0) {
                 continue;
@@ -608,9 +611,11 @@ ubpf_debug_function(
 ubpf_context_t
 ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
 {
-    ubpf_context_t context;
+    ubpf_context_t context{};
     context.data = reinterpret_cast<uint64_t>(memory.data());
     context.data_end = context.data + memory.size();
+    context.original_data = context.data;
+    context.original_data_end = context.data_end;
     context.stack_start = reinterpret_cast<uint64_t>(ubpf_stack.data());
     context.stack_end = context.stack_start + ubpf_stack.size();
     return context;
