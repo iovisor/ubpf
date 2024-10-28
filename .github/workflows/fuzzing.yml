@@ -220,23 +220,32 @@ jobs:
       if: matrix.platform == 'ubuntu-24.04'
       run: chmod a+x ubpf_fuzzer
 
+    # If this is a workflow call, run ubpf_fuzzer over each file in the corpus as a regression test.
+    - name: Run fuzzing regression
+      if: github.event_name == 'workflow_call'
+      run: |
+        ./ubpf_fuzzer -merge fuzz/corpus new_corpus
+
+    # If this is a scheduled run or a manual run, run ubpf_fuzzer to attempt to find new crashes. Runs for 2 hours.
     - name: Run fuzzing
-      if: matrix.platform == 'ubuntu-24.04'
+      if: matrix.platform == 'ubuntu-24.04' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
       run: |
         ls
-        UBPF_FUZZER_CONSTRAINT_CHECK=1 ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300 -dict=dictionary.txt
+        UBPF_FUZZER_CONSTRAINT_CHECK=1 ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=7200 -dict=dictionary.txt
 
+    # If this is a scheduled run or a manual run, run ubpf_fuzzer to attempt to find new crashes. Runs for 2 hours.
     - name: Run fuzzing
-      if: matrix.platform == 'windows-latest'
+      if: matrix.platform == 'ubuntu-24.04' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
       run: |
         ls
-        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300
+        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=7200
 
+    # Merge the new corpus into the existing corpus and push the changes to the repository.
     - name: Merge corpus into fuzz/corpus
-      if: ${{ github.event_name == 'schedule' }}
+      if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
       run: |
-        git pull
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
+        git pull
         git add fuzz/corpus
         git config --global user.email 'ubpf@users.noreply.github.com'
         git config --global user.name 'Github Action'
