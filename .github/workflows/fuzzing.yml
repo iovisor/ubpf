@@ -235,6 +235,7 @@ jobs:
     - name: Merge corpus into fuzz/corpus
       if: ${{ github.event_name == 'schedule' }}
       run: |
+        git pull
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
         git add fuzz/corpus
         git config --global user.email 'ubpf@users.noreply.github.com'
