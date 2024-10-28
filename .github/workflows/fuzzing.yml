@@ -230,7 +230,7 @@ jobs:
     - name: Run fuzzing regression
       if: inputs.regression_test == true
       run: |
-        ./ubpf_fuzzer -merge fuzz/corpus new_corpus
+        ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
 
     # If this is a scheduled run or a manual run, run ubpf_fuzzer to attempt to find new crashes. Runs for 2 hours.
     - name: Run fuzzing
