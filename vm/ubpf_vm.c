@@ -1711,9 +1711,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             return false;
         }
 
-        if (!ubpf_is_valid_instruction(inst)) {
-            fprintf(stderr, "Error: unknown opcode %d at PC %d\n", inst.opcode, i);
-            *errmsg = ubpf_error("invalid instruction at PC %d", i);
+        if (!ubpf_is_valid_instruction(inst, errmsg)) {
             return false;
         }
     }

@@ -941,50 +941,66 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     },
 };
 
+static ubpf_inst_filter_t* _ubpf_filter_instruction_lookup_table[256];
+
+/**
+ * @brief Initialize the lookup table for the instruction filter.
+ */
+static void _initialize_lookup_table()
+{
+    static bool _initialized = false;
+
+    if (_initialized) {
+        return;
+    }
+
+    for (int i = 0; i < sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0]); i++) {
+        _ubpf_filter_instruction_lookup_table[_ubpf_instruction_filter[i].opcode] = &_ubpf_instruction_filter[i];
+    }
+}
+
+
 static bool _in_range(int value, int lower_bound, int upper_bound)
 {
     return value >= lower_bound && value <= upper_bound;
 }
 
 bool
-ubpf_is_valid_instruction(const struct ebpf_inst insts)
+ubpf_is_valid_instruction(const struct ebpf_inst insts, char ** errmsg)
 {
-    // Search the table for the matching opcode.
-    int offset;
-    for (offset = 0; offset < sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0]); offset++) {
-        if (_ubpf_instruction_filter[offset].opcode == insts.opcode) {
-            break;
-        }
-    }
+    _initialize_lookup_table();
 
-    // Not found.
-    if (offset == sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0])) {
+    // Lookup the instruction.
+    ubpf_inst_filter_t* filter = _ubpf_filter_instruction_lookup_table[insts.opcode];
+
+    if (filter == NULL) {
+        *errmsg = ubpf_error("Invalid instruction opcode %2X.", insts.opcode);
         return false;
     }
 
     // Validate the instruction.
 
     // Validate destination register.
-    if (!_in_range(insts.dst, _ubpf_instruction_filter[offset].destination_lower_bound,
-                   _ubpf_instruction_filter[offset].destination_upper_bound)) {
+    if (!_in_range(insts.dst, filter->destination_lower_bound, filter->destination_upper_bound)) {
+        *errmsg = ubpf_error("Invalid destination register %d for opcode %2X.", insts.dst, insts.opcode);
         return false;
     }
 
     // Validate source register.
-    if (!_in_range(insts.src, _ubpf_instruction_filter[offset].source_lower_bound,
-                   _ubpf_instruction_filter[offset].source_upper_bound)) {
+    if (!_in_range(insts.src, filter->source_lower_bound, filter->source_upper_bound)) {
+        *errmsg = ubpf_error("Invalid source register %d for opcode %2X.", insts.src, insts.opcode);
         return false;
     }
 
     // Validate immediate value.
-    if (!_in_range(insts.imm, _ubpf_instruction_filter[offset].immediate_lower_bound,
-                   _ubpf_instruction_filter[offset].immediate_upper_bound)) {
+    if (!_in_range(insts.imm, filter->immediate_lower_bound, filter->immediate_upper_bound)) {
+        *errmsg = ubpf_error("Invalid immediate value %d for opcode %2X.", insts.imm, insts.opcode);
         return false;
     }
 
     // Validate offset value.
-    if (!_in_range(insts.offset, _ubpf_instruction_filter[offset].offset_lower_bound,
-                   _ubpf_instruction_filter[offset].offset_upper_bound)) {
+    if (!_in_range(insts.offset, filter->offset_lower_bound, filter->offset_upper_bound)) {
+        *errmsg = ubpf_error("Invalid offset value %d for opcode %2X.", insts.offset, insts.opcode);
         return false;
     }
 
