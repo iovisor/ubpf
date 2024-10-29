@@ -253,6 +253,7 @@ jobs:
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
         git pull
         git add fuzz/corpus
+        git status --porcelain | grep -v fuzz/corpus && exit 0
         git config --global user.email 'ubpf@users.noreply.github.com'
         git config --global user.name 'Github Action'
         git commit -sm "Update fuzzing corpus"
