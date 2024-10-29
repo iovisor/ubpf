@@ -129,7 +129,7 @@ struct ubpf_stack_frame
  * @return false The instruction is invalid.
  */
 bool
-ubpf_is_validate_instruction(const struct ebpf_inst insts);
+ubpf_is_valid_instruction(const struct ebpf_inst insts);
 
 /* The various JIT targets.  */
 

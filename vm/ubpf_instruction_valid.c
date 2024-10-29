@@ -27,6 +27,11 @@ typedef struct _ubpf_inst_filter {
  */
 static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
+        .opcode = 0, // Second half of a LDDW instruction.
+        .immediate_lower_bound = INT32_MIN,
+        .immediate_upper_bound = INT32_MAX,
+    },
+    {
         .opcode = EBPF_OP_ADD_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
@@ -389,7 +394,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_LDXW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -398,7 +403,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_LDXH,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -407,15 +412,16 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_LDXB,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
     },
     {
+        .opcode = EBPF_OP_LDXDW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -424,7 +430,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
         .immediate_lower_bound = INT32_MIN,
@@ -433,7 +439,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STH,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
         .immediate_lower_bound = INT32_MIN,
@@ -442,7 +448,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STB,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
         .immediate_lower_bound = INT32_MIN,
@@ -451,7 +457,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STDW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
         .immediate_lower_bound = INT32_MIN,
@@ -460,7 +466,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STXW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -469,7 +475,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STXH,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -478,7 +484,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STXB,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -487,7 +493,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_STXDW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
         .offset_lower_bound = INT16_MIN,
@@ -496,7 +502,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_LDDW,
         .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination_upper_bound = BPF_REG_10,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -941,7 +947,7 @@ static bool _in_range(int value, int lower_bound, int upper_bound)
 }
 
 bool
-ubpf_is_validate_instruction(const struct ebpf_inst insts)
+ubpf_is_valid_instruction(const struct ebpf_inst insts)
 {
     // Search the table for the matching opcode.
     int offset;
