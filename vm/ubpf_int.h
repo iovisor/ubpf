@@ -121,6 +121,16 @@ struct ubpf_stack_frame
     uint64_t saved_registers[5];
 };
 
+/**
+ * @brief Given an instruction, determine if it is a supported instruction.
+ *
+ * @param[in] insts The instruction to validate.
+ * @return true The instruction is valid.
+ * @return false The instruction is invalid.
+ */
+bool
+ubpf_is_validate_instruction(const struct ebpf_inst insts);
+
 /* The various JIT targets.  */
 
 // arm64

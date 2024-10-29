@@ -1447,6 +1447,11 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         struct ebpf_inst inst = insts[i];
         bool store = false;
 
+        if (!ubpf_is_validate_instruction(inst)) {
+            *errmsg = ubpf_error("invalid instruction at PC %d", i);
+            return false;
+        }
+
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
         case EBPF_OP_ADD_REG:
