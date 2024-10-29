@@ -1710,6 +1710,10 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             *errmsg = ubpf_error("invalid destination register at PC %d", i);
             return false;
         }
+
+        if (!ubpf_is_valid_instruction(inst, errmsg)) {
+            return false;
+        }
     }
 
     // If the program is syntactically valid, check if it consists of self-contained sub-programs.

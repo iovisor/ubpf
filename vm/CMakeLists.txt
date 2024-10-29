@@ -38,6 +38,7 @@ add_library("ubpf"
   ${public_header_list}
 
   ebpf.h
+  ubpf_instruction_valid.c
   ubpf_int.h
   ubpf_jit_arm64.c
   ubpf_jit.c
