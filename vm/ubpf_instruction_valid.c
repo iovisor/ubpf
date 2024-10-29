@@ -957,6 +957,8 @@ static void _initialize_lookup_table()
     for (int i = 0; i < sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0]); i++) {
         _ubpf_filter_instruction_lookup_table[_ubpf_instruction_filter[i].opcode] = &_ubpf_instruction_filter[i];
     }
+
+    _initialized = true;
 }
 
 
