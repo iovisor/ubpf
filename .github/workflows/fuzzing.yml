@@ -11,6 +11,12 @@ on:
     - cron: '00 21 * * *'
   workflow_dispatch: # Run manually
   workflow_call:
+    inputs:
+      regression_test:
+        description: 'Run the fuzzer over the corpus as a regression test.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-posix:
@@ -220,23 +226,32 @@ jobs:
       if: matrix.platform == 'ubuntu-24.04'
       run: chmod a+x ubpf_fuzzer
 
-    - name: Run fuzzing
-      if: matrix.platform == 'ubuntu-24.04'
+    # If this is a workflow call, run ubpf_fuzzer over each file in the corpus as a regression test.
+    - name: Run fuzzing regression
+      if: inputs.regression_test == true
       run: |
-        ls
-        UBPF_FUZZER_CONSTRAINT_CHECK=1 ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300 -dict=dictionary.txt
-
-    - name: Run fuzzing
-      if: matrix.platform == 'windows-latest'
-      run: |
-        ls
-        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=300
-
-    - name: Merge corpus into fuzz/corpus
-      if: ${{ github.event_name == 'schedule' }}
-      run: |
-        git pull
         ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
+
+    # If this is a scheduled run or a manual run, run ubpf_fuzzer to attempt to find new crashes. Runs for 2 hours.
+    - name: Run fuzzing
+      if: matrix.platform == 'ubuntu-24.04' && inputs.regression_test != true
+      run: |
+        ls
+        UBPF_FUZZER_CONSTRAINT_CHECK=1 ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=7200 -dict=dictionary.txt -jobs=1024
+
+    # If this is a scheduled run or a manual run, run ubpf_fuzzer to attempt to find new crashes. Runs for 2 hours.
+    - name: Run fuzzing
+      if: matrix.platform == 'windows-latest' && inputs.regression_test != true
+      run: |
+        ls
+        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=7200 -jobs=1024
+
+    # Merge the new corpus into the existing corpus and push the changes to the repository.
+    - name: Merge corpus into fuzz/corpus
+      if: inputs.regression_test != true
+      run: |
+        ./ubpf_fuzzer -merge=1 fuzz/corpus new_corpus
+        git pull
         git add fuzz/corpus
         git config --global user.email 'ubpf@users.noreply.github.com'
         git config --global user.name 'Github Action'

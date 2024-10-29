@@ -342,6 +342,8 @@ jobs:
 
   fuzzing:
     uses: ./.github/workflows/fuzzing.yml
+    with:
+      regression_test: ${{ github.event_name == 'pull_request' || github.event_name == 'schedule' }}
 
   # Disabled until https://github.com/iovisor/ubpf/issues/155 is resolved.
   # linux_debug_arm64_sanitizers:
