@@ -954,7 +954,7 @@ static void _initialize_lookup_table()
         return;
     }
 
-    for (int i = 0; i < sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0]); i++) {
+    for (size_t i = 0; i < sizeof(_ubpf_instruction_filter) / sizeof(_ubpf_instruction_filter[0]); i++) {
         _ubpf_filter_instruction_lookup_table[_ubpf_instruction_filter[i].opcode] = &_ubpf_instruction_filter[i];
     }
 
@@ -962,7 +962,7 @@ static void _initialize_lookup_table()
 }
 
 
-static bool _in_range(int value, int lower_bound, int upper_bound)
+static bool _in_range(int32_t value, int32_t lower_bound, int32_t upper_bound)
 {
     return value >= lower_bound && value <= upper_bound;
 }
