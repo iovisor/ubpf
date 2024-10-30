@@ -521,7 +521,7 @@ ubpf_debug_function(
             if ((register_mask & (1 << i)) == 0) {
                 continue;
             }
-            std::cout << "r" << i << "=" << registers[i] << " ";
+            std::cout << "r" << i << "=" << std::hex << registers[i] << " ";
         }
         std::cout << std::endl;
     }
