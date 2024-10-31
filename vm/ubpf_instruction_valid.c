@@ -7,20 +7,82 @@
 
 /**
  * @brief Structure to filter valid fields for each eBPF instruction.
- * Default values are all zeros, which means the field is reserved and must be zero.
+ * Each field has an optional validation function that is called to validate the field.
+ * If the validation function is NULL, the field is reserved and must be zero.
  */
-typedef struct _ubpf_inst_filter {
-    uint8_t opcode; ///< The opcode of the instruction.
-    uint8_t source_lower_bound; ///< The lower bound of the source register.
-    uint8_t source_upper_bound; ///< The upper bound of the source register.
-    uint8_t destination_lower_bound; ///< The lower bound of the destination register.
-    uint8_t destination_upper_bound; ///< The upper bound of the destination register.
-    int16_t offset_lower_bound; ///< The lower bound of the offset.
-    int16_t offset_upper_bound; ///< The upper bound of the offset.
-    int32_t immediate_lower_bound; ///< The lower bound of the immediate value.
-    int32_t immediate_upper_bound; ///< The upper bound of the immediate value.
+typedef struct _ubpf_inst_filter
+{
+    uint8_t opcode;                       ///< The opcode of the instruction.
+    bool (*source)(int64_t source);       ///< Function to validate the source register.
+    bool (*destination)(int64_t dest);    ///< Function to validate the source register.
+    bool (*offset)(int64_t offset);       ///< Function to validate the offset.
+    bool (*immediate)(int64_t immediate); ///< Function to validate the immediate value.
 } ubpf_inst_filter_t;
 
+bool
+_is_r0_through_r9(int64_t src)
+{
+    return src >= BPF_REG_0 && src <= BPF_REG_9;
+}
+
+bool
+_is_r0_through_r10(int64_t dst)
+{
+    return dst >= BPF_REG_0 && dst <= BPF_REG_10;
+}
+
+bool
+_is_integer_width(int64_t imm)
+{
+    switch (imm) {
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool
+_is_16bit(int64_t imm)
+{
+    return imm >= INT16_MIN && imm <= INT16_MAX;
+}
+
+bool
+_is_32bit(int64_t imm)
+{
+    return imm >= INT32_MIN && imm <= INT32_MAX;
+}
+
+bool
+_is_valid_call_type(int64_t imm)
+{
+    return imm == 0 || imm == 1;
+}
+
+bool
+_is_valid_atomic_alu_op(int64_t imm)
+{
+    switch (imm) {
+    case EBPF_ALU_OP_ADD:
+    case EBPF_ALU_OP_OR:
+    case EBPF_ALU_OP_AND:
+    case EBPF_ALU_OP_XOR:
+    case EBPF_ALU_OP_ADD | EBPF_ATOMIC_OP_FETCH:
+    case EBPF_ALU_OP_OR | EBPF_ATOMIC_OP_FETCH:
+    case EBPF_ALU_OP_AND | EBPF_ATOMIC_OP_FETCH:
+    case EBPF_ALU_OP_XOR | EBPF_ATOMIC_OP_FETCH:
+        return true;
+    case EBPF_ATOMIC_OP_XCHG:
+    case EBPF_ATOMIC_OP_CMPXCHG:
+        return true;
+    default:
+        return false;
+    }
+}
 
 /**
  * @brief Array of valid eBPF instructions and their fields.
@@ -28,916 +90,631 @@ typedef struct _ubpf_inst_filter {
 static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = 0, // Second half of a LDDW instruction.
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ADD_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ADD_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_SUB_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_SUB_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_MUL_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MUL_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_DIV_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_DIV_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_OR_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_OR_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_AND_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_AND_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_LSH_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_LSH_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_RSH_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_RSH_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_NEG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_MOD_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MOD_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_XOR_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_XOR_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_MOV_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MOV_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_ARSH_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ARSH_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_LE,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = 0,
-        .immediate_upper_bound = 64,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_integer_width,
     },
     {
         .opcode = EBPF_OP_BE,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = 0,
-        .immediate_upper_bound = 64,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_integer_width,
     },
     {
         .opcode = EBPF_OP_ADD64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ADD64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_SUB64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_SUB64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_MUL64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MUL64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_DIV64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_DIV64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .source = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_OR64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_OR64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_AND64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_AND64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_LSH64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_LSH64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_RSH64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_RSH64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_NEG64,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
+        .destination = _is_r0_through_r9,
     },
     {
         .opcode = EBPF_OP_MOD64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MOD64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_XOR64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_XOR64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MOV64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_MOV64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ARSH64_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_ARSH64_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_9,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
+        .destination = _is_r0_through_r9,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_LDXW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_LDXH,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_LDXB,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_LDXDW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_STW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r10,
+        .offset = _is_16bit,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_STH,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r10,
+        .offset = _is_16bit,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_STB,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r10,
+        .offset = _is_16bit,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_STDW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r10,
+        .offset = _is_16bit,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_STXW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_STXH,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_STXB,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_STXDW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_LDDW,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_JA,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JEQ_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JEQ_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGT_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGT_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGE_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGE_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSET_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSET_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JNE_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JNE_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGT_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGT_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGE_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGE_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_CALL,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_1, // Only supports up to local calls aka 1.
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
+        .source = _is_valid_call_type,
+        .immediate = _is_32bit,
     },
     {
         .opcode = EBPF_OP_EXIT,
     },
     {
         .opcode = EBPF_OP_JLT_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLT_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLE_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLE_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLT_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLT_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLE_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLE_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JEQ32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JEQ32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGT32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGT32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGE32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JGE32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSET32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSET32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JNE32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JNE32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGT32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGT32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGE32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSGE32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLT32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLT32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLE32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JLE32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLT32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLT32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLE32_IMM,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = INT32_MIN,
-        .immediate_upper_bound = INT32_MAX,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .immediate = _is_32bit,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_JSLE32_REG,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_ATOMIC32_STORE,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = 0x0,
-        .immediate_upper_bound = 0xff,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .immediate = _is_valid_atomic_alu_op,
+        .offset = _is_16bit,
     },
     {
         .opcode = EBPF_OP_ATOMIC_STORE,
-        .destination_lower_bound = BPF_REG_0,
-        .destination_upper_bound = BPF_REG_10,
-        .source_lower_bound = BPF_REG_0,
-        .source_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = 0x0,
-        .immediate_upper_bound = 0xff,
-        .offset_lower_bound = INT16_MIN,
-        .offset_upper_bound = INT16_MAX,
+        .destination = _is_r0_through_r10,
+        .source = _is_r0_through_r10,
+        .offset = _is_16bit,
     },
 };
 
@@ -946,7 +723,8 @@ static ubpf_inst_filter_t* _ubpf_filter_instruction_lookup_table[256];
 /**
  * @brief Initialize the lookup table for the instruction filter.
  */
-static void _initialize_lookup_table()
+static void
+_initialize_lookup_table()
 {
     static bool _initialized = false;
 
@@ -961,48 +739,40 @@ static void _initialize_lookup_table()
     _initialized = true;
 }
 
-
-static bool _in_range(int32_t value, int32_t lower_bound, int32_t upper_bound)
-{
-    return value >= lower_bound && value <= upper_bound;
-}
-
 bool
-ubpf_is_valid_instruction(const struct ebpf_inst insts, char ** errmsg)
+ubpf_is_valid_instruction(const struct ebpf_inst inst, char** errmsg)
 {
     _initialize_lookup_table();
 
     // Lookup the instruction.
-    ubpf_inst_filter_t* filter = _ubpf_filter_instruction_lookup_table[insts.opcode];
+    ubpf_inst_filter_t* filter = _ubpf_filter_instruction_lookup_table[inst.opcode];
 
     if (filter == NULL) {
-        *errmsg = ubpf_error("Invalid instruction opcode %2X.", insts.opcode);
+        *errmsg = ubpf_error("Invalid instruction opcode %2X.", inst.opcode);
         return false;
     }
 
-    // Validate the instruction.
-
-    // Validate destination register.
-    if (!_in_range(insts.dst, filter->destination_lower_bound, filter->destination_upper_bound)) {
-        *errmsg = ubpf_error("Invalid destination register %d for opcode %2X.", insts.dst, insts.opcode);
+    // Validate the source register.
+    if (inst.src != 0 && filter->source != NULL && !filter->source(inst.src)) {
+        *errmsg = ubpf_error("Invalid source register %d for instruction %2X.", inst.src, inst.opcode);
         return false;
     }
 
-    // Validate source register.
-    if (!_in_range(insts.src, filter->source_lower_bound, filter->source_upper_bound)) {
-        *errmsg = ubpf_error("Invalid source register %d for opcode %2X.", insts.src, insts.opcode);
+    // Validate the destination register.
+    if (inst.dst != 0 && filter->destination != NULL && !filter->destination(inst.dst)) {
+        *errmsg = ubpf_error("Invalid destination register %d for instruction %2X.", inst.dst, inst.opcode);
         return false;
     }
 
-    // Validate immediate value.
-    if (!_in_range(insts.imm, filter->immediate_lower_bound, filter->immediate_upper_bound)) {
-        *errmsg = ubpf_error("Invalid immediate value %d for opcode %2X.", insts.imm, insts.opcode);
+    // Validate the offset.
+    if (inst.offset != 0 && filter->offset != NULL && !filter->offset(inst.offset)) {
+        *errmsg = ubpf_error("Invalid offset %d for instruction %2X.", inst.offset, inst.opcode);
         return false;
     }
 
-    // Validate offset value.
-    if (!_in_range(insts.offset, filter->offset_lower_bound, filter->offset_upper_bound)) {
-        *errmsg = ubpf_error("Invalid offset value %d for opcode %2X.", insts.offset, insts.opcode);
+    // Validate the immediate value.
+    if (inst.imm != 0 && filter->immediate != NULL && !filter->immediate(inst.imm)) {
+        *errmsg = ubpf_error("Invalid immediate value %d for instruction %2X.", inst.imm, inst.opcode);
         return false;
     }
 
