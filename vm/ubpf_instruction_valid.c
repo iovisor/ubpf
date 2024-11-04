@@ -274,7 +274,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_OR64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_AND64_IMM,
@@ -284,7 +284,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_AND64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_LSH64_IMM,
@@ -294,7 +294,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_LSH64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_RSH64_IMM,
@@ -304,7 +304,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_RSH64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_NEG64,
@@ -318,7 +318,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_MOD64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_XOR64_IMM,
@@ -328,7 +328,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_XOR64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_MOV64_IMM,
@@ -338,7 +338,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_MOV64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_ARSH64_IMM,
@@ -348,7 +348,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
     {
         .opcode = EBPF_OP_ARSH64_REG,
         .destination = _is_r0_through_r9,
-        .immediate = _is_32bit,
+        .source = _is_r0_through_r10,
     },
     {
         .opcode = EBPF_OP_LDXW,
@@ -714,6 +714,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_ATOMIC_STORE,
         .destination = _is_r0_through_r10,
         .source = _is_r0_through_r10,
+        .immediate = _is_valid_atomic_alu_op,
         .offset = _is_16bit,
     },
 };
