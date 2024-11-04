@@ -244,8 +244,7 @@ jobs:
       if: matrix.platform == 'windows-latest' && inputs.regression_test != true
       run: |
         ls
-        $numberOfCores = (Get-CimInstance -ClassName Win32_Processor).NumberOfLogicalProcessors
-        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=3600 -workers=$numberOfCores -jobs=$numberOfCores -jobs=$numberOfCores
+        ./ubpf_fuzzer new_corpus -artifact_prefix=artifacts/ -use_value_profile=1 -max_total_time=3600 "-workers=$numberOfCores" "-jobs=$numberOfCores"
 
     # Merge the new corpus into the existing corpus and push the changes to the repository.
     - name: Merge corpus into fuzz/corpus
