@@ -89,6 +89,8 @@ typedef struct _ubpf_context
     uint64_t original_data_end;
     uint64_t stack_start;
     uint64_t stack_end;
+    uint64_t program_start;
+    uint64_t program_end;
 } ubpf_context_t;
 
 /**
@@ -359,9 +361,7 @@ try {
     options.check_termination = true;
     options.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
-#if defined(HAVE_EBPF_VERIFIER_CHECK_CONSTRAINTS_AT_LABEL)
     options.store_pre_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK");
-#endif
 
     // Disable simplification so that the verifier can provide more fine grained invariant information for each
     // instruction.
@@ -492,6 +492,8 @@ ubpf_classify_address(const ubpf_context_t* context, uint64_t register_value)
     }
 }
 
+std::vector<size_t> g_pc_stack;
+
 /**
  * @brief Function invoked prior to executing each instruction in the program.
  *
@@ -526,14 +528,37 @@ ubpf_debug_function(
         std::cout << std::endl;
     }
 
+
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK")) {
-#if defined(HAVE_EBPF_VERIFIER_CHECK_CONSTRAINTS_AT_LABEL)
         ubpf_context_t* ubpf_context = reinterpret_cast<ubpf_context_t*>(context);
         UNREFERENCED_PARAMETER(stack_start);
         UNREFERENCED_PARAMETER(stack_length);
         UNREFERENCED_PARAMETER(stack_mask);
 
-        std::string label = std::to_string(program_counter) + ":-1";
+        // Check if this is an local call or exit instruction.
+        const ebpf_inst* inst = reinterpret_cast<const ebpf_inst*>(ubpf_context->program_start);
+        inst += program_counter;
+
+        std::string label;
+
+        for (size_t i = 0; i < g_pc_stack.size(); i++) {
+            label += std::to_string(g_pc_stack[i]) + "/";
+        }
+
+        label += std::to_string(program_counter) + ":-1";
+
+        // Local call.
+        if (inst->opcode == EBPF_OP_CALL && inst->src == 1) {
+            g_pc_stack.push_back(program_counter);
+        }
+
+        // Exit.
+        if (inst->opcode == EBPF_OP_EXIT) {
+            if (!g_pc_stack.empty()) {
+                g_pc_stack.pop_back();
+            }
+        }
+       
 
         if (program_counter == 0) {
             return;
@@ -591,13 +616,6 @@ ubpf_debug_function(
             std::cerr << os.str() << std::endl;
             throw std::runtime_error("ebpf_check_constraints_at_label failed");
         }
-#else
-        throw std::runtime_error("ebpf_check_constraints_at_label not supported");
-        UNREFERENCED_PARAMETER(context);
-        UNREFERENCED_PARAMETER(stack_start);
-        UNREFERENCED_PARAMETER(stack_length);
-        UNREFERENCED_PARAMETER(stack_mask);
-#endif
     }
 }
 
@@ -609,7 +627,7 @@ ubpf_debug_function(
  * @return The context object.
  */
 ubpf_context_t
-ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
+ubpf_context_from(const std::vector<uint8_t>& program_code, std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
 {
     ubpf_context_t context{};
     context.data = reinterpret_cast<uint64_t>(memory.data());
@@ -618,6 +636,8 @@ ubpf_context_from(std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack
     context.original_data_end = context.data_end;
     context.stack_start = reinterpret_cast<uint64_t>(ubpf_stack.data());
     context.stack_end = context.stack_start + ubpf_stack.size();
+    context.program_start = reinterpret_cast<uint64_t>(program_code.data());
+    context.program_end = context.program_start + program_code.size();
     return context;
 }
 
@@ -687,7 +707,7 @@ call_ubpf_interpreter(
         return false;
     }
 
-    ubpf_context_t context = ubpf_context_from(memory, ubpf_stack);
+    ubpf_context_t context = ubpf_context_from(program_code, memory, ubpf_stack);
 
     ubpf_register_debug_fn(vm.get(), &context, ubpf_debug_function);
     ubpf_register_data_bounds_check(vm.get(), &context, bounds_check);
@@ -730,7 +750,7 @@ call_ubpf_jit(
 {
     auto vm = create_ubpf_vm(program_code);
 
-    ubpf_context_t context = ubpf_context_from(memory, ubpf_stack);
+    ubpf_context_t context = ubpf_context_from(program_code, memory, ubpf_stack);
 
     char* error_message = nullptr;
 
