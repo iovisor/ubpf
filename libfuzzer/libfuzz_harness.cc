@@ -355,24 +355,21 @@ try {
     InstructionSeq& prog = std::get<InstructionSeq>(prog_or_error);
 
     // Start with the default verifier options.
-    ebpf_verifier_options_t options = ebpf_verifier_default_options;
+    ebpf_verifier_options_t options{};
 
     // Enable termination checking and pre-invariant storage.
-    options.check_termination = true;
+    options.cfg_opts.check_for_termination = true;
+    options.cfg_opts.simplify = false;
     options.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.store_pre_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK");
-
-    // Disable simplification so that the verifier can provide more fine grained invariant information for each
-    // instruction.
-    options.simplify = false;
 
     ebpf_verifier_stats_t stats;
 
     std::ostringstream error_stream;
 
     // Verify the program. This will return false or throw an exception if the program is invalid.
-    bool result = ebpf_verify_program(error_stream, prog, raw_prog.info, &options, &stats);
+    bool result = ebpf_verify_program(error_stream, prog, raw_prog.info, options, &stats);
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
         std::cout << "verifier stats:" << std::endl;
         std::cout << "total_unreachable: " << stats.total_unreachable << std::endl;
