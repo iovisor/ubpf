@@ -30,20 +30,6 @@ set(UBPF_FUZZER_LIBS
 
 set(CMAKE_REQUIRED_INCLUDES ${UBPF_FUZZER_INCLUDES})
 
-include(CheckCXXSourceCompiles)
-
-# Check if the ebpf verifier supports checking constraints at labels.
-set(CHECK_CONFIG_STORE_PRE_INVARIANTS "
-#include <config.hpp>
-int main() {
-    ebpf_verifier_options_t options;
-    options.store_pre_invariants = true;
-    return 0;
-}
-")
-
-check_cxx_source_compiles("${CHECK_CONFIG_STORE_PRE_INVARIANTS}" HAVE_EBPF_VERIFIER_CHECK_CONSTRAINTS_AT_LABEL)
-
 set(CMAKE_CXX_STANDARD 20)
 
 configure_file(
