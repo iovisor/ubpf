@@ -87,7 +87,10 @@ Macros</h2></td></tr>
 <tr class="memitem:a7b029668bfe717c5d7b33fba3847a00f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">UBPF_MAX_INSTS</a>&#160;&#160;&#160;65536</td></tr>
 <tr class="memdesc:a7b029668bfe717c5d7b33fba3847a00f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of instructions that a program can contain.  <a href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">More...</a><br /></td></tr>
 <tr class="separator:a7b029668bfe717c5d7b33fba3847a00f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>&#160;&#160;&#160;(8 * 1024)</td></tr>
+<tr class="memitem:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a>&#160;&#160;&#160;8</td></tr>
+<tr class="memdesc:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of nested calls in the VM.  <a href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">More...</a><br /></td></tr>
+<tr class="separator:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">UBPF_EBPF_STACK_SIZE</a>&#160;&#160;&#160;(<a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a> * 512)</td></tr>
 <tr class="memdesc:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default stack size for the eBPF program. Must be divisible by 16.  <a href="ubpf_8h.html#a91fdfd9d55e9ffcadcfe27a87340eace">More...</a><br /></td></tr>
 <tr class="separator:a91fdfd9d55e9ffcadcfe27a87340eace"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a62c7fa1f07bf5c6d3734a1fcd4e6d6cf">UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE</a>&#160;&#160;&#160;256</td></tr>
@@ -95,9 +98,6 @@ Macros</h2></td></tr>
 <tr class="separator:a62c7fa1f07bf5c6d3734a1fcd4e6d6cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae89d6c1d7d2bda6006e9969e731826a3">UBPF_EBPF_NONVOLATILE_SIZE</a>&#160;&#160;&#160;(sizeof(uint64_t) * 5)</td></tr>
 <tr class="separator:ae89d6c1d7d2bda6006e9969e731826a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a>&#160;&#160;&#160;10</td></tr>
-<tr class="memdesc:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default maximum number of nested calls in the VM.  <a href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">More...</a><br /></td></tr>
-<tr class="separator:a23e70b5f29f0296e69a72ec5cfc588d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="typedef-members"></a>
 Typedefs</h2></td></tr>
@@ -259,7 +259,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define UBPF_EBPF_STACK_SIZE&#160;&#160;&#160;(8 * 1024)</td>
+          <td class="memname">#define UBPF_EBPF_STACK_SIZE&#160;&#160;&#160;(<a class="el" href="ubpf_8h.html#a23e70b5f29f0296e69a72ec5cfc588d8">UBPF_MAX_CALL_DEPTH</a> * 512)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -275,7 +275,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define UBPF_MAX_CALL_DEPTH&#160;&#160;&#160;10</td>
+          <td class="memname">#define UBPF_MAX_CALL_DEPTH&#160;&#160;&#160;8</td>
         </tr>
       </table>
 </div><div class="memdoc">
