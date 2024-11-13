@@ -40,10 +40,17 @@ extern "C"
 #endif
 
 /**
+ * @brief Default maximum number of nested calls in the VM.
+ */
+#if !defined(UBPF_MAX_CALL_DEPTH)
+#define UBPF_MAX_CALL_DEPTH 8
+#endif
+
+/**
  * @brief Default stack size for the eBPF program. Must be divisible by 16.
  */
 #if !defined(UBPF_EBPF_STACK_SIZE)
-#define UBPF_EBPF_STACK_SIZE (8 * 1024)
+#define UBPF_EBPF_STACK_SIZE (UBPF_MAX_CALL_DEPTH * 512)
 #endif
 
 /**
@@ -60,12 +67,6 @@ extern "C"
 
 #define UBPF_EBPF_NONVOLATILE_SIZE (sizeof(uint64_t) * 5)
 
-/**
- * @brief Default maximum number of nested calls in the VM.
- */
-#if !defined(UBPF_MAX_CALL_DEPTH)
-#define UBPF_MAX_CALL_DEPTH 10
-#endif
 
     /**
      * @brief Opaque type for a the uBPF VM.
