@@ -9,18 +9,32 @@
  * @brief Structure to filter valid fields for each eBPF instruction.
  * Default values are all zeros, which means the field is reserved and must be zero.
  */
-typedef struct _ubpf_inst_filter {
-    uint8_t opcode; ///< The opcode of the instruction.
-    uint8_t source_lower_bound; ///< The lower bound of the source register.
-    uint8_t source_upper_bound; ///< The upper bound of the source register.
-    uint8_t destination_lower_bound; ///< The lower bound of the destination register.
-    uint8_t destination_upper_bound; ///< The upper bound of the destination register.
-    int16_t offset_lower_bound; ///< The lower bound of the offset.
-    int16_t offset_upper_bound; ///< The upper bound of the offset.
-    int32_t immediate_lower_bound; ///< The lower bound of the immediate value.
-    int32_t immediate_upper_bound; ///< The upper bound of the immediate value.
+typedef struct _ubpf_inst_filter
+{
+    uint8_t opcode;                       ///< The opcode of the instruction.
+    uint8_t source_lower_bound;           ///< The lower bound of the source register.
+    uint8_t source_upper_bound;           ///< The upper bound of the source register.
+    uint8_t destination_lower_bound;      ///< The lower bound of the destination register.
+    uint8_t destination_upper_bound;      ///< The upper bound of the destination register.
+    int16_t offset_lower_bound;           ///< The lower bound of the offset.
+    int16_t offset_upper_bound;           ///< The upper bound of the offset.
+    int32_t immediate_lower_bound;        ///< The lower bound of the immediate value.
+    int32_t immediate_upper_bound;        ///< The upper bound of the immediate value.
+    int32_t* immediate_enumerated;        ///< A specific enumeration of the valid immediate values.
+    uint32_t immediate_enumerated_length; ///< The number of valid enumerated immediate values.
 } ubpf_inst_filter_t;
 
+static int32_t ebpf_atomic_store_immediate_enumerated[] = {
+    EBPF_ALU_OP_ADD,
+    EBPF_ALU_OP_ADD | EBPF_ATOMIC_OP_FETCH,
+    EBPF_ALU_OP_OR,
+    EBPF_ALU_OP_OR | EBPF_ATOMIC_OP_FETCH,
+    EBPF_ALU_OP_AND,
+    EBPF_ALU_OP_AND | EBPF_ATOMIC_OP_FETCH,
+    EBPF_ALU_OP_XOR,
+    EBPF_ALU_OP_XOR | EBPF_ATOMIC_OP_FETCH,
+    EBPF_ATOMIC_OP_XCHG | EBPF_ATOMIC_OP_FETCH,
+    EBPF_ATOMIC_OP_CMPXCHG | EBPF_ATOMIC_OP_FETCH};
 
 /**
  * @brief Array of valid eBPF instructions and their fields.
@@ -208,6 +222,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_LE,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        // specific valid values for the immediate field are checked in validate.
         .immediate_lower_bound = 0,
         .immediate_upper_bound = 64,
     },
@@ -215,6 +230,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_BE,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        // specific valid values for the immediate field are checked in validate.
         .immediate_lower_bound = 0,
         .immediate_upper_bound = 64,
     },
@@ -503,6 +519,9 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_LDDW,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_10,
+        // specific valid source values are checked in validate.
+        .source_lower_bound = 0,
+        .source_upper_bound = 6,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -934,8 +953,8 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_10,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
-        .immediate_lower_bound = 0x0,
-        .immediate_upper_bound = 0xff,
+        .immediate_enumerated = ebpf_atomic_store_immediate_enumerated,
+        .immediate_enumerated_length = 10,
         .offset_lower_bound = INT16_MIN,
         .offset_upper_bound = INT16_MAX,
     },
@@ -994,10 +1013,25 @@ ubpf_is_valid_instruction(const struct ebpf_inst insts, char ** errmsg)
         return false;
     }
 
-    // Validate immediate value.
-    if (!_in_range(insts.imm, filter->immediate_lower_bound, filter->immediate_upper_bound)) {
-        *errmsg = ubpf_error("Invalid immediate value %d for opcode %2X.", insts.imm, insts.opcode);
-        return false;
+    // Validate immediate values in the presence of enumerated values.
+    if (filter->immediate_enumerated != NULL) {
+        bool valid = false;
+        for (int i = 0; i < filter->immediate_enumerated_length; i++) {
+            if (filter->immediate_enumerated[i] == insts.imm) {
+                valid = true;
+                break;
+            }
+        }
+        if (!valid) {
+            *errmsg = ubpf_error("Invalid immediate value %d for opcode %2X.", insts.imm, insts.opcode);
+            return false;
+        }
+    } else {
+        // Validate immediate value.
+        if (!_in_range(insts.imm, filter->immediate_lower_bound, filter->immediate_upper_bound)) {
+            *errmsg = ubpf_error("Invalid immediate value %d for opcode %2X.", insts.imm, insts.opcode);
+            return false;
+        }
     }
 
     // Validate offset value.
