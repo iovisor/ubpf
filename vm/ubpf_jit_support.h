@@ -54,11 +54,11 @@ struct patchable_relative
 };
 
 /* Special values for target_pc in struct jump */
-#define TARGET_PC_EXIT ~UINT32_C(0)
-#define TARGET_PC_ENTER (~UINT32_C(0) & 0x01)
-#define TARGET_PC_RETPOLINE (~UINT32_C(0) & 0x0101)
-#define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0x010101)
-#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) & 0x01010101)
+#define TARGET_PC_EXIT (~UINT32_C(0) & 0xF0000000)
+#define TARGET_PC_ENTER (~UINT32_C(0) & 0xF0000001)
+#define TARGET_PC_RETPOLINE (~UINT32_C(0) & 0xF0000101)
+#define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0xF0010101)
+#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) & 0xF1010101)
 
 struct jit_state
 {
