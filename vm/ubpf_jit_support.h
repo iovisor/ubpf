@@ -40,25 +40,81 @@ enum JitProgress
     UnknownInstruction
 };
 
-struct patchable_relative
+
+/*
+ * During the process of JITing, the targets of program-control
+ * instructions are not always known. The functions of below
+ * make it possible to emit program-control instructions with
+ * temporary targets and then fixup those instructions when their
+ * targets are known. Some of the targets are _special_ (SpecialTarget)
+ * and others are _regular_ (RegularTarget). No matter what, however,
+ * during JITing, the targets of program-control instructions are
+ * PatchableTargets.
+ */
+enum SpecialTarget
 {
-    /* Where in the instruction stream should this relative address be patched. */
-    uint32_t offset_loc;
-    /* Which PC should this target. The ultimate offset will be determined
+    Exit,
+    Enter,
+    Retpoline,
+    ExternalDispatcher,
+    LoadHelperTable,
+};
+
+struct RegularTarget
+{
+    /* Which eBPF PC should this target. The ultimate offset will be determined
      * automatically unless ... */
-    uint32_t target_pc;
-    /* ... the target_offset is set which overrides the automatic lookup. */
-    uint32_t target_offset;
-    /* Whether or not this patchable relative is _near_. */
+    uint32_t ebpf_target_pc;
+    /* ... the JIT target_offset is set which overrides the automatic lookup. */
+    uint32_t jit_target_pc;
+    /* Whether or not this target is _near_ the source. */
     bool near;
 };
 
-/* Special values for target_pc in struct jump */
-#define TARGET_PC_EXIT ~UINT32_C(0)
-#define TARGET_PC_ENTER (~UINT32_C(0) & 0x01)
-#define TARGET_PC_RETPOLINE (~UINT32_C(0) & 0x0101)
-#define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0x010101)
-#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) & 0x01010101)
+struct PatchableTarget
+{
+    bool is_special;
+    union
+    {
+        enum SpecialTarget special;
+        struct RegularTarget regular;
+    } target;
+};
+
+#define DECLARE_PATCHABLE_TARGET(x) \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget));
+
+#define DECLARE_PATCHABLE_SPECIAL_TARGET(x, tgt) \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget)); \
+    x.is_special = true; \
+    x.target.special = tgt; \
+
+#define DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(x, tgt) \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget)); \
+    x.is_special = false; \
+    x.target.regular.ebpf_target_pc = tgt;
+
+#define DECLARE_PATCHABLE_REGULAR_JIT_TARGET(x, tgt) \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget)); \
+    x.is_special = false; \
+    x.target.regular.jit_target_pc = tgt;
+
+
+struct patchable_relative
+{
+    /* Where in the JIT'd instruction stream should the actual
+     * target be written once it is determined.
+     */
+    uint32_t offset_loc;
+
+    /* How to calculate the actual target.
+     */
+    struct PatchableTarget target;
+};
 
 struct jit_state
 {
@@ -119,47 +175,27 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
  * Emitting an entry into the patchable relative table means that resolution of the target
  * address can be postponed until all the instructions are emitted. Note: This function does
  * not emit any instructions -- it simply updates metadata to guide resolution after code generation.
- * _target_pc_ is in eBPF instruction units and _manual_target_offset_ is in JIT'd instruction
- * units. In other words, setting _target_pc_ instead of _manual_target_offset_ will guide
- * the resolution algorithm to find the JIT'd code that corresponds to the eBPF instruction
- * (as the jump target); alternatively, setting _manual_target_offset_ will direct the
- * resolution algorithm to find the JIT'd instruction at that offset (as the target).
- *
- * @param[in] offset The offset in the JIT'd code where the to-be-resolved target begins.
- * @param[in] target_pc The offset of the eBPF instruction targeted by the jump.
- * @param[in] manual_target_offset The offset of the JIT'd instruction targeted by the jump.
- *                                 A non-zero value for this parameter overrides _target_pc_`.
+ * 
  * @param[in] table The relative patchable table to update.
+ * @param[in] offset The offset in the JIT'd code where the to-be-resolved target begins.
  * @param[in] index A spot in the _table_ to add/update according to the given parameters.
- * @param[in] near Whether the target is relatively near the jump.
  */
 void
-emit_patchable_relative_ex(
-    uint32_t offset,
-    uint32_t target_pc,
-    uint32_t manual_target_offset,
-    struct patchable_relative* table,
-    size_t index,
-    bool near);
-
-/** @brief Add an entry to the given patchable relative table.
- *
- * See emit_patchable_relative_ex. emit_patchable_relative's parameters have the same meaning
- * but fixes the _near_ argument to false.
- */
-void
-emit_patchable_relative(
-    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index);
+emit_patchable_relative(struct patchable_relative* table, uint32_t offset, struct PatchableTarget target, size_t index);
 
 void
-note_load(struct jit_state* state, uint32_t target_pc);
+note_load(struct jit_state* state, struct PatchableTarget target);
 
 void
-note_lea(struct jit_state* state, uint32_t offset);
+note_lea(struct jit_state* state, struct PatchableTarget target);
 
 void
 emit_jump_target(struct jit_state* state, uint32_t jump_src);
 
 void
-fixup_jump_target(struct patchable_relative* table, size_t table_size, uint32_t src_offset, uint32_t dest_offset);
+modify_patchable_relatives_target(
+    struct patchable_relative* table,
+    size_t table_size,
+    uint32_t src_offset,
+    struct PatchableTarget target);
 #endif
