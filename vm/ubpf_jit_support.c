@@ -79,7 +79,7 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
 void
 emit_patchable_relative_ex(
     uint32_t offset,
-    uint32_t target_pc,
+    target_t target_pc,
     uint32_t manual_target_offset,
     struct patchable_relative* table,
     size_t index,
@@ -94,19 +94,19 @@ emit_patchable_relative_ex(
 
 void
 emit_patchable_relative(
-    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index)
+    uint32_t offset, target_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index)
 {
     emit_patchable_relative_ex(offset, target_pc, manual_target_offset, table, index, false);
 }
 
 void
-note_load(struct jit_state* state, uint32_t target_pc)
+note_load(struct jit_state* state, target_t target_pc)
 {
     emit_patchable_relative(state->offset, target_pc, 0, state->loads, state->num_loads++);
 }
 
 void
-note_lea(struct jit_state* state, uint32_t offset)
+note_lea(struct jit_state* state, target_t offset)
 {
     emit_patchable_relative(state->offset, offset, 0, state->leas, state->num_leas++);
 }

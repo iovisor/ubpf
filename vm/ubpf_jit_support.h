@@ -40,13 +40,27 @@ enum JitProgress
     UnknownInstruction
 };
 
+typedef struct target_t {
+    uint32_t special;
+    uint32_t pc;
+} __attribute__((packed)) target_t;
+#define IS_SPECIAL(v,target) ((v).special?(v).pc == (target) : 0)
+static inline target_t SPECIAL(uint32_t pc) {
+    target_t v = {.special = 1, .pc = pc};
+    return v;
+}
+static inline target_t NORMAL(uint32_t pc) {
+    target_t v = {.special = 0, .pc = pc};
+    return v;
+}
+
 struct patchable_relative
 {
     /* Where in the instruction stream should this relative address be patched. */
     uint32_t offset_loc;
     /* Which PC should this target. The ultimate offset will be determined
      * automatically unless ... */
-    uint32_t target_pc;
+    target_t target_pc;
     /* ... the target_offset is set which overrides the automatic lookup. */
     uint32_t target_offset;
     /* Whether or not this patchable relative is _near_. */
@@ -54,11 +68,11 @@ struct patchable_relative
 };
 
 /* Special values for target_pc in struct jump */
-#define TARGET_PC_EXIT (~UINT32_C(0) & 0xF0000000)
-#define TARGET_PC_ENTER (~UINT32_C(0) & 0xF0000001)
-#define TARGET_PC_RETPOLINE (~UINT32_C(0) & 0xF0000101)
-#define TARGET_PC_EXTERNAL_DISPATCHER (~UINT32_C(0) & 0xF0010101)
-#define TARGET_LOAD_HELPER_TABLE (~UINT32_C(0) & 0xF1010101)
+#define TARGET_PC_EXIT 1
+#define TARGET_PC_ENTER 2
+#define TARGET_PC_RETPOLINE 3
+#define TARGET_PC_EXTERNAL_DISPATCHER 4
+#define TARGET_LOAD_HELPER_TABLE 5
 
 struct jit_state
 {
@@ -136,7 +150,7 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
 void
 emit_patchable_relative_ex(
     uint32_t offset,
-    uint32_t target_pc,
+    target_t target_pc,
     uint32_t manual_target_offset,
     struct patchable_relative* table,
     size_t index,
@@ -149,13 +163,13 @@ emit_patchable_relative_ex(
  */
 void
 emit_patchable_relative(
-    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index);
+    uint32_t offset, target_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index);
 
 void
-note_load(struct jit_state* state, uint32_t target_pc);
+note_load(struct jit_state* state, target_t target_pc);
 
 void
-note_lea(struct jit_state* state, uint32_t offset);
+note_lea(struct jit_state* state, target_t offset);
 
 void
 emit_jump_target(struct jit_state* state, uint32_t jump_src);

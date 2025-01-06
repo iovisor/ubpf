@@ -263,7 +263,7 @@ emit_loadstore_register(
 }
 
 static void
-emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, uint32_t target)
+emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, target_t target)
 {
     note_load(state, target);
     const uint32_t reg_op_base = 0x08000000U;
@@ -271,7 +271,7 @@ emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Re
 }
 
 static void
-emit_adr(struct jit_state* state, uint32_t offset, enum Registers rd)
+emit_adr(struct jit_state* state, target_t offset, enum Registers rd)
 {
     note_lea(state, offset);
     uint32_t instr = 0x10000000 | rd;
@@ -355,12 +355,12 @@ enum UnconditionalBranchImmediateOpcode
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
 static uint32_t
 emit_unconditionalbranch_immediate(
-    struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
+    struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, target_t target_pc)
 {
     uint32_t source_offset = state->offset;
     struct patchable_relative* table = state->jumps;
     int* num_jumps = &state->num_jumps;
-    if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
+    if (op == UBR_BL && !IS_SPECIAL(target_pc,TARGET_PC_ENTER)) {
         table = state->local_calls;
         num_jumps = &state->num_local_calls;
     }
@@ -400,7 +400,7 @@ enum ConditionalBranchImmediateOpcode
 
 /* [ArmARM-A H.a]: C4.1.65: Conditional branch (immediate).  */
 static uint32_t
-emit_conditionalbranch_immediate(struct jit_state* state, enum Condition cond, uint32_t target_pc)
+emit_conditionalbranch_immediate(struct jit_state* state, enum Condition cond, target_t target_pc)
 {
     uint32_t source_offset = state->offset;
     emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
@@ -565,8 +565,8 @@ emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
     /* Copy R0 to the volatile context for safe keeping. */
     emit_logical_register(state, true, LOG_ORR, VOLATILE_CTXT, RZ, R0);
 
-    emit_unconditionalbranch_immediate(state, UBR_BL, TARGET_PC_ENTER);
-    emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
+    emit_unconditionalbranch_immediate(state, UBR_BL, SPECIAL(TARGET_PC_ENTER));
+    emit_unconditionalbranch_immediate(state, UBR_B, SPECIAL(TARGET_PC_EXIT));
     state->entry_loc = state->offset;
 }
 
@@ -616,13 +616,13 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
 
     // Determine whether to call it through a dispatcher or by index and then load up the address
     // of that function.
-    emit_loadstore_literal(state, LS_LDRL, temp_register, TARGET_PC_EXTERNAL_DISPATCHER);
+    emit_loadstore_literal(state, LS_LDRL, temp_register, SPECIAL(TARGET_PC_EXTERNAL_DISPATCHER));
 
     // Check whether temp_register is empty.
     emit_addsub_immediate(state, true, AS_SUBS, temp_register, temp_register, 0);
 
     // Jump to the call if we are ready to roll (because we are using an external dispatcher).
-    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
+    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, NORMAL(0));
 
     // We are not ready to roll. In other words, we are going to load the helper function address by index.
     emit_movewide_immediate(state, true, R5, idx);
@@ -630,7 +630,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
 
     emit_movewide_immediate(state, true, temp_register, 0);
-    emit_adr(state, TARGET_LOAD_HELPER_TABLE, temp_register);
+    emit_adr(state, SPECIAL(TARGET_LOAD_HELPER_TABLE), temp_register);
     emit_addsub_register(state, true, AS_ADD, temp_register, temp_register, R5);
     emit_loadstore_immediate(state, LS_LDRX, temp_register, temp_register, 0);
 
@@ -640,7 +640,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // And now we, too, are ready to roll. So, let's jump around the code that sets up the additional
     // parameters for the external dispatcher. We will end up at the call site where both paths
     // will rendezvous.
-    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, NORMAL(0));
 
     // Mark the landing spot for the jump around the code that sets up a call to a helper function
     // when no external dispatcher is present.
@@ -672,7 +672,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
 }
 
 static void
-emit_local_call(struct jit_state* state, uint32_t target_pc)
+emit_local_call(struct jit_state* state, target_t target_pc)
 {
     emit_loadstore_immediate(state, LS_LDRX, temp_register, SP, 0);
     emit_addsub_register(state, true, AS_SUB, map_register(10), map_register(10), temp_register);
@@ -1031,7 +1031,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         if (i != 0 && vm->int_funcs[i]) {
             struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
             if (ubpf_instruction_has_fallthrough(prev_inst)) {
-                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, NORMAL(0));
                 fallthrough_jump_present = true;
             }
         }
@@ -1058,7 +1058,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         enum Registers dst = map_register(inst.dst);
         enum Registers src = map_register(inst.src);
         uint8_t opcode = inst.opcode;
-        uint32_t target_pc = i + inst.offset + 1;
+        target_t target_pc = NORMAL(i + inst.offset + 1);
 
         int sixty_four = is_alu64_op(&inst);
 
@@ -1209,13 +1209,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 emit_dispatched_external_helper_call(state, vm, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_addsub_immediate(state, true, AS_SUBS, RZ, map_register(0), 0);
-                    emit_conditionalbranch_immediate(state, COND_EQ, TARGET_PC_EXIT);
+                    emit_conditionalbranch_immediate(state, COND_EQ, SPECIAL(TARGET_PC_EXIT));
                 }
             } else if (inst.src == 1) {
-                uint32_t call_target = i + inst.imm + 1;
+                target_t call_target = NORMAL(i + inst.imm + 1);
                 emit_local_call(state, call_target);
             } else {
-                emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
+                emit_unconditionalbranch_immediate(state, UBR_B, SPECIAL(TARGET_PC_EXIT));
             }
             break;
         case EBPF_OP_EXIT:
@@ -1397,12 +1397,12 @@ resolve_jumps(struct jit_state* state)
         int32_t target_loc;
         if (jump.target_offset != 0) {
             target_loc = jump.target_offset;
-        } else if (jump.target_pc == TARGET_PC_EXIT) {
+        } else if (IS_SPECIAL(jump.target_pc,TARGET_PC_EXIT)) {
             target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_ENTER) {
+        } else if (IS_SPECIAL(jump.target_pc,TARGET_PC_ENTER)) {
             target_loc = state->entry_loc;
         } else {
-            target_loc = state->pc_locs[jump.target_pc];
+            target_loc = state->pc_locs[jump.target_pc.pc];
         }
 
         int32_t rel = target_loc - jump.offset_loc;
@@ -1419,7 +1419,7 @@ resolve_loads(struct jit_state* state)
 
         int32_t target_loc;
         // Right now it is only possible to load from the external dispatcher.
-        if (jump.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+        if (IS_SPECIAL(jump.target_pc,TARGET_PC_EXTERNAL_DISPATCHER)) {
             target_loc = state->dispatcher_loc;
         } else {
             return false;
@@ -1441,7 +1441,7 @@ resolve_leas(struct jit_state* state)
 
         int32_t target_loc;
         // Right now it is only possible to have leas to the helper table.
-        if (jump.target_pc == TARGET_LOAD_HELPER_TABLE) {
+        if (IS_SPECIAL(jump.target_pc,TARGET_LOAD_HELPER_TABLE)) {
             target_loc = state->helper_table_loc;
         } else {
             return false;
@@ -1463,9 +1463,9 @@ resolve_local_calls(struct jit_state* state)
 
         int32_t target_loc;
         assert(local_call.target_offset == 0);
-        assert(local_call.target_pc != TARGET_PC_EXIT);
-        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
-        target_loc = state->pc_locs[local_call.target_pc];
+        assert(!IS_SPECIAL(local_call.target_pc,TARGET_PC_EXIT));
+        assert(!IS_SPECIAL(local_call.target_pc,TARGET_PC_RETPOLINE));
+        target_loc = state->pc_locs[local_call.target_pc.pc];
 
         int32_t rel = target_loc - local_call.offset_loc;
         rel -= state->bpf_function_prolog_size;
