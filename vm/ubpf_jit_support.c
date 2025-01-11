@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include "ubpf.h"
 #include "ubpf_int.h"
+#include <memory.h>
 
 int
 initialize_jit_state_result(
@@ -77,46 +78,32 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
 }
 
 void
-emit_patchable_relative_ex(
-    uint32_t offset,
-    uint32_t target_pc,
-    uint32_t manual_target_offset,
-    struct patchable_relative* table,
-    size_t index,
-    bool near)
+emit_patchable_relative(struct patchable_relative* table,
+    uint32_t offset, struct PatchableTarget target, size_t index)
 {
     struct patchable_relative* jump = &table[index];
     jump->offset_loc = offset;
-    jump->target_pc = target_pc;
-    jump->target_offset = manual_target_offset;
-    jump->near = near;
+    jump->target = target;
 }
 
 void
-emit_patchable_relative(
-    uint32_t offset, uint32_t target_pc, uint32_t manual_target_offset, struct patchable_relative* table, size_t index)
+note_load(struct jit_state* state, struct PatchableTarget target)
 {
-    emit_patchable_relative_ex(offset, target_pc, manual_target_offset, table, index, false);
+    emit_patchable_relative(state->loads, state->offset, target, state->num_loads++);
 }
 
 void
-note_load(struct jit_state* state, uint32_t target_pc)
+note_lea(struct jit_state* state, struct PatchableTarget target)
 {
-    emit_patchable_relative(state->offset, target_pc, 0, state->loads, state->num_loads++);
+    emit_patchable_relative(state->leas, state->offset, target, state->num_leas++);
 }
 
 void
-note_lea(struct jit_state* state, uint32_t offset)
-{
-    emit_patchable_relative(state->offset, offset, 0, state->leas, state->num_leas++);
-}
-
-void
-fixup_jump_target(struct patchable_relative* table, size_t table_size, uint32_t src_offset, uint32_t dest_offset)
+modify_patchable_relatives_target(struct patchable_relative* table, size_t table_size, uint32_t patchable_relative_src, struct PatchableTarget target)
 {
     for (size_t index = 0; index < table_size; index++) {
-        if (table[index].offset_loc == src_offset) {
-            table[index].target_offset = dest_offset;
+        if (table[index].offset_loc == patchable_relative_src) {
+            table[index].target = target;
         }
     }
 }
@@ -124,5 +111,9 @@ fixup_jump_target(struct patchable_relative* table, size_t table_size, uint32_t 
 void
 emit_jump_target(struct jit_state* state, uint32_t jump_src)
 {
-    fixup_jump_target(state->jumps, state->num_jumps, jump_src, state->offset);
+    DECLARE_PATCHABLE_TARGET(pt);
+    pt.is_special = false;
+    pt.target.regular.jit_target_pc = state->offset;
+
+    modify_patchable_relatives_target(state->jumps, state->num_jumps, jump_src, pt);
 }

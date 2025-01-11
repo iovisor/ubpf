@@ -187,40 +187,27 @@ emit_4byte_offset_placeholder(struct jit_state* state)
 }
 
 static uint32_t
-emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
+emit_jump_address_reloc(struct jit_state* state, struct PatchableTarget target)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         state->jit_status = TooManyJumps;
         return 0;
     }
     uint32_t target_address_offset = state->offset;
-    emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
+    emit_patchable_relative(state->jumps, state->offset, target, state->num_jumps++);
     emit_4byte_offset_placeholder(state);
     return target_address_offset;
 }
 
 static uint32_t
-emit_near_jump_address_reloc(struct jit_state* state, int32_t target_pc)
-{
-    if (state->num_jumps == UBPF_MAX_INSTS) {
-        state->jit_status = TooManyJumps;
-        return 0;
-    }
-    uint32_t target_address_offset = state->offset;
-    emit_patchable_relative_ex(state->offset, target_pc, 0, state->jumps, state->num_jumps++, true /* near */);
-    emit1(state, 0x0);
-    return target_address_offset;
-}
-
-static uint32_t
-emit_local_call_address_reloc(struct jit_state* state, int32_t target_pc)
+emit_local_call_address_reloc(struct jit_state* state, struct PatchableTarget target)
 {
     if (state->num_local_calls == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLocalCalls;
         return 0;
     }
     uint32_t target_address_offset = state->offset;
-    emit_patchable_relative(state->offset, target_pc, 0, state->local_calls, state->num_local_calls++);
+    emit_patchable_relative(state->local_calls, state->offset, target, state->num_local_calls++);
     emit_4byte_offset_placeholder(state);
     return target_address_offset;
 }
@@ -410,11 +397,11 @@ emit_cmp32(struct jit_state* state, int src, int dst)
 }
 
 static inline uint32_t
-emit_jcc(struct jit_state* state, int code, int32_t target_pc)
+emit_jcc(struct jit_state* state, int code, struct PatchableTarget target)
 {
     emit1(state, 0x0f);
     emit1(state, code);
-    return emit_jump_address_reloc(state, target_pc);
+    return emit_jump_address_reloc(state, target);
 }
 
 /* Load [src + offset] into dst */
@@ -450,7 +437,7 @@ emit_load_imm(struct jit_state* state, int dst, int64_t imm)
 }
 
 static uint32_t
-emit_rip_relative_load(struct jit_state* state, int dst, int relative_load_tgt)
+emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
 {
     if (state->num_loads == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLoads;
@@ -460,14 +447,16 @@ emit_rip_relative_load(struct jit_state* state, int dst, int relative_load_tgt)
     emit_rex(state, 1, 0, 0, 0);
     emit1(state, 0x8b);
     emit_modrm(state, 0, dst, 0x05);
+
     uint32_t load_target_offset = state->offset;
-    note_load(state, relative_load_tgt);
+    note_load(state, load_tgt);
     emit_4byte_offset_placeholder(state);
+
     return load_target_offset;
 }
 
 static void
-emit_rip_relative_lea(struct jit_state* state, int dst, int lea_tgt)
+emit_rip_relative_lea(struct jit_state* state, int lea_dst_reg, struct PatchableTarget lea_tgt)
 {
     if (state->num_leas == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLeas;
@@ -477,7 +466,7 @@ emit_rip_relative_lea(struct jit_state* state, int dst, int lea_tgt)
     // lea dst, [rip + HELPER TABLE ADDRESS]
     emit_rex(state, 1, 1, 0, 0);
     emit1(state, 0x8d);
-    emit_modrm(state, 0, dst, 0x05);
+    emit_modrm(state, 0, lea_dst_reg, 0x05);
     note_lea(state, lea_tgt);
     emit_4byte_offset_placeholder(state);
 }
@@ -530,32 +519,22 @@ emit_ret(struct jit_state* state)
  * @return The offset in the JIT'd code where the jump offset starts.
  */
 static inline uint32_t
-emit_jmp(struct jit_state* state, uint32_t target_pc)
+emit_jmp(struct jit_state* state, struct PatchableTarget target)
 {
+    if (!target.is_special && target.target.regular.near) {
+        emit1(state, 0xeb);
+        return emit_jump_address_reloc(state, target);
+    }
     emit1(state, 0xe9);
-    return emit_jump_address_reloc(state, target_pc);
-}
-
-/** @brief Emit a near jump.
- *
- * @param[in] state The JIT state.
- * @param[in] target_pc The PC to which to jump when this near
- *                      jump is executed.
- * @return The offset in the JIT'd code where the jump offset starts.
- */
-static inline uint32_t
-emit_near_jmp(struct jit_state* state, uint32_t target_pc)
-{
-    emit1(state, 0xeb);
-    return emit_near_jump_address_reloc(state, target_pc);
+    return emit_jump_address_reloc(state, target);
 }
 
 static inline uint32_t
-emit_call(struct jit_state* state, uint32_t target_pc)
+emit_call(struct jit_state* state, struct PatchableTarget target)
 {
     emit1(state, 0xe8);
     uint32_t call_src = state->offset;
-    emit_jump_address_reloc(state, target_pc);
+    emit_jump_address_reloc(state, target);
     return call_src;
 }
 
@@ -622,11 +601,18 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
     emit_alu64_imm32(state, 0x81, 5, RSP, 3 * sizeof(uint64_t));
 #endif
 
-    emit_rip_relative_load(state, RAX, TARGET_PC_EXTERNAL_DISPATCHER);
+    DECLARE_PATCHABLE_TARGET(rip_rel_tgt);
+    rip_rel_tgt.is_special = true;
+    rip_rel_tgt.target.special = ExternalDispatcher;
+    emit_rip_relative_load(state, RAX, rip_rel_tgt);
+
     // cmp rax, 0
     emit_cmp_imm32(state, RAX, 0);
     // jne skip_default_dispatcher_label
-    uint32_t skip_default_dispatcher_source = emit_jcc(state, 0x85, 0);
+    DECLARE_PATCHABLE_TARGET(default_jmp_tgt);
+    default_jmp_tgt.is_special = false;
+    default_jmp_tgt.target.regular.ebpf_target_pc = 0;
+    uint32_t skip_default_dispatcher_source = emit_jcc(state, 0x85, default_jmp_tgt);
 
     // Default dispatcher:
 
@@ -638,7 +624,11 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
     emit_alu64_imm8(state, 0xc1, 4, RAX, 3);
 
     // lea r10, [rip + HELPER TABLE ADDRESS]
-    emit_rip_relative_lea(state, R10, TARGET_LOAD_HELPER_TABLE);
+    DECLARE_PATCHABLE_TARGET(rip_rel_load_helper_tgt);
+    rip_rel_load_helper_tgt.is_special = true;
+    rip_rel_load_helper_tgt.target.special = LoadHelperTable;
+    // emit_rip_relative_lea(state, R10, TARGET_LOAD_HELPER_TABLE);
+    emit_rip_relative_lea(state, R10, rip_rel_load_helper_tgt);
 
     // add rax, r10
     emit_alu64(state, 0x01, R10, RAX);
@@ -661,7 +651,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 #endif
 
     // jmp call_label
-    uint32_t skip_external_dispatcher_source = emit_jmp(state, 0);
+    uint32_t skip_external_dispatcher_source = emit_jmp(state, default_jmp_tgt);
 
     // External dispatcher:
 
@@ -717,7 +707,11 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 #endif
 
 #ifndef UBPF_DISABLE_RETPOLINES
-    emit_call(state, TARGET_PC_RETPOLINE);
+    DECLARE_PATCHABLE_TARGET(retpoline_tgt);
+    retpoline_tgt.is_special = true;
+    retpoline_tgt.target.special = Retpoline;
+    // emit_call(state, TARGET_PC_RETPOLINE);
+    emit_call(state, retpoline_tgt);
 #else
     /* TODO use direct call when possible */
     /* callq *%rax */
@@ -1127,7 +1121,7 @@ emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_
     }
 }
 static inline void
-emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
+emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t ebpf_target_pc)
 {
     UNUSED_PARAMETER(vm);
     // Invariant: The top of the host stack always holds the amount of space needed
@@ -1152,7 +1146,8 @@ emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
     emit_alu64_imm32(state, 0x81, 5, RSP, 4 * sizeof(uint64_t));
 #endif
     emit1(state, 0xe8); // e8 is the opcode for a CALL
-    emit_local_call_address_reloc(state, target_pc);
+    DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(target_pt, ebpf_target_pc);
+    emit_local_call_address_reloc(state, target_pt);
 
 #if defined(_WIN32)
     /* Deallocate home register space - 4 registers */
@@ -1204,14 +1199,16 @@ emit_retpoline(struct jit_state* state)
     /* label0: */
     /* call label1 */
     uint32_t retpoline_target = state->offset;
-    uint32_t label1_call_offset = emit_call(state, 0);
+    DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(default_call_tgt, 0);
+    uint32_t label1_call_offset = emit_call(state, default_call_tgt);
 
     /* capture_ret_spec: */
     /* pause */
     uint32_t capture_ret_spec = state->offset;
     emit_pause(state);
     /* jmp  capture_ret_spec */
-    emit_jmp(state, capture_ret_spec);
+    DECLARE_PATCHABLE_REGULAR_JIT_TARGET(capture_ret_tgt, capture_ret_spec);
+    emit_jmp(state, capture_ret_tgt);
 
     /* label1: */
     /* mov rax, (rsp) */
@@ -1224,7 +1221,8 @@ emit_retpoline(struct jit_state* state)
     /* ret */
     emit_ret(state);
 
-    fixup_jump_target(state->jumps, state->num_jumps, label1_call_offset, label1);
+    DECLARE_PATCHABLE_REGULAR_JIT_TARGET(label1_tgt, label1);
+    modify_patchable_relatives_target(state->jumps, state->num_jumps, label1_call_offset, label1_tgt);
 
     return retpoline_target;
 }
@@ -1354,7 +1352,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      * We jump over this instruction in the first place; return here
      * after the eBPF program is finished executing.
      */
-    emit_jmp(state, TARGET_PC_EXIT);
+
+    DECLARE_PATCHABLE_SPECIAL_TARGET(exit_tgt, Exit)
+    emit_jmp(state, exit_tgt);
 
     for (i = 0; i < vm->num_insts; i++) {
         if (state->jit_status != NoError) {
@@ -1366,6 +1366,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
         uint32_t target_pc = i + inst.offset + 1;
+
+        DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
         // If
         // a) the previous instruction in the eBPF program could fallthrough
@@ -1379,7 +1381,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         if (i != 0 && vm->int_funcs[i]) {
             struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
             if (ubpf_instruction_has_fallthrough(prev_inst)) {
-                fallthrough_jump_source = emit_near_jmp(state, 0);
+                DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(default_near_target, 0)
+                default_near_target.target.regular.near = true;
+                fallthrough_jump_source = emit_jmp(state, default_near_target);
                 fallthrough_jump_present = true;
             }
         }
@@ -1416,7 +1420,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // If there was a jump inserted to bypass the host stack manipulation code,
         // we need to update its target.
         if (fallthrough_jump_present) {
-            fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
+            DECLARE_PATCHABLE_REGULAR_JIT_TARGET(fallthrough_jump_tgt, state->offset);
+            fallthrough_jump_tgt.target.regular.near = true;
+            modify_patchable_relatives_target(
+                state->jumps, state->num_jumps, fallthrough_jump_source, fallthrough_jump_tgt);
         }
         state->pc_locs[i] = state->offset;
 
@@ -1586,183 +1593,183 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         /* TODO use 8 bit immediate when possible */
         case EBPF_OP_JA:
-            emit_jmp(state, target_pc);
+            emit_jmp(state, tgt);
             break;
         case EBPF_OP_JEQ_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x84, target_pc);
+            emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JEQ_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x84, target_pc);
+            emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JGT_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x87, target_pc);
+            emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGT_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x87, target_pc);
+            emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGE_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x83, target_pc);
+            emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JGE_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x83, target_pc);
+            emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JLT_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x82, target_pc);
+            emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLT_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x82, target_pc);
+            emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLE_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x86, target_pc);
+            emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JLE_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x86, target_pc);
+            emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JSET_IMM:
             emit_alu64_imm32(state, 0xf7, 0, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSET_REG:
             emit_alu64(state, 0x85, src, dst);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSGT_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8f, target_pc);
+            emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGT_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x8f, target_pc);
+            emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGE_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8d, target_pc);
+            emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSGE_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x8d, target_pc);
+            emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSLT_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8c, target_pc);
+            emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLT_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x8c, target_pc);
+            emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLE_IMM:
             emit_cmp_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8e, target_pc);
+            emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JSLE_REG:
             emit_cmp(state, src, dst);
-            emit_jcc(state, 0x8e, target_pc);
+            emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JEQ32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x84, target_pc);
+            emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JEQ32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x84, target_pc);
+            emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JGT32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x87, target_pc);
+            emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGT32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x87, target_pc);
+            emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGE32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x83, target_pc);
+            emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JGE32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x83, target_pc);
+            emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JLT32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x82, target_pc);
+            emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLT32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x82, target_pc);
+            emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLE32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x86, target_pc);
+            emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JLE32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x86, target_pc);
+            emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JSET32_IMM:
             emit_alu32_imm32(state, 0xf7, 0, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSET32_REG:
             emit_alu32(state, 0x85, src, dst);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x85, target_pc);
+            emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSGT32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8f, target_pc);
+            emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGT32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x8f, target_pc);
+            emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGE32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8d, target_pc);
+            emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSGE32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x8d, target_pc);
+            emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSLT32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8c, target_pc);
+            emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLT32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x8c, target_pc);
+            emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLE32_IMM:
             emit_cmp32_imm32(state, dst, inst.imm);
-            emit_jcc(state, 0x8e, target_pc);
+            emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JSLE32_REG:
             emit_cmp32(state, src, dst);
-            emit_jcc(state, 0x8e, target_pc);
+            emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_CALL:
             /* We reserve RCX for shifts */
@@ -1771,7 +1778,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 emit_dispatched_external_helper_call(state, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_cmp_imm32(state, map_register(BPF_REG_0), 0);
-                    emit_jcc(state, 0x84, TARGET_PC_EXIT);
+                    DECLARE_PATCHABLE_TARGET(exit_tgt);
+                    exit_tgt.is_special = true;
+                    exit_tgt.target.special = Exit;
+                    emit_jcc(state, 0x84, exit_tgt);
                 }
             } else if (inst.src == 1) {
                 target_pc = i + inst.imm + 1;
@@ -2009,17 +2019,30 @@ resolve_patchable_relatives(struct jit_state* state)
         struct patchable_relative jump = state->jumps[i];
 
         int target_loc;
-        if (jump.target_offset != 0) {
-            target_loc = jump.target_offset;
-        } else if (jump.target_pc == TARGET_PC_EXIT) {
-            target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_RETPOLINE) {
-            target_loc = state->retpoline_loc;
+        bool is_near = false;
+
+        if (jump.target.is_special) {
+            // There are only two special targets for jumps: Exit and Retpoline.
+            if (jump.target.target.special == Exit) {
+                target_loc = state->exit_loc;
+            } else if (jump.target.target.special == Retpoline) {
+                target_loc = state->retpoline_loc;
+            } else {
+                target_loc = -1;
+                return false;
+            }
         } else {
-            target_loc = state->pc_locs[jump.target_pc];
+            // The jit target, if specified, takes precedence.
+            if (jump.target.target.regular.jit_target_pc != 0) {
+                target_loc = jump.target.target.regular.jit_target_pc;
+            } else {
+                target_loc = state->pc_locs[jump.target.target.regular.ebpf_target_pc];
+            }
+
+            is_near = jump.target.target.regular.near;
         }
 
-        if (jump.near) {
+        if (is_near) {
             /* When there is a near jump, we need to make sure that the target
              * is within the proper limits. So, we start with a type that can
              * hold values that are bigger than we'll ultimately need. If we
@@ -2047,12 +2070,12 @@ resolve_patchable_relatives(struct jit_state* state)
     for (i = 0; i < state->num_local_calls; i++) {
         struct patchable_relative local_call = state->local_calls[i];
 
-        int target_loc;
-        assert(local_call.target_offset == 0);
-        assert(local_call.target_pc != TARGET_PC_EXIT);
-        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
+        // There are no special local calls and
+        assert(!local_call.target.is_special);
+        // the targets must all be eBPF-relative PCs.
+        assert(local_call.target.target.regular.jit_target_pc == 0);
 
-        target_loc = state->pc_locs[local_call.target_pc];
+        int target_loc = state->pc_locs[local_call.target.target.regular.ebpf_target_pc];
 
         /* Assumes call offset is at end of instruction */
         uint32_t rel = target_loc - (local_call.offset_loc + sizeof(uint32_t));
@@ -2065,9 +2088,9 @@ resolve_patchable_relatives(struct jit_state* state)
     for (i = 0; i < state->num_loads; i++) {
         struct patchable_relative load = state->loads[i];
 
-        int target_loc;
+        int target_loc = 0;
         // It is only possible to load from the external dispatcher's position.
-        if (load.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+        if (load.target.is_special && load.target.target.special == ExternalDispatcher) {
             target_loc = state->dispatcher_loc;
         } else {
             target_loc = -1;
@@ -2085,7 +2108,7 @@ resolve_patchable_relatives(struct jit_state* state)
 
         int target_loc;
         // It is only possible to LEA from the helper table.
-        if (lea.target_pc == TARGET_LOAD_HELPER_TABLE) {
+        if (lea.target.is_special && lea.target.target.special == LoadHelperTable) {
             target_loc = state->helper_table_loc;
         } else {
             target_loc = -1;
