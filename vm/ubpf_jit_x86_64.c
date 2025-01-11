@@ -187,7 +187,7 @@ emit_4byte_offset_placeholder(struct jit_state* state)
 }
 
 static uint32_t
-emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
+emit_jump_address_reloc(struct jit_state* state, target_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         state->jit_status = TooManyJumps;
@@ -200,7 +200,7 @@ emit_jump_address_reloc(struct jit_state* state, int32_t target_pc)
 }
 
 static uint32_t
-emit_near_jump_address_reloc(struct jit_state* state, int32_t target_pc)
+emit_near_jump_address_reloc(struct jit_state* state, target_t target_pc)
 {
     if (state->num_jumps == UBPF_MAX_INSTS) {
         state->jit_status = TooManyJumps;
@@ -213,7 +213,7 @@ emit_near_jump_address_reloc(struct jit_state* state, int32_t target_pc)
 }
 
 static uint32_t
-emit_local_call_address_reloc(struct jit_state* state, int32_t target_pc)
+emit_local_call_address_reloc(struct jit_state* state, target_t target_pc)
 {
     if (state->num_local_calls == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLocalCalls;
@@ -410,7 +410,7 @@ emit_cmp32(struct jit_state* state, int src, int dst)
 }
 
 static inline uint32_t
-emit_jcc(struct jit_state* state, int code, int32_t target_pc)
+emit_jcc(struct jit_state* state, int code, target_t target_pc)
 {
     emit1(state, 0x0f);
     emit1(state, code);
@@ -450,7 +450,7 @@ emit_load_imm(struct jit_state* state, int dst, int64_t imm)
 }
 
 static uint32_t
-emit_rip_relative_load(struct jit_state* state, int dst, int relative_load_tgt)
+emit_rip_relative_load(struct jit_state* state, int dst, target_t relative_load_tgt)
 {
     if (state->num_loads == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLoads;
@@ -467,7 +467,7 @@ emit_rip_relative_load(struct jit_state* state, int dst, int relative_load_tgt)
 }
 
 static void
-emit_rip_relative_lea(struct jit_state* state, int dst, int lea_tgt)
+emit_rip_relative_lea(struct jit_state* state, int dst, target_t lea_tgt)
 {
     if (state->num_leas == UBPF_MAX_INSTS) {
         state->jit_status = TooManyLeas;
@@ -530,7 +530,7 @@ emit_ret(struct jit_state* state)
  * @return The offset in the JIT'd code where the jump offset starts.
  */
 static inline uint32_t
-emit_jmp(struct jit_state* state, uint32_t target_pc)
+emit_jmp(struct jit_state* state, target_t target_pc)
 {
     emit1(state, 0xe9);
     return emit_jump_address_reloc(state, target_pc);
@@ -544,14 +544,14 @@ emit_jmp(struct jit_state* state, uint32_t target_pc)
  * @return The offset in the JIT'd code where the jump offset starts.
  */
 static inline uint32_t
-emit_near_jmp(struct jit_state* state, uint32_t target_pc)
+emit_near_jmp(struct jit_state* state, target_t target_pc)
 {
     emit1(state, 0xeb);
     return emit_near_jump_address_reloc(state, target_pc);
 }
 
 static inline uint32_t
-emit_call(struct jit_state* state, uint32_t target_pc)
+emit_call(struct jit_state* state, target_t target_pc)
 {
     emit1(state, 0xe8);
     uint32_t call_src = state->offset;
@@ -622,11 +622,11 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
     emit_alu64_imm32(state, 0x81, 5, RSP, 3 * sizeof(uint64_t));
 #endif
 
-    emit_rip_relative_load(state, RAX, TARGET_PC_EXTERNAL_DISPATCHER);
+    emit_rip_relative_load(state, RAX, SPECIAL(TARGET_PC_EXTERNAL_DISPATCHER));
     // cmp rax, 0
     emit_cmp_imm32(state, RAX, 0);
     // jne skip_default_dispatcher_label
-    uint32_t skip_default_dispatcher_source = emit_jcc(state, 0x85, 0);
+    uint32_t skip_default_dispatcher_source = emit_jcc(state, 0x85, NORMAL(0));
 
     // Default dispatcher:
 
@@ -638,7 +638,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
     emit_alu64_imm8(state, 0xc1, 4, RAX, 3);
 
     // lea r10, [rip + HELPER TABLE ADDRESS]
-    emit_rip_relative_lea(state, R10, TARGET_LOAD_HELPER_TABLE);
+    emit_rip_relative_lea(state, R10, SPECIAL(TARGET_LOAD_HELPER_TABLE));
 
     // add rax, r10
     emit_alu64(state, 0x01, R10, RAX);
@@ -661,7 +661,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, unsigned int idx)
 #endif
 
     // jmp call_label
-    uint32_t skip_external_dispatcher_source = emit_jmp(state, 0);
+    uint32_t skip_external_dispatcher_source = emit_jmp(state, NORMAL(0));
 
     // External dispatcher:
 
@@ -1127,7 +1127,7 @@ emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_
     }
 }
 static inline void
-emit_local_call(struct ubpf_vm* vm, struct jit_state* state, uint32_t target_pc)
+emit_local_call(struct ubpf_vm* vm, struct jit_state* state, target_t target_pc)
 {
     UNUSED_PARAMETER(vm);
     // Invariant: The top of the host stack always holds the amount of space needed
@@ -1204,14 +1204,14 @@ emit_retpoline(struct jit_state* state)
     /* label0: */
     /* call label1 */
     uint32_t retpoline_target = state->offset;
-    uint32_t label1_call_offset = emit_call(state, 0);
+    uint32_t label1_call_offset = emit_call(state, NORMAL(0));
 
     /* capture_ret_spec: */
     /* pause */
     uint32_t capture_ret_spec = state->offset;
     emit_pause(state);
     /* jmp  capture_ret_spec */
-    emit_jmp(state, capture_ret_spec);
+    emit_jmp(state, NORMAL(capture_ret_spec));
 
     /* label1: */
     /* mov rax, (rsp) */
@@ -1354,7 +1354,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      * We jump over this instruction in the first place; return here
      * after the eBPF program is finished executing.
      */
-    emit_jmp(state, TARGET_PC_EXIT);
+    emit_jmp(state, SPECIAL(TARGET_PC_EXIT));
 
     for (i = 0; i < vm->num_insts; i++) {
         if (state->jit_status != NoError) {
@@ -1365,7 +1365,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
-        uint32_t target_pc = i + inst.offset + 1;
+        target_t target_pc = NORMAL(i + inst.offset + 1);
 
         // If
         // a) the previous instruction in the eBPF program could fallthrough
@@ -1379,7 +1379,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         if (i != 0 && vm->int_funcs[i]) {
             struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
             if (ubpf_instruction_has_fallthrough(prev_inst)) {
-                fallthrough_jump_source = emit_near_jmp(state, 0);
+                fallthrough_jump_source = emit_near_jmp(state, NORMAL(0));
                 fallthrough_jump_present = true;
             }
         }
@@ -1771,10 +1771,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 emit_dispatched_external_helper_call(state, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_cmp_imm32(state, map_register(BPF_REG_0), 0);
-                    emit_jcc(state, 0x84, TARGET_PC_EXIT);
+                    emit_jcc(state, 0x84, SPECIAL(TARGET_PC_EXIT));
                 }
             } else if (inst.src == 1) {
-                target_pc = i + inst.imm + 1;
+                target_pc.pc = i + inst.imm + 1;
                 emit_local_call(vm, state, target_pc);
             }
             break;
@@ -2011,12 +2011,12 @@ resolve_patchable_relatives(struct jit_state* state)
         int target_loc;
         if (jump.target_offset != 0) {
             target_loc = jump.target_offset;
-        } else if (jump.target_pc == TARGET_PC_EXIT) {
+        } else if (IS_SPECIAL(jump.target_pc,TARGET_PC_EXIT)) {
             target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_RETPOLINE) {
+        } else if (IS_SPECIAL(jump.target_pc,TARGET_PC_RETPOLINE)) {
             target_loc = state->retpoline_loc;
         } else {
-            target_loc = state->pc_locs[jump.target_pc];
+            target_loc = state->pc_locs[jump.target_pc.pc];
         }
 
         if (jump.near) {
@@ -2049,10 +2049,10 @@ resolve_patchable_relatives(struct jit_state* state)
 
         int target_loc;
         assert(local_call.target_offset == 0);
-        assert(local_call.target_pc != TARGET_PC_EXIT);
-        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
+        assert(!IS_SPECIAL(local_call.target_pc,TARGET_PC_EXIT));
+        assert(!IS_SPECIAL(local_call.target_pc,TARGET_PC_RETPOLINE));
 
-        target_loc = state->pc_locs[local_call.target_pc];
+        target_loc = state->pc_locs[local_call.target_pc.pc];
 
         /* Assumes call offset is at end of instruction */
         uint32_t rel = target_loc - (local_call.offset_loc + sizeof(uint32_t));
@@ -2067,7 +2067,7 @@ resolve_patchable_relatives(struct jit_state* state)
 
         int target_loc;
         // It is only possible to load from the external dispatcher's position.
-        if (load.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+        if (IS_SPECIAL(load.target_pc,TARGET_PC_EXTERNAL_DISPATCHER)) {
             target_loc = state->dispatcher_loc;
         } else {
             target_loc = -1;
@@ -2085,7 +2085,7 @@ resolve_patchable_relatives(struct jit_state* state)
 
         int target_loc;
         // It is only possible to LEA from the helper table.
-        if (lea.target_pc == TARGET_LOAD_HELPER_TABLE) {
+        if (IS_SPECIAL(lea.target_pc,TARGET_LOAD_HELPER_TABLE)) {
             target_loc = state->helper_table_loc;
         } else {
             target_loc = -1;
