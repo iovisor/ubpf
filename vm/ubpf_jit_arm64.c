@@ -206,7 +206,8 @@ emit_addsub_immediate(
         sh = imm_shift_on;
     }
     assert(imm12 < imm_unshifted_max);
-    emit_instruction(state, sz(sixty_four) | sh | (op << 29) | imm_op_base | (0 << 22) | (imm12 << 10) | (rn << 5) | rd);
+    emit_instruction(
+        state, sz(sixty_four) | sh | (op << 29) | imm_op_base | (0 << 22) | (imm12 << 10) | (rn << 5) | rd);
 }
 
 /* [ArmARM-A H.a]: C4.1.67: Add/subtract (shifted register).  */
@@ -263,7 +264,8 @@ emit_loadstore_register(
 }
 
 static void
-emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, uint32_t target)
+emit_loadstore_literal(
+    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, struct PatchableTarget target)
 {
     note_load(state, target);
     const uint32_t reg_op_base = 0x08000000U;
@@ -271,9 +273,9 @@ emit_loadstore_literal(struct jit_state* state, enum LoadStoreOpcode op, enum Re
 }
 
 static void
-emit_adr(struct jit_state* state, uint32_t offset, enum Registers rd)
+emit_adr(struct jit_state* state, struct PatchableTarget target, enum Registers rd)
 {
-    note_lea(state, offset);
+    note_lea(state, target);
     uint32_t instr = 0x10000000 | rd;
     emit_instruction(state, instr);
 }
@@ -355,17 +357,17 @@ enum UnconditionalBranchImmediateOpcode
 /* [ArmARM-A H.a]: C4.1.65: Unconditional branch (immediate).  */
 static uint32_t
 emit_unconditionalbranch_immediate(
-    struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, int32_t target_pc)
+    struct jit_state* state, enum UnconditionalBranchImmediateOpcode op, struct PatchableTarget target)
 {
     uint32_t source_offset = state->offset;
     struct patchable_relative* table = state->jumps;
     int* num_jumps = &state->num_jumps;
-    if (op == UBR_BL && target_pc != TARGET_PC_ENTER) {
+    if (op == UBR_BL && !target.is_special) {
         table = state->local_calls;
         num_jumps = &state->num_local_calls;
     }
 
-    emit_patchable_relative(state->offset, target_pc, 0, table, (*num_jumps)++);
+    emit_patchable_relative(table, state->offset, target, (*num_jumps)++);
     emit_instruction(state, op);
 
     return source_offset;
@@ -400,10 +402,10 @@ enum ConditionalBranchImmediateOpcode
 
 /* [ArmARM-A H.a]: C4.1.65: Conditional branch (immediate).  */
 static uint32_t
-emit_conditionalbranch_immediate(struct jit_state* state, enum Condition cond, uint32_t target_pc)
+emit_conditionalbranch_immediate(struct jit_state* state, enum Condition cond, struct PatchableTarget target)
 {
     uint32_t source_offset = state->offset;
-    emit_patchable_relative(state->offset, target_pc, 0, state->jumps, state->num_jumps++);
+    emit_patchable_relative(state->jumps, state->offset, target, state->num_jumps++);
     emit_instruction(state, BR_Bcond | (0 << 5) | cond);
     return source_offset;
 }
@@ -565,8 +567,10 @@ emit_jit_prologue(struct jit_state* state, size_t ubpf_stack_size)
     /* Copy R0 to the volatile context for safe keeping. */
     emit_logical_register(state, true, LOG_ORR, VOLATILE_CTXT, RZ, R0);
 
-    emit_unconditionalbranch_immediate(state, UBR_BL, TARGET_PC_ENTER);
-    emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(exit_tgt, Exit);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(enter_tgt, Enter);
+    emit_unconditionalbranch_immediate(state, UBR_BL, enter_tgt);
+    emit_unconditionalbranch_immediate(state, UBR_B, exit_tgt);
     state->entry_loc = state->offset;
 }
 
@@ -616,13 +620,15 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
 
     // Determine whether to call it through a dispatcher or by index and then load up the address
     // of that function.
-    emit_loadstore_literal(state, LS_LDRL, temp_register, TARGET_PC_EXTERNAL_DISPATCHER);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(external_dispatcher_pt, ExternalDispatcher);
+    emit_loadstore_literal(state, LS_LDRL, temp_register, external_dispatcher_pt);
 
     // Check whether temp_register is empty.
     emit_addsub_immediate(state, true, AS_SUBS, temp_register, temp_register, 0);
 
     // Jump to the call if we are ready to roll (because we are using an external dispatcher).
-    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, 0);
+    DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(default_tgt, 0);
+    uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, default_tgt);
 
     // We are not ready to roll. In other words, we are going to load the helper function address by index.
     emit_movewide_immediate(state, true, R5, idx);
@@ -630,7 +636,8 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
 
     emit_movewide_immediate(state, true, temp_register, 0);
-    emit_adr(state, TARGET_LOAD_HELPER_TABLE, temp_register);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(load_helper_tgt, LoadHelperTable);
+    emit_adr(state, load_helper_tgt, temp_register);
     emit_addsub_register(state, true, AS_ADD, temp_register, temp_register, R5);
     emit_loadstore_immediate(state, LS_LDRX, temp_register, temp_register, 0);
 
@@ -640,7 +647,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // And now we, too, are ready to roll. So, let's jump around the code that sets up the additional
     // parameters for the external dispatcher. We will end up at the call site where both paths
     // will rendezvous.
-    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+    uint32_t no_dispatcher_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, default_tgt);
 
     // Mark the landing spot for the jump around the code that sets up a call to a helper function
     // when no external dispatcher is present.
@@ -685,7 +692,8 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_loadstorepair_immediate(state, LSP_STPX, map_register(6), map_register(7), SP, 16);
     emit_loadstorepair_immediate(state, LSP_STPX, map_register(8), map_register(9), SP, 32);
 
-    emit_unconditionalbranch_immediate(state, UBR_BL, target_pc);
+    DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
+    emit_unconditionalbranch_immediate(state, UBR_BL, tgt);
 
     emit_loadstore_immediate(state, LS_LDRX, R30, SP, 0);
     emit_loadstore_immediate(state, LS_LDRX, temp_register, SP, 8);
@@ -1031,7 +1039,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         if (i != 0 && vm->int_funcs[i]) {
             struct ebpf_inst prev_inst = ubpf_fetch_instruction(vm, i - 1);
             if (ubpf_instruction_has_fallthrough(prev_inst)) {
-                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, 0);
+                DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(default_tgt, 0)
+                fallthrough_jump_source = emit_unconditionalbranch_immediate(state, UBR_B, default_tgt);
                 fallthrough_jump_present = true;
             }
         }
@@ -1050,7 +1059,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         }
 
         if (fallthrough_jump_present) {
-            fixup_jump_target(state->jumps, state->num_jumps, fallthrough_jump_source, state->offset);
+            DECLARE_PATCHABLE_REGULAR_JIT_TARGET(fallthrough_tgt, state->offset)
+            modify_patchable_relatives_target(state->jumps, state->num_jumps, fallthrough_jump_source, fallthrough_tgt);
         }
 
         state->pc_locs[i] = state->offset;
@@ -1059,6 +1069,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         enum Registers src = map_register(inst.src);
         uint8_t opcode = inst.opcode;
         uint32_t target_pc = i + inst.offset + 1;
+
+        DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
         int sixty_four = is_alu64_op(&inst);
 
@@ -1151,7 +1163,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         /* TODO use 8 bit immediate when possible */
         case EBPF_OP_JA:
-            emit_unconditionalbranch_immediate(state, UBR_B, target_pc);
+            emit_unconditionalbranch_immediate(state, UBR_B, tgt);
             break;
         case EBPF_OP_JEQ_IMM:
         case EBPF_OP_JGT_IMM:
@@ -1174,7 +1186,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_JSLT32_IMM:
         case EBPF_OP_JSLE32_IMM:
             emit_addsub_immediate(state, sixty_four, AS_SUBS, RZ, dst, inst.imm);
-            emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
+            emit_conditionalbranch_immediate(state, to_condition(opcode), tgt);
             break;
         case EBPF_OP_JEQ_REG:
         case EBPF_OP_JGT_REG:
@@ -1197,27 +1209,29 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_JSLT32_REG:
         case EBPF_OP_JSLE32_REG:
             emit_addsub_register(state, sixty_four, AS_SUBS, RZ, dst, src);
-            emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
+            emit_conditionalbranch_immediate(state, to_condition(opcode), tgt);
             break;
         case EBPF_OP_JSET_REG:
         case EBPF_OP_JSET32_REG:
             emit_logical_register(state, sixty_four, LOG_ANDS, RZ, dst, src);
-            emit_conditionalbranch_immediate(state, to_condition(opcode), target_pc);
+            emit_conditionalbranch_immediate(state, to_condition(opcode), tgt);
             break;
-        case EBPF_OP_CALL:
+        case EBPF_OP_CALL: {
+            DECLARE_PATCHABLE_SPECIAL_TARGET(exit_tgt, Exit);
             if (inst.src == 0) {
                 emit_dispatched_external_helper_call(state, vm, inst.imm);
                 if (inst.imm == vm->unwind_stack_extension_index) {
                     emit_addsub_immediate(state, true, AS_SUBS, RZ, map_register(0), 0);
-                    emit_conditionalbranch_immediate(state, COND_EQ, TARGET_PC_EXIT);
+                    emit_conditionalbranch_immediate(state, COND_EQ, exit_tgt);
                 }
             } else if (inst.src == 1) {
                 uint32_t call_target = i + inst.imm + 1;
                 emit_local_call(state, call_target);
             } else {
-                emit_unconditionalbranch_immediate(state, UBR_B, TARGET_PC_EXIT);
+                emit_unconditionalbranch_immediate(state, UBR_B, exit_tgt);
             }
             break;
+        }
         case EBPF_OP_EXIT:
             emit_addsub_immediate(state, true, AS_ADD, SP, SP, 16);
             emit_unconditionalbranch_register(state, BR_RET, R30);
@@ -1395,14 +1409,26 @@ resolve_jumps(struct jit_state* state)
         struct patchable_relative jump = state->jumps[i];
 
         int32_t target_loc;
-        if (jump.target_offset != 0) {
-            target_loc = jump.target_offset;
-        } else if (jump.target_pc == TARGET_PC_EXIT) {
-            target_loc = state->exit_loc;
-        } else if (jump.target_pc == TARGET_PC_ENTER) {
-            target_loc = state->entry_loc;
+
+        if (jump.target.is_special) {
+            // Jumps to special targets Exit and Enter are the only
+            // valid options.
+            if (jump.target.target.special == Exit) {
+                target_loc = state->exit_loc;
+            } else if (jump.target.target.special == Enter) {
+                target_loc = state->entry_loc;
+            } else {
+                target_loc = -1;
+                return false;
+            }
+
         } else {
-            target_loc = state->pc_locs[jump.target_pc];
+            // The jit target, if specified, takes precedence.
+            if (jump.target.target.regular.jit_target_pc != 0) {
+                target_loc = jump.target.target.regular.jit_target_pc;
+            } else {
+                target_loc = state->pc_locs[jump.target.target.regular.ebpf_target_pc];
+            }
         }
 
         int32_t rel = target_loc - jump.offset_loc;
@@ -1417,9 +1443,9 @@ resolve_loads(struct jit_state* state)
     for (unsigned i = 0; i < state->num_loads; ++i) {
         struct patchable_relative jump = state->loads[i];
 
-        int32_t target_loc;
+        int32_t target_loc = 0;
         // Right now it is only possible to load from the external dispatcher.
-        if (jump.target_pc == TARGET_PC_EXTERNAL_DISPATCHER) {
+        if (jump.target.is_special && jump.target.target.special == ExternalDispatcher) {
             target_loc = state->dispatcher_loc;
         } else {
             return false;
@@ -1439,9 +1465,9 @@ resolve_leas(struct jit_state* state)
     for (unsigned i = 0; i < state->num_leas; ++i) {
         struct patchable_relative jump = state->leas[i];
 
-        int32_t target_loc;
+        int32_t target_loc = 0;
         // Right now it is only possible to have leas to the helper table.
-        if (jump.target_pc == TARGET_LOAD_HELPER_TABLE) {
+        if (jump.target.is_special && jump.target.target.special == LoadHelperTable) {
             target_loc = state->helper_table_loc;
         } else {
             return false;
@@ -1461,11 +1487,10 @@ resolve_local_calls(struct jit_state* state)
     for (unsigned i = 0; i < state->num_local_calls; ++i) {
         struct patchable_relative local_call = state->local_calls[i];
 
-        int32_t target_loc;
-        assert(local_call.target_offset == 0);
-        assert(local_call.target_pc != TARGET_PC_EXIT);
-        assert(local_call.target_pc != TARGET_PC_RETPOLINE);
-        target_loc = state->pc_locs[local_call.target_pc];
+        int32_t target_loc = 0;
+        // A local call must be eBPF PC-relative and it cannot be special.
+        assert(!local_call.target.is_special);
+        target_loc = state->pc_locs[local_call.target.target.regular.ebpf_target_pc];
 
         int32_t rel = target_loc - local_call.offset_loc;
         rel -= state->bpf_function_prolog_size;
