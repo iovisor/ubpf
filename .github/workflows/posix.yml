@@ -61,7 +61,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+      uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
       with:
         egress-policy: audit
 
@@ -71,7 +71,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c
+      uses: github/codeql-action/init@f6091c0113d1dcf9b98e269ee48e8a7e51b7bdd4
       with:
         languages: 'cpp'
 
@@ -211,7 +211,7 @@ jobs:
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
-      uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
+      uses: coverallsapp/github-action@773b6d8e80fa7862da56a7664bd747c91255b2e2 # v2.3.5
       with:
         github-token: ${{ secrets.github_token }}
         flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
@@ -306,4 +306,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c
+      uses: github/codeql-action/analyze@f6091c0113d1dcf9b98e269ee48e8a7e51b7bdd4
