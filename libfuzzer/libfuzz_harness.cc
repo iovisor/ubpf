@@ -116,6 +116,8 @@ EbpfProgramType g_ubpf_program_type = {
     .is_privileged = false,
 };
 
+std::optional<Invariants> stored_invariants;
+
 /**
  * @brief This function is called by the verifier when parsing an ELF file to determine the type of the program being
  * loaded based on the section and path.
@@ -359,20 +361,29 @@ try {
 
     // Enable termination checking and pre-invariant storage.
     options.cfg_opts.check_for_termination = true;
-    options.cfg_opts.simplify = false;
-    options.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
-    options.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
-    options.store_pre_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK");
+    options.verbosity_opts.simplify = false;
+    options.verbosity_opts.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
+    options.verbosity_opts.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
 
     ebpf_verifier_stats_t stats;
 
     std::ostringstream error_stream;
 
+    // Convert the instruction sequence to a control-flow graph.
+    auto program = Program::from_sequence(prog, info, options.cfg_opts);
+
     // Verify the program. This will return false or throw an exception if the program is invalid.
-    bool result = ebpf_verify_program(error_stream, prog, raw_prog.info, options, &stats);
+    stored_invariants.emplace(analyze(program));
+
+    bool result = stored_invariants->verified(program);
+
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
+        auto report = stored_invariants->check_assertions(program);
+        print_warnings(error_stream, report);
+
+        print_invariants(error_stream, program, false, *stored_invariants);
+
         std::cout << "verifier stats:" << std::endl;
-        std::cout << "total_unreachable: " << stats.total_unreachable << std::endl;
         std::cout << "total_warnings: " << stats.total_warnings << std::endl;
         std::cout << "max_loop_count: " << stats.max_loop_count << std::endl;
         std::cout << "result: " << result << std::endl;
@@ -525,7 +536,6 @@ ubpf_debug_function(
         std::cout << std::endl;
     }
 
-
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK")) {
         ubpf_context_t* ubpf_context = reinterpret_cast<ubpf_context_t*>(context);
         UNREFERENCED_PARAMETER(stack_start);
@@ -536,13 +546,13 @@ ubpf_debug_function(
         const ebpf_inst* inst = reinterpret_cast<const ebpf_inst*>(ubpf_context->program_start);
         inst += program_counter;
 
-        std::string label;
+        std::string stack_frame_prefix;
 
-        for (size_t i = 0; i < g_pc_stack.size(); i++) {
-            label += std::to_string(g_pc_stack[i]) + "/";
+        for (size_t i = 1; i < g_pc_stack.size(); i++) {
+            stack_frame_prefix += std::to_string(g_pc_stack[i]) + "/";
         }
 
-        label += std::to_string(program_counter) + ":-1";
+        crab::label_t label{program_counter, -1, stack_frame_prefix};
 
         // Local call.
         if (inst->opcode == EBPF_OP_CALL && inst->src == 1) {
@@ -555,7 +565,7 @@ ubpf_debug_function(
                 g_pc_stack.pop_back();
             }
         }
-       
+
 
         if (program_counter == 0) {
             return;
@@ -604,15 +614,22 @@ ubpf_debug_function(
             }
         }
 
-        // Call ebpf_check_constraints_at_label with the set of string constraints at this label.
-
         std::ostringstream os;
+        string_invariant inv{constraints};
+        auto abstract_constraints = stored_invariants->invariant_at(label);
 
-        if (!ebpf_check_constraints_at_label(os, label, constraints)) {
+        if (!stored_invariants->is_valid_before(label, inv)) {
             std::cerr << "Label: " << label << std::endl;
-            std::cerr << os.str() << std::endl;
+            std::cerr << "Verifier state: " << std::endl;
+            std::cerr << abstract_constraints << std::endl;
+            std::cerr << std::endl;
+
+            std::cerr << "Actual state: " << std::endl;
+            std::cerr << inv << std::endl;
+
             throw std::runtime_error("ebpf_check_constraints_at_label failed");
         }
+
     }
 }
 
