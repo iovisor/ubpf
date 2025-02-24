@@ -1,4 +1,4 @@
 # pypi version of parcon does not support python3
 git+https://github.com/javawizard/parcon
 nose ~= 1.3.7
-pyelftools ~= 0.31
+pyelftools ~= 0.32
