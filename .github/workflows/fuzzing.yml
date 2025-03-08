@@ -44,7 +44,7 @@ jobs:
       run: echo "VALUE=platform-${{ matrix.platform }}_arch=${{ matrix.arch }}_type=fuzzing" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
-      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
       with:
         path: ccache
         key: ${{ steps.cache_key.outputs.VALUE }}_ccache
@@ -144,7 +144,7 @@ jobs:
         submodules: 'recursive'
 
     - name: Cache the build folder
-      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf
       env:
         cache-name: cache-nuget-modules
       with:
@@ -211,7 +211,7 @@ jobs:
           libyaml-cpp-dev
 
     - name: Download fuzzer artifacts
-      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+      uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806
       with:
         name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
 
