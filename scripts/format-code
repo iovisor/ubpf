@@ -257,7 +257,7 @@ fi
 get_file_list()
 {
     if [[ -z "${userFiles[*]}" ]]; then
-        mapfile -t file_list < <(eval "$findargs")
+        mapfile -t file_list < <(eval "$findargs" | grep -v "$(git submodule --quiet foreach 'echo $path/')")
         if [[ ${#file_list[@]} -eq 0 ]]; then
             echo "No files were found to format!"
             exit 1
