@@ -364,7 +364,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
 
             for (uint i = 0; i < total_functions; i++) {
                 if (sections[relo_applies_to_section].shdr == relocated_functions[i]->shdr &&
-                    relocation.r_offset > relocated_functions[i]->native_section_start &&
+                    relocation.r_offset >= relocated_functions[i]->native_section_start &&
                     relocation.r_offset < relocated_functions[i]->native_section_start + relocated_functions[i]->size) {
                     source_function = relocated_functions[i];
                     break;
