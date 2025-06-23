@@ -377,8 +377,8 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
             }
 
             struct ebpf_inst* applies_to_inst =
-                (struct
-                 ebpf_inst*)(source_function->linked_data + (relocation.r_offset - source_function->native_section_start));
+                (struct ebpf_inst*)(source_function->linked_data +
+                                    (relocation.r_offset - source_function->native_section_start));
             uint64_t applies_to_inst_index =
                 source_function->landed + ((relocation.r_offset - source_function->native_section_start) / 8);
 
@@ -472,9 +472,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                 break;
             }
             default:
-                printf(
-                    "Warning: bad relocation type %llu; skipping.\n",
-                    (long long unsigned)ELF64_R_TYPE(relocation.r_info));
+                printf("Warning: bad relocation type %u; skipping.\n", (unsigned)ELF64_R_TYPE(relocation.r_info));
                 break;
             }
         }
