@@ -16,7 +16,7 @@ static uint64_t
 gather_bytes(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
 {
     return ((uint64_t)(a & 0xff) << 32) | ((uint64_t)(b & 0xff) << 24) | ((uint64_t)(c & 0xff) << 16) |
-           ((uint64_t)(d & 0xff) << 8) | (e & 0xff);
+           ((uint64_t)(d & 0xff) << 8) | (uint64_t)(e & 0xff);
 };
 
 static uint64_t
