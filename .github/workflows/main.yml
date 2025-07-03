@@ -35,27 +35,27 @@ jobs:
   windows_release:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: RelWithDebInfo
       upload_packages: true
 
   windows_release_no_retpolines:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: RelWithDebInfo
       disable_retpolines: true
 
   windows_debug:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: Debug
 
   windows_debug_no_retpolines:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: Debug
       disable_retpolines: true
 
