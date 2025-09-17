@@ -117,3 +117,6 @@ dmypy.json
 
 .vscode/
 .vs/
+
+# From build-libbpf.sh
+libbpf/
