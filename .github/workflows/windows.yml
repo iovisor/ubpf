@@ -57,7 +57,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@64d10c13136e1c5bce3e5fbde8d4906eeaafc885
+      uses: github/codeql-action/init@4e94bd11f71e507f7f87df81788dff88d1dacbfb
       with:
         languages: 'cpp'
 
@@ -116,7 +116,7 @@ jobs:
 
     - name: Upload the Windows TGZ package
       if: inputs.upload_packages == true
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
       with:
         name: windows_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -124,4 +124,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@64d10c13136e1c5bce3e5fbde8d4906eeaafc885
+      uses: github/codeql-action/analyze@4e94bd11f71e507f7f87df81788dff88d1dacbfb
