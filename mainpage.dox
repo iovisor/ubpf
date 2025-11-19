@@ -10,6 +10,7 @@
  *
  * For more info see:
  * <ul>
+ * <li><a href=https://www.rfc-editor.org/rfc/rfc9669.html>BPF Instruction Set Architecture (ISA) - RFC 9669</a>
  * <li><a href=https://www.kernel.org/doc/Documentation/networking/filter.txt>Linux documentation for the eBPF instruction set</a>
  * <li><a href=https://github.com/iovisor/bpf-docs/blob/master/eBPF.md>Instruction set reference</a>
  * </ul>
