@@ -47,22 +47,22 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@0499de31b99561a6d14a36a5f662c2a54f91beee
+      uses: github/codeql-action/init@1b168cd39490f61582a9beae412bb7057a6b2c4e
       with:
         languages: 'cpp'
 
     - name: Cache the build folder
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb
       env:
         cache-name: cache-nuget-modules
       with:
@@ -116,7 +116,7 @@ jobs:
 
     - name: Upload the Windows TGZ package
       if: inputs.upload_packages == true
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: windows_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -124,4 +124,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@0499de31b99561a6d14a36a5f662c2a54f91beee
+      uses: github/codeql-action/analyze@1b168cd39490f61582a9beae412bb7057a6b2c4e
