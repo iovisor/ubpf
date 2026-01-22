@@ -1,5 +1,5 @@
 -- asm
-ldxbsx %r0, [%r1+2]
+ldxsb %r0, [%r1+2]
 exit
 -- mem
 aa bb 81 cc dd

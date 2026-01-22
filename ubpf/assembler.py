@@ -15,7 +15,7 @@ MEM_SIZES = {
 }
 
 MEM_LOAD_OPS = { 'ldx' + k: (0x61 | (v << 3)) for k, v in list(MEM_SIZES.items()) }
-MEM_LOAD_SX_OPS = { 'ldx' + k + 'sx': (0x81 | (v << 3)) for k, v in list(MEM_SIZES.items()) if k != 'dw' }
+MEM_LOAD_SX_OPS = { 'ldxs' + k: (0x81 | (v << 3)) for k, v in list(MEM_SIZES.items()) if k != 'dw' }
 MEM_STORE_IMM_OPS = { 'st' + k: (0x62 | (v << 3))  for k, v in list(MEM_SIZES.items()) }
 MEM_STORE_REG_OPS = { 'stx' + k: (0x63 | (v << 3)) for k, v in list(MEM_SIZES.items()) }
 
