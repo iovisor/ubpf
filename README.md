@@ -9,6 +9,8 @@ Userspace eBPF VM
 
 This project aims to create an Apache-licensed library for executing eBPF programs. The primary implementation of eBPF lives in the Linux kernel, but due to its GPL license it can't be used in many projects.
 
+[BPF Instruction Set Architecture (ISA) - RFC 9669](https://www.rfc-editor.org/rfc/rfc9669.html)
+
 [Linux documentation for the eBPF instruction set](https://www.kernel.org/doc/Documentation/networking/filter.txt)
 
 [Instruction set reference](https://github.com/iovisor/bpf-docs/blob/master/eBPF.md)

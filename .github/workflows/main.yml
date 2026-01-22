@@ -35,27 +35,27 @@ jobs:
   windows_release:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: RelWithDebInfo
       upload_packages: true
 
   windows_release_no_retpolines:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: RelWithDebInfo
       disable_retpolines: true
 
   windows_debug:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: Debug
 
   windows_debug_no_retpolines:
     uses: ./.github/workflows/windows.yml
     with:
-      platform: windows-2019
+      platform: windows-2022
       build_type: Debug
       disable_retpolines: true
 
@@ -368,7 +368,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
       with:
         egress-policy: audit
 

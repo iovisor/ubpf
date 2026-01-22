@@ -30,7 +30,7 @@ jobs:
     steps:
 
     - name: Harden Runner
-      uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0
+      uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -38,7 +38,7 @@ jobs:
       run: |
         sudo apt install doxygen
 
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Clone docs
       run: |

@@ -22,12 +22,14 @@ endif()
 
 add_subdirectory("vm")
 
-ExternalProject_Add(Conformance
-    INSTALL_COMMAND ""
-    SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/external/bpf_conformance
-    BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/bpf_conformance
-    EXCLUDE_FROM_ALL true
-    STEP_TARGETS build)
+if(NOT UBPF_SKIP_EXTERNAL)
+  ExternalProject_Add(Conformance
+      INSTALL_COMMAND ""
+      SOURCE_DIR ${CMAKE_SOURCE_DIR}/external/bpf_conformance
+			BINARY_DIR ${CMAKE_BINARY_DIR}/external/bpf_conformance
+      EXCLUDE_FROM_ALL true
+      STEP_TARGETS build)
+endif()
 
 if(UBPF_ENABLE_TESTS)
   add_subdirectory("custom_tests")
