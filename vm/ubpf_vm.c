@@ -1622,6 +1622,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             break;
 
         case EBPF_OP_JA:
+        case EBPF_OP_JA32:
         case EBPF_OP_JEQ_REG:
         case EBPF_OP_JEQ_IMM:
         case EBPF_OP_JGT_REG:
@@ -1665,12 +1666,14 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_JSLT32_IMM:
         case EBPF_OP_JSLT32_REG:
         case EBPF_OP_JSLE32_IMM:
-        case EBPF_OP_JSLE32_REG:
-            if (inst.offset == -1) {
+        case EBPF_OP_JSLE32_REG: {
+            // Calculate jump offset: use imm for JA32, offset for all others
+            int jump_offset = (inst.opcode == EBPF_OP_JA32) ? inst.imm : inst.offset;
+            if (jump_offset == -1) {
                 *errmsg = ubpf_error("infinite loop at PC %d", i);
                 return false;
             }
-            int new_pc = i + 1 + inst.offset;
+            int new_pc = i + 1 + jump_offset;
             if (new_pc < 0 || new_pc >= num_insts) {
                 *errmsg = ubpf_error("jump out of bounds at PC %d", i);
                 return false;
@@ -1679,21 +1682,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 return false;
             }
             break;
-
-        case EBPF_OP_JA32:
-            if (inst.imm == -1) {
-                *errmsg = ubpf_error("infinite loop at PC %d", i);
-                return false;
-            }
-            new_pc = i + 1 + inst.imm;
-            if (new_pc < 0 || new_pc >= num_insts) {
-                *errmsg = ubpf_error("jump out of bounds at PC %d", i);
-                return false;
-            } else if (insts[new_pc].opcode == 0) {
-                *errmsg = ubpf_error("jump to middle of lddw at PC %d", i);
-                return false;
-            }
-            break;
+        }
 
         case EBPF_OP_CALL:
             if (inst.src == 0) {
