@@ -56,6 +56,7 @@ MODES = {
     1: 'abs',
     2: 'ind',
     3: 'mem',
+    4: 'memsx',
     6: 'xadd',
 }
 
@@ -201,7 +202,10 @@ def disassemble_one(data, offset, verbose = False):
             fields["dst_reg"].used = True
             fields["src_reg"].used = True
             fields["off"].used = True
-            disassembled = f'{class_name}{size_name} {R(dst_reg)}, {M(R(src_reg), off)}'
+            if mode == 4:  # MEMSX
+                disassembled = f'{class_name}{size_name}sx {R(dst_reg)}, {M(R(src_reg), off)}'
+            else:
+                disassembled = f'{class_name}{size_name} {R(dst_reg)}, {M(R(src_reg), off)}'
         elif clz == BPF_CLASS_ST:
             fields["dst_reg"].used = True
             fields["off"].used = True

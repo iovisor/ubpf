@@ -1,0 +1,7 @@
+-- asm
+ldxbsx %r0, [%r1+2]
+exit
+-- mem
+aa bb 7f cc dd
+-- result
+0x7f

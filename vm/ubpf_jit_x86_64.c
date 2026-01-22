@@ -426,21 +426,20 @@ emit_load(struct jit_state* state, enum operand_size size, int src, int dst, int
 static inline void
 emit_load_sx(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
 {
-    if (size == S8 || size == S16 || size == S32) {
-        /* movsx for 8/16-bit, movsxd for 32-bit */
+    if (size == S8 || size == S16) {
+        /* movsx for 8/16-bit */
         emit_basic_rex(state, 1, dst, src); /* REX.W for 64-bit result */
         emit1(state, 0x0f);
         if (size == S8) {
             emit1(state, 0xbe); /* movsx byte */
-        } else if (size == S16) {
+        } else {
             emit1(state, 0xbf); /* movsx word */
-        } else if (size == S32) {
-            /* For 32-bit sign extension, we need movsxd (REX.W + 0x63) */
-            emit_basic_rex(state, 1, dst, src);
-            emit1(state, 0x63);
-            emit_modrm_and_displacement(state, dst, src, offset);
-            return;
         }
+        emit_modrm_and_displacement(state, dst, src, offset);
+    } else if (size == S32) {
+        /* For 32-bit sign extension, we need movsxd (REX.W + 0x63) */
+        emit_basic_rex(state, 1, dst, src);
+        emit1(state, 0x63);
         emit_modrm_and_displacement(state, dst, src, offset);
     }
 }
