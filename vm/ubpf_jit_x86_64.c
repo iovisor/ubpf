@@ -422,6 +422,29 @@ emit_load(struct jit_state* state, enum operand_size size, int src, int dst, int
     emit_modrm_and_displacement(state, dst, src, offset);
 }
 
+/* Load sign-extended [src + offset] into dst */
+static inline void
+emit_load_sx(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset)
+{
+    if (size == S8 || size == S16 || size == S32) {
+        /* movsx for 8/16-bit, movsxd for 32-bit */
+        emit_basic_rex(state, 1, dst, src); /* REX.W for 64-bit result */
+        emit1(state, 0x0f);
+        if (size == S8) {
+            emit1(state, 0xbe); /* movsx byte */
+        } else if (size == S16) {
+            emit1(state, 0xbf); /* movsx word */
+        } else if (size == S32) {
+            /* For 32-bit sign extension, we need movsxd (REX.W + 0x63) */
+            emit_basic_rex(state, 1, dst, src);
+            emit1(state, 0x63);
+            emit_modrm_and_displacement(state, dst, src, offset);
+            return;
+        }
+        emit_modrm_and_displacement(state, dst, src, offset);
+    }
+}
+
 /* Load sign-extended immediate into register */
 static inline void
 emit_load_imm(struct jit_state* state, int dst, int64_t imm)
@@ -1810,6 +1833,16 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_LDXDW:
             emit_load(state, S64, src, dst, inst.offset);
+            break;
+
+        case EBPF_OP_LDXWSX:
+            emit_load_sx(state, S32, src, dst, inst.offset);
+            break;
+        case EBPF_OP_LDXHSX:
+            emit_load_sx(state, S16, src, dst, inst.offset);
+            break;
+        case EBPF_OP_LDXBSX:
+            emit_load_sx(state, S8, src, dst, inst.offset);
             break;
 
         case EBPF_OP_STW:
