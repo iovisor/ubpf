@@ -877,6 +877,35 @@ ubpf_exec_ex(
                 reg[inst.dst] = htobe64(reg[inst.dst]);
             }
             break;
+        case EBPF_OP_BSWAP:
+            if (inst.imm == 16) {
+#ifdef __GNUC__
+                reg[inst.dst] = __builtin_bswap16(reg[inst.dst]);
+#else
+                reg[inst.dst] = (uint16_t)((((reg[inst.dst]) & 0xff00) >> 8) | (((reg[inst.dst]) & 0x00ff) << 8));
+#endif
+            } else if (inst.imm == 32) {
+#ifdef __GNUC__
+                reg[inst.dst] = __builtin_bswap32(reg[inst.dst]);
+#else
+                reg[inst.dst] = (uint32_t)((((reg[inst.dst]) & 0xff000000) >> 24) | (((reg[inst.dst]) & 0x00ff0000) >> 8) |
+                                           (((reg[inst.dst]) & 0x0000ff00) << 8) | (((reg[inst.dst]) & 0x000000ff) << 24));
+#endif
+            } else if (inst.imm == 64) {
+#ifdef __GNUC__
+                reg[inst.dst] = __builtin_bswap64(reg[inst.dst]);
+#else
+                reg[inst.dst] = (uint64_t)((((reg[inst.dst]) & 0xff00000000000000ULL) >> 56) |
+                                           (((reg[inst.dst]) & 0x00ff000000000000ULL) >> 40) |
+                                           (((reg[inst.dst]) & 0x0000ff0000000000ULL) >> 24) |
+                                           (((reg[inst.dst]) & 0x000000ff00000000ULL) >> 8) |
+                                           (((reg[inst.dst]) & 0x00000000ff000000ULL) << 8) |
+                                           (((reg[inst.dst]) & 0x0000000000ff0000ULL) << 24) |
+                                           (((reg[inst.dst]) & 0x000000000000ff00ULL) << 40) |
+                                           (((reg[inst.dst]) & 0x00000000000000ffULL) << 56));
+#endif
+            }
+            break;
 
         case EBPF_OP_ADD64_IMM:
             reg[inst.dst] += inst.imm;
@@ -1522,6 +1551,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
 
         case EBPF_OP_LE:
         case EBPF_OP_BE:
+        case EBPF_OP_BSWAP:
             if (inst.imm != 16 && inst.imm != 32 && inst.imm != 64) {
                 *errmsg = ubpf_error("invalid endian immediate at PC %d", i);
                 return false;

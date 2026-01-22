@@ -890,6 +890,7 @@ to_dp1_opcode(int opcode, uint32_t imm)
     switch (opcode) {
     case EBPF_OP_BE:
     case EBPF_OP_LE:
+    case EBPF_OP_BSWAP:
         switch (imm) {
         case 16:
             return DP1_REV16;
@@ -1164,6 +1165,18 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.imm == 16) {
                 /* UXTH dst, dst. */
                 emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
+            }
+            break;
+
+        case EBPF_OP_BSWAP:
+            /* Always swap bytes for bswap (unconditional) */
+            emit_dataprocessing_onesource(state, sixty_four, to_dp1_opcode(opcode, inst.imm), dst, dst);
+            if (inst.imm == 16) {
+                /* UXTH dst, dst - zero extend to 64 bits */
+                emit_instruction(state, 0x53003c00 | (dst << 5) | dst);
+            } else if (inst.imm == 32) {
+                /* UXTW dst, dst - zero extend to 64 bits */
+                emit_instruction(state, 0x53007c00 | (dst << 5) | dst);
             }
             break;
 

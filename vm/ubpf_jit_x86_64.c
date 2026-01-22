@@ -1544,6 +1544,28 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             break;
 
+        case EBPF_OP_BSWAP:
+            if (inst.imm == 16) {
+                /* rol for 16-bit bswap */
+                emit1(state, 0x66); /* 16-bit override */
+                emit_alu32_imm8(state, 0xc1, 0, dst, 8);
+                /* and to zero upper bits */
+                emit_alu64_imm32(state, 0x81, 4, dst, 0xffff);
+            } else if (inst.imm == 32) {
+                /* bswap for 32-bit */
+                emit_basic_rex(state, 0, 0, dst);
+                emit1(state, 0x0f);
+                emit1(state, 0xc8 | (dst & 7));
+                /* Zero-extend to 64-bit */
+                emit_alu32(state, 0x89, dst, dst);
+            } else if (inst.imm == 64) {
+                /* bswap for 64-bit */
+                emit_basic_rex(state, 1, 0, dst);
+                emit1(state, 0x0f);
+                emit1(state, 0xc8 | (dst & 7));
+            }
+            break;
+
         case EBPF_OP_ADD64_IMM:
             emit_alu64_imm32(state, 0x81, 0, dst, inst.imm);
             break;

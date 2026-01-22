@@ -1,0 +1,6 @@
+-- asm
+lddw %r0, 0x123456789abcdef0
+bswap64 %r0
+exit
+-- result
+0xf0debc9a78563412

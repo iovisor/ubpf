@@ -235,6 +235,14 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .immediate_upper_bound = 64,
     },
     {
+        .opcode = EBPF_OP_BSWAP,
+        .destination_lower_bound = BPF_REG_0,
+        .destination_upper_bound = BPF_REG_9,
+        // specific valid values for the immediate field are checked in validate.
+        .immediate_lower_bound = 0,
+        .immediate_upper_bound = 64,
+    },
+    {
         .opcode = EBPF_OP_ADD64_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
