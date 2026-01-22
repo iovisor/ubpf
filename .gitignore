@@ -121,3 +121,6 @@ dmypy.json
 # Test artifacts
 test_memsx
 _codeql_detected_source_root
+
+# From build-libbpf.sh
+libbpf/
