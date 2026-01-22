@@ -1,9 +1,0 @@
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/Conformance.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/Conformance-build.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/edit_cache.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/vm/CMakeFiles/ubpf.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/vm/CMakeFiles/edit_cache.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/vm/CMakeFiles/rebuild_cache.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/vm/compat/CMakeFiles/edit_cache.dir
-/home/runner/work/ubpf/ubpf/_codeql_build_dir/vm/compat/CMakeFiles/rebuild_cache.dir
