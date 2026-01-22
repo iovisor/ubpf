@@ -1387,7 +1387,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
-        uint32_t target_pc = i + inst.offset + 1;
+        uint32_t target_pc = (inst.opcode == EBPF_OP_JA32) ? (i + inst.imm + 1) : (i + inst.offset + 1);
 
         DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
@@ -1637,6 +1637,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         /* TODO use 8 bit immediate when possible */
         case EBPF_OP_JA:
+        case EBPF_OP_JA32:
             emit_jmp(state, tgt);
             break;
         case EBPF_OP_JEQ_IMM:

@@ -774,6 +774,11 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .offset_upper_bound = INT16_MAX,
     },
     {
+        .opcode = EBPF_OP_JA32,
+        .immediate_lower_bound = INT32_MIN,
+        .immediate_upper_bound = INT32_MAX,
+    },
+    {
         .opcode = EBPF_OP_JEQ32_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_10,
