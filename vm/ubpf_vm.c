@@ -377,11 +377,11 @@ ubpf_mem_load_sx(uint64_t address, size_t size)
 
     switch (size) {
     case 1:
-        return (uint64_t)(int64_t)(int8_t) * (uint8_t*)address;
+        return (uint64_t)(int64_t)(int8_t)*(uint8_t*)address;
     case 2:
-        return (uint64_t)(int64_t)(int16_t) * (uint16_t*)address;
+        return (uint64_t)(int64_t)(int16_t)*(uint16_t*)address;
     case 4:
-        return (uint64_t)(int64_t)(int32_t) * (uint32_t*)address;
+        return (uint64_t)(int64_t)(int32_t)*(uint32_t*)address;
     default:
         abort();
     }
