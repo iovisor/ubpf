@@ -1,0 +1,37 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/Conformance-build"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/CMakeFiles/Conformance-build.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-build.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-configure.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-patch.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-update.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-download.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/_codeql_build_dir/Conformance-prefix/src/Conformance-stamp/Conformance-mkdir.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"Conformance"
+		],
+		"name" : "Conformance-build"
+	}
+}
