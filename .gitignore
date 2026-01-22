@@ -116,5 +116,8 @@ dmypy.json
 .pyre/
 
 .vscode/
-.vs/test_memsx
+.vs/
+
+# Test artifacts
+test_memsx
 _codeql_detected_source_root
