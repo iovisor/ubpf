@@ -124,3 +124,4 @@ _codeql_detected_source_root
 
 # From build-libbpf.sh
 libbpf/
+_codeql_build_dir/
