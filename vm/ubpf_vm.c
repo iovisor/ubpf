@@ -1673,11 +1673,14 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 *errmsg = ubpf_error("infinite loop at PC %d", i);
                 return false;
             }
-            int new_pc = i + 1 + jump_offset;
-            if (new_pc < 0 || new_pc >= num_insts) {
+            // Use int64_t to avoid signed overflow with large immediates
+            int64_t new_pc_64 = (int64_t)i + 1 + (int64_t)jump_offset;
+            if (new_pc_64 < 0 || new_pc_64 >= num_insts) {
                 *errmsg = ubpf_error("jump out of bounds at PC %d", i);
                 return false;
-            } else if (insts[new_pc].opcode == 0) {
+            }
+            int new_pc = (int)new_pc_64;
+            if (insts[new_pc].opcode == 0) {
                 *errmsg = ubpf_error("jump to middle of lddw at PC %d", i);
                 return false;
             }
@@ -2157,14 +2160,18 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
                     break;
                 default: {
                     // Compute jump target and bounds:
-                    uint32_t jump_target = (insts[j].opcode == EBPF_OP_JA32) 
-                        ? (j + 1 + insts[j].imm) 
-                        : (j + 1 + insts[j].offset);
+                    // Use int64_t to handle negative jumps and avoid signed overflow
+                    int64_t jump_target_64;
+                    if (insts[j].opcode == EBPF_OP_JA32) {
+                        jump_target_64 = (int64_t)j + 1 + (int64_t)insts[j].imm;
+                    } else {
+                        jump_target_64 = (int64_t)j + 1 + (int64_t)insts[j].offset;
+                    }
                     uint32_t jump_target_lower_bound = start_index;
                     uint32_t jump_target_upper_bound = end_index - 1;
 
                     // All other jumps must to be within the same sub-program.
-                    if (jump_target < jump_target_lower_bound || jump_target > jump_target_upper_bound) {
+                    if (jump_target_64 < jump_target_lower_bound || jump_target_64 > jump_target_upper_bound) {
                         *errmsg = ubpf_error("jump out of bounds at PC %d", j);
                         goto exit;
                     }
@@ -2177,8 +2184,13 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
         }
         // Last instruction of the sub-program must be EXIT or a jump to the current program.
         bool ends_with_exit = insts[end_index - 1].opcode == EBPF_OP_EXIT;
-        bool ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA || 
-                              insts[end_index - 2].opcode == EBPF_OP_JA32;
+        bool ends_with_jump = false;
+
+        // Only check for a preceding jump if the sub-program has at least two instructions.
+        if (end_index >= start_index + 2) {
+            ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA ||
+                             insts[end_index - 2].opcode == EBPF_OP_JA32;
+        }
 
         if (!(ends_with_exit || ends_with_jump)) {
             *errmsg = ubpf_error("sub-program does not end with EXIT at PC %d", end_index - 1);
