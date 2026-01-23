@@ -56,10 +56,11 @@
         "notes": "Optional but required for compiling eBPF programs from C"
       },
       {
-        "name": "Install nuget.exe (Windows)",
+        "name": "Verify nuget.exe (Windows)",
+        "command": "nuget.exe help",
         "platform": "Windows",
         "required": true,
-        "notes": "Ensure nuget.exe is in your PATH. CMake will download required libraries during configuration."
+        "notes": "Ensure nuget.exe is in your PATH. Download from https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools if not installed. CMake will download required libraries during configuration."
       }
     ]
   },
