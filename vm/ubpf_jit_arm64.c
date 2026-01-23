@@ -1131,7 +1131,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_NEG:
         case EBPF_OP_NEG64:
-            emit_addsub_register(state, sixty_four, AS_SUB, dst, RZ, src);
+            emit_addsub_register(state, sixty_four, AS_SUB, dst, RZ, dst);
             break;
         case EBPF_OP_MOV_IMM:
         case EBPF_OP_MOV64_IMM:
