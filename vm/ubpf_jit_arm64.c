@@ -1075,7 +1075,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         enum Registers dst = map_register(inst.dst);
         enum Registers src = map_register(inst.src);
         uint8_t opcode = inst.opcode;
-        
+
         // Use int64_t to avoid signed overflow with large immediates
         int64_t target_pc_64;
         if (inst.opcode == EBPF_OP_JA32) {

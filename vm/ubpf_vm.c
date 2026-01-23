@@ -2193,7 +2193,7 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
         }
 
         if (!(ends_with_exit || ends_with_jump)) {
-            *errmsg = ubpf_error("sub-program does not end with EXIT at PC %d", end_index - 1);
+            *errmsg = ubpf_error("sub-program does not end with EXIT or unconditional jump at PC %d", end_index - 1);
             goto exit;
         }
     }
