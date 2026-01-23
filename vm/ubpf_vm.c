@@ -1668,7 +1668,7 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_JSLE32_IMM:
         case EBPF_OP_JSLE32_REG: {
             // Calculate jump offset: use imm for JA32, offset for all others
-            int jump_offset = (inst.opcode == EBPF_OP_JA32) ? inst.imm : inst.offset;
+            int32_t jump_offset = (inst.opcode == EBPF_OP_JA32) ? inst.imm : inst.offset;
             if (jump_offset == -1) {
                 *errmsg = ubpf_error("infinite loop at PC %d", i);
                 return false;
