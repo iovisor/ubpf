@@ -402,7 +402,7 @@
         "steps": [
           "Write C program with BPF helper functions",
           "Compile: clang -O2 -target bpf -c program.c -o program.o",
-          "Test: ./build/vm/test < program.o",
+          "Test: ./build/vm/test program.o",
           "Or load via ubpf_load_elf() API"
         ]
       },
@@ -412,7 +412,7 @@
           "Build with coverage: cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ENABLE_COVERAGE=true",
           "Build: cmake --build build",
           "Run tests: cmake --build build --target test",
-          "Generate report: coveralls --gcov-options '-lp' -i $PWD/vm/ubpf_vm.c -i $PWD/vm/ubpf_jit_x86_64.c -i $PWD/vm/ubpf_loader.c"
+          "Generate report (Linux/macOS): cd to repo root, then run: coveralls --gcov-options '-lp' -i ./vm/ubpf_vm.c -i ./vm/ubpf_jit_x86_64.c -i ./vm/ubpf_loader.c"
         ]
       },
       {
