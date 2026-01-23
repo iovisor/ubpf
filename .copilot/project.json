@@ -101,7 +101,7 @@
         "name": "Build specific target",
         "command": "cmake --build build --target <target_name>",
         "platform": "all",
-        "notes": "Replace <target_name> with: ubpf (VM library), test (VM tests), ubpf_test (custom tests), ubpf_plugin, or specific test targets"
+        "notes": "Replace <target_name> with: ubpf (VM library), test (CTest target), ubpf_test (custom tests binary), ubpf_plugin, or other specific targets"
       }
     ],
     "options": [
@@ -172,7 +172,7 @@
         "name": "Run specific test",
         "command": "ctest --test-dir build -R <test_pattern>",
         "platform": "all",
-        "notes": "Replace <test_pattern> with regex pattern like 'test_' for all tests, or specific test name like 'ubpf_test_add'"
+        "notes": "Replace <test_pattern> with regex pattern like 'test_' or specific test names like 'add', 'alu', 'call', 'ldxb'"
       },
       {
         "name": "Run tests with verbose output",
@@ -412,7 +412,7 @@
           "Build with coverage: cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ENABLE_COVERAGE=true",
           "Build: cmake --build build",
           "Run tests: cmake --build build --target test",
-          "Generate report (Linux/macOS): cd to repo root, then run: coveralls --gcov-options '-lp' -i ./vm/ubpf_vm.c -i ./vm/ubpf_jit_x86_64.c -i ./vm/ubpf_loader.c"
+          "Generate report (Linux/macOS): See README.md for coveralls usage, or use gcov/lcov for local coverage reports"
         ]
       },
       {
