@@ -355,6 +355,38 @@ ubpf_mem_load(uint64_t address, size_t size)
     }
 }
 
+inline static uint64_t
+ubpf_mem_load_sx(uint64_t address, size_t size)
+{
+    if (!IS_ALIGNED(address, size)) {
+        // Fill the result with 0 to avoid leaking uninitialized memory.
+        uint64_t value = 0;
+        memcpy(&value, (void*)address, size);
+        // Sign extend the value
+        switch (size) {
+        case 1:
+            return (uint64_t)(int64_t)(int8_t)(uint8_t)value;
+        case 2:
+            return (uint64_t)(int64_t)(int16_t)(uint16_t)value;
+        case 4:
+            return (uint64_t)(int64_t)(int32_t)(uint32_t)value;
+        default:
+            abort();
+        }
+    }
+
+    switch (size) {
+    case 1:
+        return (uint64_t)(int64_t)(int8_t)*(uint8_t*)address;
+    case 2:
+        return (uint64_t)(int64_t)(int16_t)*(uint16_t*)address;
+    case 4:
+        return (uint64_t)(int64_t)(int32_t)*(uint32_t*)address;
+    default:
+        abort();
+    }
+}
+
 inline static void
 ubpf_mem_store(uint64_t address, uint64_t value, size_t size)
 {
@@ -980,6 +1012,19 @@ ubpf_exec_ex(
             reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 8);
             break;
 
+        case EBPF_OP_LDXWSX:
+            BOUNDS_CHECK_LOAD(4);
+            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 4);
+            break;
+        case EBPF_OP_LDXHSX:
+            BOUNDS_CHECK_LOAD(2);
+            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 2);
+            break;
+        case EBPF_OP_LDXBSX:
+            BOUNDS_CHECK_LOAD(1);
+            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 1);
+            break;
+
         case EBPF_OP_STW:
             BOUNDS_CHECK_STORE(4);
             ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 4);
@@ -1513,6 +1558,9 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_LDXH:
         case EBPF_OP_LDXB:
         case EBPF_OP_LDXDW:
+        case EBPF_OP_LDXWSX:
+        case EBPF_OP_LDXHSX:
+        case EBPF_OP_LDXBSX:
             break;
 
         case EBPF_OP_STW:

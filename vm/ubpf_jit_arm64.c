@@ -950,6 +950,12 @@ to_loadstore_opcode(int opcode)
         return LS_LDRB;
     case EBPF_OP_LDXDW:
         return LS_LDRX;
+    case EBPF_OP_LDXWSX:
+        return LS_LDRSW;
+    case EBPF_OP_LDXHSX:
+        return LS_LDRSHX;
+    case EBPF_OP_LDXBSX:
+        return LS_LDRSBX;
     case EBPF_OP_STW:
     case EBPF_OP_STXW:
         return LS_STRW;
@@ -1250,6 +1256,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_LDXH:
         case EBPF_OP_LDXB:
         case EBPF_OP_LDXDW:
+        case EBPF_OP_LDXWSX:
+        case EBPF_OP_LDXHSX:
+        case EBPF_OP_LDXBSX:
             if (inst.offset >= -256 && inst.offset < 256) {
                 emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, src, inst.offset);
             } else {

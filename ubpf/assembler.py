@@ -15,6 +15,7 @@ MEM_SIZES = {
 }
 
 MEM_LOAD_OPS = { 'ldx' + k: (0x61 | (v << 3)) for k, v in list(MEM_SIZES.items()) }
+MEM_LOAD_SX_OPS = { 'ldxs' + k: (0x81 | (v << 3)) for k, v in list(MEM_SIZES.items()) if k != 'dw' }
 MEM_STORE_IMM_OPS = { 'st' + k: (0x62 | (v << 3))  for k, v in list(MEM_SIZES.items()) }
 MEM_STORE_REG_OPS = { 'stx' + k: (0x63 | (v << 3)) for k, v in list(MEM_SIZES.items()) }
 
@@ -83,6 +84,9 @@ def assemble_one(inst):
     op = inst[0]
     if op in MEM_LOAD_OPS:
         opcode = MEM_LOAD_OPS[op]
+        return pack(opcode, inst[1].num, inst[2].reg.num, inst[2].offset, 0)
+    elif op in MEM_LOAD_SX_OPS:
+        opcode = MEM_LOAD_SX_OPS[op]
         return pack(opcode, inst[1].num, inst[2].reg.num, inst[2].offset, 0)
     elif op == "lddw":
         a = pack(0x18, inst[1].num, 0, 0, inst[2].value)
