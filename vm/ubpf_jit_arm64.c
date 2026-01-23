@@ -747,7 +747,7 @@ is_imm_op(struct ebpf_inst const* inst)
     bool is_ja = inst->opcode == EBPF_OP_JA || inst->opcode == EBPF_OP_JA32;
     bool is_alu = (class == EBPF_CLS_ALU || class == EBPF_CLS_ALU64) && !is_endian && !is_neg;
     bool is_jmp = (class == EBPF_CLS_JMP && !is_ja && !is_call && !is_exit);
-    bool is_jmp32 = class == EBPF_CLS_JMP32;
+    bool is_jmp32 = (class == EBPF_CLS_JMP32 && inst->opcode != EBPF_OP_JA32);
     bool is_store = class == EBPF_CLS_ST;
     return (is_imm && (is_alu || is_jmp || is_jmp32)) || is_store;
 }
