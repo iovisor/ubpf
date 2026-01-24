@@ -278,7 +278,7 @@
           "vm/ubpf_loader.c - ELF loader and verification"
         ],
         "keyFunctions": [
-          "ubpf_instruction_is_valid() - Validate individual instructions",
+          "ubpf_is_valid_instruction() - Validate individual instructions",
           "ubpf_load_elf() - Load and verify ELF files"
         ]
       },
