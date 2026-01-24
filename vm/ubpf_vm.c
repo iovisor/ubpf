@@ -786,11 +786,19 @@ ubpf_exec_ex(
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_DIV_IMM:
-            reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
+            if (inst.offset == 0) {
+                reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = (int32_t)inst.imm ? (uint32_t)((int32_t)reg[inst.dst] / (int32_t)inst.imm) : 0;
+            }
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_DIV_REG:
-            reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
+            if (inst.offset == 0) {
+                reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = (int32_t)reg[inst.src] ? (uint32_t)((int32_t)reg[inst.dst] / (int32_t)reg[inst.src]) : 0;
+            }
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_OR_IMM:
@@ -828,11 +836,19 @@ ubpf_exec_ex(
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_MOD_IMM:
-            reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) % u32(inst.imm) : u32(reg[inst.dst]);
+            if (inst.offset == 0) {
+                reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) % u32(inst.imm) : u32(reg[inst.dst]);
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = (int32_t)inst.imm ? (uint32_t)((int32_t)reg[inst.dst] % (int32_t)inst.imm) : u32(reg[inst.dst]);
+            }
             reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_MOD_REG:
-            reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) % u32(reg[inst.src]) : u32(reg[inst.dst]);
+            if (inst.offset == 0) {
+                reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) % u32(reg[inst.src]) : u32(reg[inst.dst]);
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = (int32_t)reg[inst.src] ? (uint32_t)((int32_t)reg[inst.dst] % (int32_t)reg[inst.src]) : u32(reg[inst.dst]);
+            }
             break;
         case EBPF_OP_XOR_IMM:
             reg[inst.dst] ^= inst.imm;
@@ -926,10 +942,18 @@ ubpf_exec_ex(
             reg[inst.dst] *= reg[inst.src];
             break;
         case EBPF_OP_DIV64_IMM:
-            reg[inst.dst] = inst.imm ? reg[inst.dst] / inst.imm : 0;
+            if (inst.offset == 0) {
+                reg[inst.dst] = inst.imm ? reg[inst.dst] / inst.imm : 0;
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = inst.imm ? (uint64_t)((int64_t)reg[inst.dst] / (int64_t)inst.imm) : 0;
+            }
             break;
         case EBPF_OP_DIV64_REG:
-            reg[inst.dst] = reg[inst.src] ? reg[inst.dst] / reg[inst.src] : 0;
+            if (inst.offset == 0) {
+                reg[inst.dst] = reg[inst.src] ? reg[inst.dst] / reg[inst.src] : 0;
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = reg[inst.src] ? (uint64_t)((int64_t)reg[inst.dst] / (int64_t)reg[inst.src]) : 0;
+            }
             break;
         case EBPF_OP_OR64_IMM:
             reg[inst.dst] |= inst.imm;
@@ -959,10 +983,18 @@ ubpf_exec_ex(
             reg[inst.dst] = -reg[inst.dst];
             break;
         case EBPF_OP_MOD64_IMM:
-            reg[inst.dst] = inst.imm ? reg[inst.dst] % inst.imm : reg[inst.dst];
+            if (inst.offset == 0) {
+                reg[inst.dst] = inst.imm ? reg[inst.dst] % inst.imm : reg[inst.dst];
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = inst.imm ? (uint64_t)((int64_t)reg[inst.dst] % (int64_t)inst.imm) : reg[inst.dst];
+            }
             break;
         case EBPF_OP_MOD64_REG:
-            reg[inst.dst] = reg[inst.src] ? reg[inst.dst] % reg[inst.src] : reg[inst.dst];
+            if (inst.offset == 0) {
+                reg[inst.dst] = reg[inst.src] ? reg[inst.dst] % reg[inst.src] : reg[inst.dst];
+            } else if (inst.offset == 1) {
+                reg[inst.dst] = reg[inst.src] ? (uint64_t)((int64_t)reg[inst.dst] % (int64_t)reg[inst.src]) : reg[inst.dst];
+            }
             break;
         case EBPF_OP_XOR64_IMM:
             reg[inst.dst] ^= inst.imm;
