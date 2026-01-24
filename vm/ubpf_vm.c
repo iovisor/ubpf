@@ -1372,7 +1372,7 @@ ubpf_exec_ex(
                 result = UBPF_ATOMIC_EXCHANGE(destination, value);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_COMPARE_EXCHANGE(destination, value, reg[0]);
+                result = UBPF_ATOMIC_COMPARE_EXCHANGE(destination, reg[0], value);
                 // Atomic compare exchange returns the original value in register 0.
                 fetch_index = 0;
                 break;
@@ -1412,7 +1412,7 @@ ubpf_exec_ex(
                 result = UBPF_ATOMIC_EXCHANGE32(destination, value);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_COMPARE_EXCHANGE32(destination, value, u32(reg[0]));
+                result = UBPF_ATOMIC_COMPARE_EXCHANGE32(destination, u32(reg[0]), value);
                 // Atomic compare exchange returns the original value in register 0.
                 fetch_index = 0;
                 break;

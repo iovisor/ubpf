@@ -236,13 +236,13 @@ ubpf_instruction_has_fallthrough(const struct ebpf_inst inst)
 #define UBPF_ATOMIC_AND_FETCH(ptr, val) __sync_fetch_and_and(ptr, val)
 #define UBPF_ATOMIC_XOR_FETCH(ptr, val) __sync_fetch_and_xor(ptr, val)
 #define UBPF_ATOMIC_EXCHANGE(ptr, val) __sync_lock_test_and_set(ptr, val);
-#define UBPF_ATOMIC_COMPARE_EXCHANGE(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
+#define UBPF_ATOMIC_COMPARE_EXCHANGE(ptr, oldval, newval) __sync_val_compare_and_swap(ptr, oldval, newval)
 #define UBPF_ATOMIC_ADD_FETCH32(ptr, val) __sync_fetch_and_add(ptr, val)
 #define UBPF_ATOMIC_OR_FETCH32(ptr, val) __sync_fetch_and_or(ptr, val)
 #define UBPF_ATOMIC_AND_FETCH32(ptr, val) __sync_fetch_and_and(ptr, val)
 #define UBPF_ATOMIC_XOR_FETCH32(ptr, val) __sync_fetch_and_xor(ptr, val)
 #define UBPF_ATOMIC_EXCHANGE32(ptr, val) __sync_lock_test_and_set(ptr, val);
-#define UBPF_ATOMIC_COMPARE_EXCHANGE32(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
+#define UBPF_ATOMIC_COMPARE_EXCHANGE32(ptr, oldval, newval) __sync_val_compare_and_swap(ptr, oldval, newval)
 // If Microsoft Visual C++
 #elif defined(_MSC_VER)
 #include <intrin.h>
@@ -252,14 +252,14 @@ ubpf_instruction_has_fallthrough(const struct ebpf_inst inst)
 #define UBPF_ATOMIC_XOR_FETCH(ptr, val) _InterlockedXor64((volatile int64_t*)ptr, val)
 #define UBPF_ATOMIC_EXCHANGE(ptr, val) _InterlockedExchange64((volatile int64_t*)ptr, val)
 #define UBPF_ATOMIC_COMPARE_EXCHANGE(ptr, oldval, newval) \
-    _InterlockedCompareExchange64((volatile int64_t*)ptr, oldval, newval)
+    _InterlockedCompareExchange64((volatile int64_t*)ptr, newval, oldval)
 #define UBPF_ATOMIC_ADD_FETCH32(ptr, val) _InterlockedExchangeAdd((volatile long*)ptr, val)
 #define UBPF_ATOMIC_OR_FETCH32(ptr, val) _InterlockedOr((volatile long*)ptr, val)
 #define UBPF_ATOMIC_AND_FETCH32(ptr, val) _InterlockedAnd((volatile long*)ptr, val)
 #define UBPF_ATOMIC_XOR_FETCH32(ptr, val) _InterlockedXor((volatile long*)ptr, val)
 #define UBPF_ATOMIC_EXCHANGE32(ptr, val) _InterlockedExchange((volatile long*)ptr, val)
 #define UBPF_ATOMIC_COMPARE_EXCHANGE32(ptr, oldval, newval) \
-    _InterlockedCompareExchange((volatile long*)ptr, oldval, newval)
+    _InterlockedCompareExchange((volatile long*)ptr, newval, oldval)
 #endif
 
 #endif
