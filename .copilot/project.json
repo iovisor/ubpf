@@ -1,0 +1,525 @@
+{
+  "projectName": "uBPF",
+  "description": "Userspace eBPF VM - An Apache-licensed library for executing eBPF programs with interpreter and JIT compiler support for x86-64 and ARM64 platforms",
+  "version": "1.0.0",
+  "repository": "https://github.com/iovisor/ubpf",
+  "platforms": [
+    "Linux",
+    "macOS",
+    "Windows"
+  ],
+  "languages": [
+    "C",
+    "C++"
+  ],
+  "buildSystem": "CMake",
+  "dependencies": {
+    "required": [
+      "CMake >= 3.16",
+      "C/C++ compiler (GCC, Clang, or MSVC)"
+    ],
+    "optional": [
+      "Boost (for testing)",
+      "LLVM/Clang >= 3.7 (for compiling eBPF programs)",
+      "nuget.exe (Windows only)",
+      "libbpf (Linux only)"
+    ]
+  },
+  "setup": {
+    "description": "Initial repository setup",
+    "steps": [
+      {
+        "name": "Clone repository with submodules",
+        "command": "git submodule update --init --recursive",
+        "platform": "all",
+        "required": true
+      },
+      {
+        "name": "Build libbpf (Linux)",
+        "command": "./scripts/build-libbpf.sh",
+        "platform": "Linux",
+        "required": false,
+        "notes": "Required for full test suite support on Linux"
+      },
+      {
+        "name": "Install Boost (macOS)",
+        "command": "brew install boost",
+        "platform": "macOS",
+        "required": false,
+        "notes": "Required for testing. Also consider: brew install llvm cmake clang-format"
+      },
+      {
+        "name": "Install LLVM (macOS)",
+        "command": "brew install llvm",
+        "platform": "macOS",
+        "required": false,
+        "notes": "Optional but required for compiling eBPF programs from C"
+      },
+      {
+        "name": "Verify nuget.exe (Windows)",
+        "command": "nuget.exe help",
+        "platform": "Windows",
+        "required": true,
+        "notes": "Ensure nuget.exe is in your PATH. Download from https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools if not installed. CMake will download required libraries during configuration."
+      }
+    ]
+  },
+  "build": {
+    "description": "Building uBPF with CMake",
+    "configurations": [
+      "Debug",
+      "Release",
+      "RelWithDebInfo"
+    ],
+    "defaultConfiguration": "Debug",
+    "steps": [
+      {
+        "name": "Configure build system",
+        "command": "cmake -S . -B build -DUBPF_ENABLE_TESTS=true",
+        "platform": "all",
+        "notes": "Creates build directory with test support enabled"
+      },
+      {
+        "name": "Configure with Debug symbols",
+        "command": "cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DCMAKE_BUILD_TYPE=Debug",
+        "platform": "Linux/macOS",
+        "notes": "Recommended for debugging"
+      },
+      {
+        "name": "Configure with alternate LLVM (macOS)",
+        "command": "cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin",
+        "platform": "macOS",
+        "notes": "Use Homebrew LLVM instead of Apple's version"
+      },
+      {
+        "name": "Build all targets",
+        "command": "cmake --build build --config Debug",
+        "platform": "all",
+        "notes": "On Windows, specify --config Debug or --config Release"
+      },
+      {
+        "name": "Build specific target",
+        "command": "cmake --build build --target <target_name>",
+        "platform": "all",
+        "notes": "Replace <target_name> with: ubpf (VM library), test (CTest target), ubpf_test (custom tests binary), ubpf_plugin, or other specific targets"
+      }
+    ],
+    "options": [
+      {
+        "name": "UBPF_ENABLE_TESTS",
+        "description": "Enable building tests",
+        "default": "false",
+        "values": ["true", "false"]
+      },
+      {
+        "name": "UBPF_ENABLE_COVERAGE",
+        "description": "Enable code coverage flags",
+        "default": "false",
+        "values": ["true", "false"],
+        "platform": "Linux/macOS"
+      },
+      {
+        "name": "UBPF_ENABLE_SANITIZERS",
+        "description": "Enable address and undefined behavior sanitizers",
+        "default": "false",
+        "values": ["true", "false"],
+        "platform": "Linux/macOS"
+      },
+      {
+        "name": "UBPF_DISABLE_RETPOLINES",
+        "description": "Disable retpoline security on indirect calls/jumps",
+        "default": "false",
+        "values": ["true", "false"]
+      },
+      {
+        "name": "UBPF_ENABLE_LIBFUZZER",
+        "description": "Enable libfuzzer for fuzzing tests",
+        "default": "false",
+        "values": ["true", "false"],
+        "platform": "Linux/macOS"
+      },
+      {
+        "name": "CMAKE_BUILD_TYPE",
+        "description": "Build configuration type",
+        "default": "Debug",
+        "values": ["Debug", "Release", "RelWithDebInfo"],
+        "platform": "Linux/macOS"
+      }
+    ],
+    "artifacts": [
+      "build/lib/libubpf.a",
+      "build/bin/ubpf_test",
+      "build/bin/ubpf_test_custom",
+      "build/bin/ubpf_plugin"
+    ]
+  },
+  "test": {
+    "description": "Running the uBPF test suite",
+    "commands": [
+      {
+        "name": "Run all tests (Linux/macOS)",
+        "command": "cmake --build build --target test",
+        "platform": "Linux/macOS",
+        "notes": "Runs entire test suite"
+      },
+      {
+        "name": "Run all tests (Windows)",
+        "command": "ctest --test-dir build",
+        "platform": "Windows",
+        "notes": "Runs entire test suite"
+      },
+      {
+        "name": "Run specific test",
+        "command": "ctest --test-dir build -R <test_pattern>",
+        "platform": "all",
+        "notes": "Replace <test_pattern> with regex pattern like 'test_' or specific test names like 'add', 'alu', 'call', 'ldxb'"
+      },
+      {
+        "name": "Run tests with verbose output",
+        "command": "ctest --test-dir build --verbose",
+        "platform": "all",
+        "notes": "Shows detailed test output"
+      },
+      {
+        "name": "Run custom tests directly",
+        "command": "./build/bin/ubpf_test_custom",
+        "platform": "Linux/macOS",
+        "notes": "Direct execution of custom test binary"
+      },
+      {
+        "name": "Run VM test binary",
+        "command": "./build/bin/ubpf_test",
+        "platform": "Linux/macOS",
+        "notes": "Direct execution of VM test binary"
+      }
+    ],
+    "testFiles": [
+      "tests/*.data - Test data files for VM and JIT tests",
+      "custom_tests/ - Custom test implementations",
+      "vm/test.c - Main VM test harness"
+    ]
+  },
+  "debug": {
+    "description": "Debugging uBPF components",
+    "scenarios": [
+      {
+        "name": "Debug VM Interpreter",
+        "description": "Debug the eBPF interpreter (ubpf_vm.c)",
+        "steps": [
+          "Build with Debug configuration: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
+          "Build: cmake --build build",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
+          "Set breakpoint: break ubpf_exec",
+          "Run: run"
+        ],
+        "keyFiles": [
+          "vm/ubpf_vm.c - Main interpreter implementation",
+          "vm/ubpf_int.h - Internal VM structures"
+        ],
+        "keyFunctions": [
+          "ubpf_exec() - Execute bytecode in interpreter",
+          "ubpf_load() - Load eBPF bytecode into VM",
+          "ubpf_create() - Create VM instance"
+        ]
+      },
+      {
+        "name": "Debug JIT Compiler (x86-64)",
+        "description": "Debug the x86-64 JIT compiler",
+        "steps": [
+          "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
+          "Build: cmake --build build",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
+          "Set breakpoint: break ubpf_translate",
+          "Set breakpoint: break ubpf_compile",
+          "Run: run"
+        ],
+        "keyFiles": [
+          "vm/ubpf_jit_x86_64.c - x86-64 JIT implementation",
+          "vm/ubpf_jit_support.c - JIT support functions",
+          "vm/ubpf_jit_support.h - JIT support structures"
+        ],
+        "keyFunctions": [
+          "ubpf_translate() - Translate bytecode to native x86-64",
+          "ubpf_compile() - Compile and execute with JIT",
+          "emit_*() functions - Emit x86-64 instructions"
+        ]
+      },
+      {
+        "name": "Debug JIT Compiler (ARM64)",
+        "description": "Debug the ARM64 JIT compiler",
+        "steps": [
+          "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
+          "Build: cmake --build build",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
+          "Set breakpoint: break ubpf_translate",
+          "Run: run"
+        ],
+        "keyFiles": [
+          "vm/ubpf_jit_arm64.c - ARM64 JIT implementation"
+        ],
+        "keyFunctions": [
+          "ubpf_translate() - Translate bytecode to native ARM64",
+          "emit_*() functions - Emit ARM64 instructions"
+        ]
+      },
+      {
+        "name": "Debug Verifier",
+        "description": "Debug the eBPF bytecode verifier",
+        "steps": [
+          "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
+          "Build: cmake --build build",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
+          "Set breakpoint: break ubpf_load",
+          "Set breakpoint in instruction validation",
+          "Run: run"
+        ],
+        "keyFiles": [
+          "vm/ubpf_instruction_valid.c - Instruction validation",
+          "vm/ubpf_loader.c - ELF loader and verification"
+        ],
+        "keyFunctions": [
+          "ubpf_is_valid_instruction() - Validate individual instructions",
+          "ubpf_load_elf() - Load and verify ELF files"
+        ]
+      },
+      {
+        "name": "Debug with Sanitizers",
+        "description": "Use Address and Undefined Behavior Sanitizers",
+        "steps": [
+          "Configure with sanitizers: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true -DUBPF_ENABLE_SANITIZERS=true",
+          "Build: cmake --build build",
+          "Run tests: cmake --build build --target test",
+          "Any memory issues will be reported by ASan/UBSan"
+        ],
+        "platform": "Linux/macOS",
+        "notes": "Helps catch memory leaks, buffer overflows, and undefined behavior"
+      }
+    ],
+    "tools": [
+      {
+        "name": "GDB",
+        "description": "GNU Debugger for Linux/macOS",
+        "usage": "gdb --args ./build/bin/ubpf_test <args>"
+      },
+      {
+        "name": "LLDB",
+        "description": "LLVM Debugger (preferred on macOS)",
+        "usage": "lldb -- ./build/bin/ubpf_test <args>"
+      },
+      {
+        "name": "Visual Studio Debugger",
+        "description": "Native debugger for Windows",
+        "usage": "Open build/ubpf.sln in Visual Studio and debug from IDE"
+      },
+      {
+        "name": "Valgrind",
+        "description": "Memory debugging tool",
+        "usage": "valgrind --leak-check=full ./build/bin/ubpf_test <args>"
+      }
+    ]
+  },
+  "codeStyle": {
+    "description": "Code formatting and style guidelines",
+    "formatter": "clang-format",
+    "formatCommand": "./scripts/format-code",
+    "guidelines": [
+      "Use fixed-length types from stdint.h (int64_t, uint8_t, etc.)",
+      "Use const and static to limit scope",
+      "Use doxygen comments with [in,out] annotations",
+      "Use lower_snake_case for variables and functions",
+      "Use UPPER_SNAKE_CASE for macros and constants",
+      "Prefix internal/private with _ (underscore)",
+      "Prefix uBPF-specific names with ubpf_ in global namespace",
+      "Use #pragma once in header files",
+      "Include system headers (<>) before local headers (\"\")",
+      "80 character column width",
+      "Allman style braces"
+    ],
+    "licenseHeader": "// Copyright (c) <Contributor>\n// SPDX-License-Identifier: Apache-2.0"
+  },
+  "architecture": {
+    "description": "Key components and architecture",
+    "components": [
+      {
+        "name": "VM Interpreter",
+        "path": "vm/ubpf_vm.c",
+        "description": "Platform-independent eBPF bytecode interpreter"
+      },
+      {
+        "name": "x86-64 JIT Compiler",
+        "path": "vm/ubpf_jit_x86_64.c",
+        "description": "Just-In-Time compiler for x86-64 architecture"
+      },
+      {
+        "name": "ARM64 JIT Compiler",
+        "path": "vm/ubpf_jit_arm64.c",
+        "description": "Just-In-Time compiler for ARM64 architecture"
+      },
+      {
+        "name": "ELF Loader",
+        "path": "vm/ubpf_loader.c",
+        "description": "Loads eBPF programs from ELF object files"
+      },
+      {
+        "name": "Instruction Validator",
+        "path": "vm/ubpf_instruction_valid.c",
+        "description": "Validates eBPF instructions per RFC 9669"
+      },
+      {
+        "name": "Public API",
+        "path": "vm/inc/ubpf.h",
+        "description": "Main public API header"
+      }
+    ],
+    "executionModes": [
+      {
+        "name": "Interpreter Mode",
+        "function": "ubpf_exec()",
+        "description": "Executes bytecode instruction-by-instruction (slower but portable)"
+      },
+      {
+        "name": "JIT Mode",
+        "function": "ubpf_compile() + compiled function pointer",
+        "description": "Compiles bytecode to native code (faster, platform-specific)"
+      }
+    ]
+  },
+  "commonTasks": {
+    "description": "Common development workflows",
+    "tasks": [
+      {
+        "name": "Add new test case",
+        "steps": [
+          "Create test data file in tests/ directory (e.g., my_test.data)",
+          "Define test with 'test <test_name>' header",
+          "Add eBPF bytecode in hex or assembly format",
+          "Specify expected result with 'result: 0x...'",
+          "Run tests to verify: cmake --build build --target test"
+        ]
+      },
+      {
+        "name": "Compile C to eBPF",
+        "steps": [
+          "Write C program with BPF helper functions",
+          "Compile: clang -O2 -target bpf -c program.c -o program.o",
+          "Test: ./build/bin/ubpf_test program.o",
+          "Or load via ubpf_load_elf() API"
+        ]
+      },
+      {
+        "name": "Check code coverage",
+        "steps": [
+          "Build with coverage: cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ENABLE_COVERAGE=true",
+          "Build: cmake --build build",
+          "Run tests: cmake --build build --target test",
+          "Generate report (Linux/macOS): See README.md for coveralls usage, or use gcov/lcov for local coverage reports"
+        ]
+      },
+      {
+        "name": "Run pre-commit checks",
+        "steps": [
+          "Install pre-commit hooks (done automatically on first commit)",
+          "Format code: ./scripts/format-code",
+          "Check license headers: ./scripts/check-license.sh",
+          "Commit changes"
+        ]
+      },
+      {
+        "name": "Update to RFC 9669 compliance",
+        "steps": [
+          "Review RFC 9669: https://www.rfc-editor.org/rfc/rfc9669.html",
+          "Update instruction validation in vm/ubpf_instruction_valid.c",
+          "Add/update test cases in tests/",
+          "Verify conformance tests pass"
+        ]
+      }
+    ]
+  },
+  "cmakeOptions": {
+    "description": "CMake configuration options (passed with -D flag)",
+    "options": [
+      {
+        "name": "CMAKE_BUILD_TYPE",
+        "description": "Build configuration (Debug, Release, RelWithDebInfo)",
+        "default": "Debug",
+        "usage": "-DCMAKE_BUILD_TYPE=Debug"
+      },
+      {
+        "name": "UBPF_ALTERNATE_LLVM_PATH",
+        "description": "Path to alternate LLVM installation (macOS)",
+        "example": "/opt/homebrew/opt/llvm/bin",
+        "usage": "-DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin"
+      },
+      {
+        "name": "BPF_CONFORMANCE_RUNNER",
+        "description": "Custom bpf_conformance runner path",
+        "optional": true,
+        "usage": "-DBPF_CONFORMANCE_RUNNER=/path/to/runner"
+      }
+    ]
+  },
+  "troubleshooting": {
+    "description": "Common issues and solutions",
+    "issues": [
+      {
+        "problem": "Submodules not initialized",
+        "solution": "Run: git submodule update --init --recursive"
+      },
+      {
+        "problem": "CMake can't find Boost (macOS)",
+        "solution": "Install via homebrew: brew install boost"
+      },
+      {
+        "problem": "nuget.exe not found (Windows)",
+        "solution": "Download nuget.exe and add to PATH: https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools"
+      },
+      {
+        "problem": "Tests failing on macOS with LLVM errors",
+        "solution": "Install Homebrew LLVM and use: cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin"
+      },
+      {
+        "problem": "Code formatting fails",
+        "solution": "Install clang-format version 11 or higher"
+      },
+      {
+        "problem": "Build fails with missing libbpf",
+        "solution": "Run: ./scripts/build-libbpf.sh (Linux only)"
+      }
+    ]
+  },
+  "resources": {
+    "description": "Useful documentation and references",
+    "links": [
+      {
+        "name": "BPF ISA RFC 9669",
+        "url": "https://www.rfc-editor.org/rfc/rfc9669.html",
+        "description": "Official BPF Instruction Set Architecture specification"
+      },
+      {
+        "name": "Linux eBPF Documentation",
+        "url": "https://www.kernel.org/doc/Documentation/networking/filter.txt",
+        "description": "Linux kernel eBPF documentation"
+      },
+      {
+        "name": "eBPF Instruction Set Reference",
+        "url": "https://github.com/iovisor/bpf-docs/blob/master/eBPF.md",
+        "description": "Detailed instruction set reference"
+      },
+      {
+        "name": "uBPF API Documentation",
+        "url": "https://iovisor.github.io/ubpf",
+        "description": "Generated API documentation"
+      },
+      {
+        "name": "Contributing Guide",
+        "url": "docs/Contributing.md",
+        "description": "Guidelines for contributing to uBPF"
+      },
+      {
+        "name": "GitHub Repository",
+        "url": "https://github.com/iovisor/ubpf",
+        "description": "Main repository and issue tracker"
+      }
+    ]
+  }
+}
