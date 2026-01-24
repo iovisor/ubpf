@@ -147,10 +147,10 @@
       }
     ],
     "artifacts": [
-      "build/vm/libubpf.a",
-      "build/vm/test",
-      "build/custom_tests/ubpf_test",
-      "build/ubpf_plugin/ubpf_plugin"
+      "build/lib/libubpf.a",
+      "build/bin/ubpf_test",
+      "build/bin/ubpf_test_custom",
+      "build/bin/ubpf_plugin"
     ]
   },
   "test": {
@@ -182,13 +182,13 @@
       },
       {
         "name": "Run custom tests directly",
-        "command": "./build/custom_tests/ubpf_test",
+        "command": "./build/bin/ubpf_test_custom",
         "platform": "Linux/macOS",
         "notes": "Direct execution of custom test binary"
       },
       {
         "name": "Run VM test binary",
-        "command": "./build/vm/test",
+        "command": "./build/bin/ubpf_test",
         "platform": "Linux/macOS",
         "notes": "Direct execution of VM test binary"
       }
@@ -208,7 +208,7 @@
         "steps": [
           "Build with Debug configuration: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
           "Build: cmake --build build",
-          "Run with GDB: gdb --args ./build/vm/test <test_file.data>",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
           "Set breakpoint: break ubpf_exec",
           "Run: run"
         ],
@@ -228,7 +228,7 @@
         "steps": [
           "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
           "Build: cmake --build build",
-          "Run with GDB: gdb --args ./build/vm/test <test_file.data>",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
           "Set breakpoint: break ubpf_translate",
           "Set breakpoint: break ubpf_compile",
           "Run: run"
@@ -250,7 +250,7 @@
         "steps": [
           "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
           "Build: cmake --build build",
-          "Run with GDB: gdb --args ./build/vm/test <test_file.data>",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
           "Set breakpoint: break ubpf_translate",
           "Run: run"
         ],
@@ -268,7 +268,7 @@
         "steps": [
           "Build with Debug: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DUBPF_ENABLE_TESTS=true",
           "Build: cmake --build build",
-          "Run with GDB: gdb --args ./build/vm/test <test_file.data>",
+          "Run with GDB: gdb --args ./build/bin/ubpf_test <test_file.data>",
           "Set breakpoint: break ubpf_load",
           "Set breakpoint in instruction validation",
           "Run: run"
@@ -299,12 +299,12 @@
       {
         "name": "GDB",
         "description": "GNU Debugger for Linux/macOS",
-        "usage": "gdb --args ./build/vm/test <args>"
+        "usage": "gdb --args ./build/bin/ubpf_test <args>"
       },
       {
         "name": "LLDB",
         "description": "LLVM Debugger (preferred on macOS)",
-        "usage": "lldb -- ./build/vm/test <args>"
+        "usage": "lldb -- ./build/bin/ubpf_test <args>"
       },
       {
         "name": "Visual Studio Debugger",
@@ -314,7 +314,7 @@
       {
         "name": "Valgrind",
         "description": "Memory debugging tool",
-        "usage": "valgrind --leak-check=full ./build/vm/test <args>"
+        "usage": "valgrind --leak-check=full ./build/bin/ubpf_test <args>"
       }
     ]
   },
@@ -402,7 +402,7 @@
         "steps": [
           "Write C program with BPF helper functions",
           "Compile: clang -O2 -target bpf -c program.c -o program.o",
-          "Test: ./build/vm/test program.o",
+          "Test: ./build/bin/ubpf_test program.o",
           "Or load via ubpf_load_elf() API"
         ]
       },
@@ -420,7 +420,7 @@
         "steps": [
           "Install pre-commit hooks (done automatically on first commit)",
           "Format code: ./scripts/format-code",
-          "Check license headers: ./scripts/check-license",
+          "Check license headers: ./scripts/check-license.sh",
           "Commit changes"
         ]
       },
@@ -435,23 +435,26 @@
       }
     ]
   },
-  "environmentVariables": {
-    "description": "Environment variables that affect build and runtime",
-    "variables": [
+  "cmakeOptions": {
+    "description": "CMake configuration options (passed with -D flag)",
+    "options": [
       {
         "name": "CMAKE_BUILD_TYPE",
         "description": "Build configuration (Debug, Release, RelWithDebInfo)",
-        "default": "Debug"
+        "default": "Debug",
+        "usage": "-DCMAKE_BUILD_TYPE=Debug"
       },
       {
         "name": "UBPF_ALTERNATE_LLVM_PATH",
         "description": "Path to alternate LLVM installation (macOS)",
-        "example": "/opt/homebrew/opt/llvm/bin"
+        "example": "/opt/homebrew/opt/llvm/bin",
+        "usage": "-DUBPF_ALTERNATE_LLVM_PATH=/opt/homebrew/opt/llvm/bin"
       },
       {
         "name": "BPF_CONFORMANCE_RUNNER",
         "description": "Custom bpf_conformance runner path",
-        "optional": true
+        "optional": true,
+        "usage": "-DBPF_CONFORMANCE_RUNNER=/path/to/runner"
       }
     ]
   },
