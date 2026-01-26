@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <sys/mman.h>
 #include <endian.h>
 #include <unistd.h>
@@ -789,7 +790,15 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
             } else if (inst.offset == 1) {
-                reg[inst.dst] = (int32_t)inst.imm ? (uint32_t)((int32_t)reg[inst.dst] / (int32_t)inst.imm) : 0;
+                int32_t dividend = (int32_t)reg[inst.dst];
+                int32_t divisor = (int32_t)inst.imm;
+                if (divisor == 0) {
+                    reg[inst.dst] = 0;
+                } else if (dividend == INT32_MIN && divisor == -1) {
+                    reg[inst.dst] = (uint32_t)INT32_MIN;
+                } else {
+                    reg[inst.dst] = (uint32_t)(dividend / divisor);
+                }
             }
             reg[inst.dst] &= UINT32_MAX;
             break;
@@ -797,7 +806,15 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
             } else if (inst.offset == 1) {
-                reg[inst.dst] = (int32_t)reg[inst.src] ? (uint32_t)((int32_t)reg[inst.dst] / (int32_t)reg[inst.src]) : 0;
+                int32_t dividend = (int32_t)reg[inst.dst];
+                int32_t divisor = (int32_t)reg[inst.src];
+                if (divisor == 0) {
+                    reg[inst.dst] = 0;
+                } else if (dividend == INT32_MIN && divisor == -1) {
+                    reg[inst.dst] = (uint32_t)INT32_MIN;
+                } else {
+                    reg[inst.dst] = (uint32_t)(dividend / divisor);
+                }
             }
             reg[inst.dst] &= UINT32_MAX;
             break;
@@ -839,7 +856,15 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) % u32(inst.imm) : u32(reg[inst.dst]);
             } else if (inst.offset == 1) {
-                reg[inst.dst] = (int32_t)inst.imm ? (uint32_t)((int32_t)reg[inst.dst] % (int32_t)inst.imm) : u32(reg[inst.dst]);
+                int32_t dividend = (int32_t)reg[inst.dst];
+                int32_t divisor = (int32_t)inst.imm;
+                if (divisor == 0) {
+                    // Leave unchanged on mod by zero
+                } else if (dividend == INT32_MIN && divisor == -1) {
+                    reg[inst.dst] = 0;
+                } else {
+                    reg[inst.dst] = (uint32_t)(dividend % divisor);
+                }
             }
             reg[inst.dst] &= UINT32_MAX;
             break;
@@ -847,7 +872,15 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) % u32(reg[inst.src]) : u32(reg[inst.dst]);
             } else if (inst.offset == 1) {
-                reg[inst.dst] = (int32_t)reg[inst.src] ? (uint32_t)((int32_t)reg[inst.dst] % (int32_t)reg[inst.src]) : u32(reg[inst.dst]);
+                int32_t dividend = (int32_t)reg[inst.dst];
+                int32_t divisor = (int32_t)reg[inst.src];
+                if (divisor == 0) {
+                    // Leave unchanged on mod by zero
+                } else if (dividend == INT32_MIN && divisor == -1) {
+                    reg[inst.dst] = 0;
+                } else {
+                    reg[inst.dst] = (uint32_t)(dividend % divisor);
+                }
             }
             break;
         case EBPF_OP_XOR_IMM:
@@ -945,14 +978,30 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = inst.imm ? reg[inst.dst] / inst.imm : 0;
             } else if (inst.offset == 1) {
-                reg[inst.dst] = inst.imm ? (uint64_t)((int64_t)reg[inst.dst] / (int64_t)inst.imm) : 0;
+                int64_t dividend = (int64_t)reg[inst.dst];
+                int64_t divisor = (int64_t)inst.imm;
+                if (divisor == 0) {
+                    reg[inst.dst] = 0;
+                } else if (dividend == INT64_MIN && divisor == -1) {
+                    reg[inst.dst] = (uint64_t)INT64_MIN;
+                } else {
+                    reg[inst.dst] = (uint64_t)(dividend / divisor);
+                }
             }
             break;
         case EBPF_OP_DIV64_REG:
             if (inst.offset == 0) {
                 reg[inst.dst] = reg[inst.src] ? reg[inst.dst] / reg[inst.src] : 0;
             } else if (inst.offset == 1) {
-                reg[inst.dst] = reg[inst.src] ? (uint64_t)((int64_t)reg[inst.dst] / (int64_t)reg[inst.src]) : 0;
+                int64_t dividend = (int64_t)reg[inst.dst];
+                int64_t divisor = (int64_t)reg[inst.src];
+                if (divisor == 0) {
+                    reg[inst.dst] = 0;
+                } else if (dividend == INT64_MIN && divisor == -1) {
+                    reg[inst.dst] = (uint64_t)INT64_MIN;
+                } else {
+                    reg[inst.dst] = (uint64_t)(dividend / divisor);
+                }
             }
             break;
         case EBPF_OP_OR64_IMM:
@@ -986,14 +1035,30 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = inst.imm ? reg[inst.dst] % inst.imm : reg[inst.dst];
             } else if (inst.offset == 1) {
-                reg[inst.dst] = inst.imm ? (uint64_t)((int64_t)reg[inst.dst] % (int64_t)inst.imm) : reg[inst.dst];
+                int64_t dividend = (int64_t)reg[inst.dst];
+                int64_t divisor = (int64_t)inst.imm;
+                if (divisor == 0) {
+                    // Leave unchanged on mod by zero
+                } else if (dividend == INT64_MIN && divisor == -1) {
+                    reg[inst.dst] = 0;
+                } else {
+                    reg[inst.dst] = (uint64_t)(dividend % divisor);
+                }
             }
             break;
         case EBPF_OP_MOD64_REG:
             if (inst.offset == 0) {
                 reg[inst.dst] = reg[inst.src] ? reg[inst.dst] % reg[inst.src] : reg[inst.dst];
             } else if (inst.offset == 1) {
-                reg[inst.dst] = reg[inst.src] ? (uint64_t)((int64_t)reg[inst.dst] % (int64_t)reg[inst.src]) : reg[inst.dst];
+                int64_t dividend = (int64_t)reg[inst.dst];
+                int64_t divisor = (int64_t)reg[inst.src];
+                if (divisor == 0) {
+                    // Leave unchanged on mod by zero
+                } else if (dividend == INT64_MIN && divisor == -1) {
+                    reg[inst.dst] = 0;
+                } else {
+                    reg[inst.dst] = (uint64_t)(dividend % divisor);
+                }
             }
             break;
         case EBPF_OP_XOR64_IMM:
