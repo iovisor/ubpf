@@ -4,5 +4,7 @@ stxdw [%r0+96], %r0
 exit
 -- result
 0xffffffffffffffff
+-- error pattern
+uBPF error: out of bounds memory store
 -- test_jit
 Test that JIT catches out-of-bounds write to NULL

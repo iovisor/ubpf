@@ -1576,20 +1576,20 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
 {
     int access_size = operand_size_to_bytes(size);
     
-    /* Compute effective address (addr_reg + offset) into R11 (non-mapped scratch register)
-     * to avoid corrupting eBPF r0 (which may be mapped to RAX)
+    /* Compute effective address (addr_reg + offset) into R10 (scratch register)
+     * to avoid corrupting eBPF r0 (which may be mapped to RAX) or VOLATILE_CTXT in R11
      */
     if (offset == 0) {
-        emit_mov(state, addr_reg, R11);
+        emit_mov(state, addr_reg, R10);
     } else {
-        /* LEA r11, [addr_reg + offset] */
-        emit_basic_rex(state, 1, R11, addr_reg);
+        /* LEA r10, [addr_reg + offset] */
+        emit_basic_rex(state, 1, R10, addr_reg);
         emit1(state, 0x8d);
-        emit_modrm_and_displacement(state, R11, addr_reg, offset);
+        emit_modrm_and_displacement(state, R10, addr_reg, offset);
     }
     
     /* Save all volatile registers that we'll clobber */
-    emit_push(state, R11);  /* The computed address */
+    emit_push(state, R10);  /* The computed address */
     emit_push(state, RAX);
     emit_push(state, RCX);
     emit_push(state, RDX);
@@ -1597,7 +1597,7 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_push(state, RDI);
     emit_push(state, R8);
     emit_push(state, R9);
-    emit_push(state, R10);
+    emit_push(state, R11);  /* Save VOLATILE_CTXT */
     
     /* Align stack to 16 bytes (we pushed 9*8=72 bytes, need 8 more) */
     emit_alu64_imm32(state, 0x81, 5, RSP, 8);
@@ -1612,12 +1612,12 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RCX, vm_ptr_tgt);
     
-    /* Arg 2 (RDX): address (from stack where we saved R11).
+    /* Arg 2 (RDX): address (from stack where we saved R10).
      * Stack layout at this point:
      *   - Caller shadow space and outgoing args: [RSP .. RSP+79]  (80 bytes)
      *   - Alignment padding:                     [RSP+80 .. RSP+87]  (8 bytes)
-     *   - Callee-saved registers: R10 at RSP+88, R9 at RSP+96, ..., R11 at RSP+152
-     * Hence the saved R11 (the address argument) is located at RSP + 152.
+     *   - Callee-saved registers: R11 at RSP+88, R9 at RSP+96, ..., R10 at RSP+152
+     * Hence the saved R10 (the address argument) is located at RSP + 152.
      */
     emit_load(state, S64, RSP, RDX, 152);
     
@@ -1661,12 +1661,12 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RDI, vm_ptr_tgt);
     
-    /* Arg 2 (RSI): address (from stack where we saved R11)
+    /* Arg 2 (RSI): address (from stack where we saved R10)
      * Stack layout at this point:
      *   - Stack args:              [RSP .. RSP+31]        (32 bytes)
      *   - Alignment padding:       [RSP+32 .. RSP+39]    (8 bytes)
-     *   - Callee-saved registers:  R10 at RSP+40, ..., R11 at RSP+104
-     * Hence the saved R11 (the address argument) is located at RSP + 104.
+     *   - Callee-saved registers:  R11 at RSP+40, R9 at RSP+48, ..., R10 at RSP+104
+     * Hence the saved R10 (the address argument) is located at RSP + 104.
      */
     emit_load(state, S64, RSP, RSI, 104);
     
@@ -1737,7 +1737,7 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     /* Success path: restore registers and continue */
     emit_jump_target(state, success_jump_source);
     
-    emit_pop(state, R10);
+    emit_pop(state, R11);  /* Restore VOLATILE_CTXT */
     emit_pop(state, R9);
     emit_pop(state, R8);
     emit_pop(state, RDI);
@@ -1745,7 +1745,8 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_pop(state, RDX);
     emit_pop(state, RCX);
     emit_pop(state, RAX);
-    emit_pop(state, R11);  /* Restore R11 last (was pushed first) */
+    /* Discard the computed effective address (R10) from stack */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
 }
 
 static uint32_t
@@ -2593,6 +2594,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         }
         case EBPF_OP_ATOMIC_STORE: {
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
@@ -2636,6 +2640,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         } break;
 
         case EBPF_OP_ATOMIC32_STORE: {
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:

@@ -4,5 +4,7 @@ ldxdw %r0, [%r0+96]
 exit
 -- result
 0xffffffffffffffff
+-- error pattern
+uBPF error: out of bounds memory load
 -- test_jit
 Test that JIT catches out-of-bounds read from NULL
