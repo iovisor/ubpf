@@ -2025,13 +2025,15 @@ bounds_check(
     stack_end = stack_start + stack_len;
 
     uintptr_t mem_start = (uintptr_t)mem;
-    uintptr_t mem_end;
+    uintptr_t mem_end = 0;
     // Check for overflow in mem_start + mem_len
-    if (mem && mem_len > UINTPTR_MAX - mem_start) {
-        // mem_start + mem_len would overflow - skip mem check
-        goto check_custom;
+    if (mem) {
+        if (mem_len > UINTPTR_MAX - mem_start) {
+            // mem_start + mem_len would overflow - skip mem check
+            goto check_custom;
+        }
+        mem_end = mem_start + mem_len;
     }
-    mem_end = mem_start + mem_len;
 
     // Memory in the range [access_start, access_end) is being accessed.
     // Memory in the range [stack_start, stack_end) is the stack.
