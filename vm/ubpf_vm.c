@@ -330,6 +330,8 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
             // Clean up on failure
             munmap(vm->insts, vm->insts_alloc_size);
             vm->insts = NULL;
+            vm->insts_alloc_size = 0;
+            vm->num_insts = 0;
             free(vm->int_funcs);
             vm->int_funcs = NULL;
             return -1;
