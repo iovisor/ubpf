@@ -135,7 +135,12 @@ def disassemble_one(data, offset, verbose = False):
             opcode_name += "32"
 
         if opcode == BPF_ALU_END:
-            opcode_name = source == 1 and "be" or "le"
+            if clz == BPF_CLASS_ALU32:
+                # ALU32 class (value 4): le/be conversions
+                opcode_name = source == 1 and "be" or "le"
+            else:
+                # ALU64 class (value 7, despite the name BPF_CLASS_ALU): bswap
+                opcode_name = "bswap"
             fields["imm"].used = True
             fields["dst_reg"].used = True
             disassembled = f'{opcode_name}{imm} {R(dst_reg)}'

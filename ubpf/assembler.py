@@ -48,6 +48,9 @@ END_OPS = {
     'be16': (0xdc, 16),
     'be32': (0xdc, 32),
     'be64': (0xdc, 64),
+    'bswap16': (0xd7, 16),
+    'bswap32': (0xd7, 32),
+    'bswap64': (0xd7, 64),
 }
 
 JMP_CMP_OPS = {
