@@ -1634,7 +1634,9 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
         emit_load(state, S64, RBP, RAX, -32);
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
     } else {
+        // For BasicJitMode, stack base = BPF_REG_10 - UBPF_EBPF_STACK_SIZE
         emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit_alu64_imm32(state, 0x81, 5, RAX, UBPF_EBPF_STACK_SIZE);  // sub rax, UBPF_EBPF_STACK_SIZE
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x38);
         emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
@@ -1669,7 +1671,9 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
         emit_load(state, S64, RBP, RAX, -32);
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
     } else {
+        // For BasicJitMode, stack base = BPF_REG_10 - UBPF_EBPF_STACK_SIZE
         emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit_alu64_imm32(state, 0x81, 5, RAX, UBPF_EBPF_STACK_SIZE);  // sub rax, UBPF_EBPF_STACK_SIZE
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x08);
         emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
         emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
@@ -1689,11 +1693,19 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     
     emit_cmp_imm32(state, RAX, 0);
     
+    // Jump if bounds check succeeded (RAX == 0)
     emit1(state, 0x74);
-    emit1(state, 0x13);
+    emit1(state, 0x15);  // Skip over error handling (increased from 0x13 to 0x15 for extra add)
     
+    // Error path: bounds check failed
     emit_load_imm(state, RAX, -1);
-    emit_alu64_imm32(state, 0x81, 0, RSP, 72);
+#if defined(_WIN32)
+    emit_alu64_imm32(state, 0x81, 0, RSP, 80);  // Undo 80-byte stack allocation
+#else
+    emit_alu64_imm32(state, 0x81, 0, RSP, 24);  // Undo 24-byte stack allocation
+#endif
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);   // Undo 8-byte alignment
+    emit_alu64_imm32(state, 0x81, 0, RSP, 72);  // Undo 72 bytes of register saves
     DECLARE_PATCHABLE_SPECIAL_TARGET(error_exit, Exit);
     emit_jmp(state, error_exit);
     
