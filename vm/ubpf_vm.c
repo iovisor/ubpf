@@ -2072,21 +2072,29 @@ bounds_check(
 
     // Check for overflow in stack_start + stack_len
     if (stack_len > UINTPTR_MAX - stack_start) {
-        // stack_start + stack_len would overflow - skip stack check
+        // stack_start + stack_len would overflow
         // This shouldn't happen with valid inputs, but we check defensively
-        goto check_custom;
+        vm->error_printf(
+            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", 
+            cur_pc, stack, stack_len);
+        stack_valid = false;
+    } else {
+        stack_end = stack_start + stack_len;
+        stack_valid = true;
     }
-    stack_end = stack_start + stack_len;
-    stack_valid = true;
 
     // Check for overflow in mem_start + mem_len
     if (mem) {
         if (mem_len > UINTPTR_MAX - mem_start) {
-            // mem_start + mem_len would overflow - skip mem check
-            goto check_custom;
+            // mem_start + mem_len would overflow
+            vm->error_printf(
+                stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", 
+                cur_pc, mem, mem_len);
+            mem_valid = false;
+        } else {
+            mem_end = mem_start + mem_len;
+            mem_valid = true;
         }
-        mem_end = mem_start + mem_len;
-        mem_valid = true;
     }
 
     // Memory in the range [access_start, access_end) is being accessed.
@@ -2106,8 +2114,6 @@ bounds_check(
     if (stack_valid && access_start >= stack_start && access_end <= stack_end) {
         return true;
     }
-
-check_custom:
 
     // The address may be invalid or it may be a region of memory that the caller
     // is aware of but that is not part of the stack or memory.
