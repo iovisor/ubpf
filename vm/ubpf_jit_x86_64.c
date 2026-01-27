@@ -1589,16 +1589,16 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_alu64_imm32(state, 0x81, 5, RSP, 8);
 
     int saved_addr_offset;
-    if (addr_reg == RAX) saved_addr_offset = 72;
-    else if (addr_reg == RCX) saved_addr_offset = 64;
-    else if (addr_reg == RDX) saved_addr_offset = 56;
-    else if (addr_reg == RSI) saved_addr_offset = 48;
-    else if (addr_reg == RDI) saved_addr_offset = 40;
-    else if (addr_reg == R8) saved_addr_offset = 32;
-    else if (addr_reg == R9) saved_addr_offset = 24;
-    else if (addr_reg == R10) saved_addr_offset = 16;
-    else if (addr_reg == R11) saved_addr_offset = 8;
-    else saved_addr_offset = 0;
+    if (addr_reg == RAX) saved_addr_offset = 0;
+    else if (addr_reg == RCX) saved_addr_offset = 8;
+    else if (addr_reg == RDX) saved_addr_offset = 16;
+    else if (addr_reg == RSI) saved_addr_offset = 24;
+    else if (addr_reg == RDI) saved_addr_offset = 32;
+    else if (addr_reg == R8) saved_addr_offset = 40;
+    else if (addr_reg == R9) saved_addr_offset = 48;
+    else if (addr_reg == R10) saved_addr_offset = 56;
+    else if (addr_reg == R11) saved_addr_offset = 64;
+    else saved_addr_offset = 0;  // Default to RAX if unknown
 
 #if defined(_WIN32)
     emit_alu64_imm32(state, 0x81, 5, RSP, 80);
@@ -1909,9 +1909,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
     /* Save JIT function parameters for bounds checking */
     /* We need mem, mem_len, stack, stack_len for bounds checking */
-    /* Allocate 32 bytes (4 * 8) on stack to save these */
+    /* Store these at negative offsets from RBP without adjusting RSP */
     if (vm->bounds_check_enabled) {
-        emit_alu64_imm32(state, 0x81, 5, RSP, 32);
         /* Save mem (already in VOLATILE_CTXT) */
         emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x5d); emit1(state, 0xf8); // mov [rbp-8], r11
         /* Save mem_len from platform_parameter_registers[1] */
