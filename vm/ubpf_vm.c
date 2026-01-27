@@ -2165,6 +2165,42 @@ bounds_check(
     return false;
 }
 
+/**
+ * @brief JIT-callable wrapper for bounds checking.
+ * 
+ * This function is called from JIT-compiled code to perform bounds checking
+ * for load/store operations. It returns 0 on success (bounds check passed)
+ * and -1 on failure (out of bounds access).
+ *
+ * @param[in] vm The VM instance
+ * @param[in] addr The address to check
+ * @param[in] size The size of the access
+ * @param[in] type The type of access ("load" or "store")
+ * @param[in] cur_pc The current program counter
+ * @param[in] mem The memory region base pointer
+ * @param[in] mem_len The memory region length
+ * @param[in] stack The stack base pointer
+ * @param[in] stack_len The stack length
+ * @return 0 on success, -1 on failure
+ */
+int
+ubpf_jit_bounds_check(
+    const struct ubpf_vm* vm,
+    uint64_t addr,
+    uint64_t size,
+    const char* type,
+    uint64_t cur_pc,
+    void* mem,
+    uint64_t mem_len,
+    void* stack,
+    uint64_t stack_len)
+{
+    if (bounds_check(vm, (void*)addr, (int)size, type, (uint16_t)cur_pc, mem, (size_t)mem_len, stack, (size_t)stack_len)) {
+        return 0;
+    }
+    return -1;
+}
+
 char*
 ubpf_error(const char* fmt, ...)
 {

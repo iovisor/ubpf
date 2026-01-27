@@ -705,6 +705,15 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
     } while (0)
 
 
+/* LEA [src + offset] into dst */
+static inline void
+emit_lea_imm(struct jit_state* state, int dst, int src, int32_t offset)
+{
+    emit_basic_rex(state, 1, dst, src);
+    emit1(state, 0x8d);
+    emit_modrm_and_displacement(state, dst, src, offset);
+}
+
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
 {
@@ -1537,6 +1546,169 @@ emit_helper_table(struct jit_state* state, struct ubpf_vm* vm)
 }
 
 static uint32_t
+emit_vm_ptr(struct jit_state* state, struct ubpf_vm* vm)
+{
+    uint32_t vm_ptr_target = state->offset;
+    emit8(state, (uint64_t)vm);
+    return vm_ptr_target;
+}
+
+/* Helper to get byte size from operand_size */
+static inline int
+operand_size_to_bytes(enum operand_size size)
+{
+    switch (size) {
+        case S8: return 1;
+        case S16: return 2;
+        case S32: return 4;
+        case S64: return 8;
+        default: return 0;
+    }
+}
+
+/* Emit bounds check call for load/store operations
+ * Calls ubpf_jit_bounds_check(vm, addr, size, type, cur_pc, mem, mem_len, stack, stack_len)
+ * Returns 0 on success, -1 on failure (out of bounds)
+ */
+static void
+emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum operand_size size, 
+                  const char* type, uint16_t cur_pc, enum JitMode jit_mode)
+{
+    int access_size = operand_size_to_bytes(size);
+    
+    emit_push(state, RAX);
+    emit_push(state, RCX);
+    emit_push(state, RDX);
+    emit_push(state, RSI);
+    emit_push(state, RDI);
+    emit_push(state, R8);
+    emit_push(state, R9);
+    emit_push(state, R10);
+    emit_push(state, R11);
+    
+    emit_alu64_imm32(state, 0x81, 5, RSP, 8);
+
+    int saved_addr_offset;
+    if (addr_reg == RAX) saved_addr_offset = 72;
+    else if (addr_reg == RCX) saved_addr_offset = 64;
+    else if (addr_reg == RDX) saved_addr_offset = 56;
+    else if (addr_reg == RSI) saved_addr_offset = 48;
+    else if (addr_reg == RDI) saved_addr_offset = 40;
+    else if (addr_reg == R8) saved_addr_offset = 32;
+    else if (addr_reg == R9) saved_addr_offset = 24;
+    else if (addr_reg == R10) saved_addr_offset = 16;
+    else if (addr_reg == R11) saved_addr_offset = 8;
+    else saved_addr_offset = 0;
+
+#if defined(_WIN32)
+    emit_alu64_imm32(state, 0x81, 5, RSP, 80);
+    saved_addr_offset += 88;
+    
+    DECLARE_PATCHABLE_TARGET(vm_ptr_tgt);
+    vm_ptr_tgt.is_special = true;
+    vm_ptr_tgt.target.special = LoadVMPtr;
+    emit_rip_relative_load(state, RCX, vm_ptr_tgt);
+    
+    if (offset == 0) {
+        emit_load(state, S64, RSP, RDX, saved_addr_offset);
+    } else {
+        emit_load(state, S64, RSP, RDX, saved_addr_offset);
+        emit_alu64_imm32(state, 0x81, 0, RDX, offset);
+    }
+    
+    emit_load_imm(state, R8, access_size);
+    emit_load_imm(state, R9, (uint64_t)type);
+    
+    emit_load_imm(state, RAX, cur_pc);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x20);
+    
+    emit_load(state, S64, RBP, RAX, -8);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x28);
+    
+    emit_load(state, S64, RBP, RAX, -16);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x30);
+    
+    if (jit_mode == ExtendedJitMode) {
+        emit_load(state, S64, RBP, RAX, -24);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x38);
+        emit_load(state, S64, RBP, RAX, -32);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
+    } else {
+        emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x38);
+        emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
+    }
+#else
+    emit_alu64_imm32(state, 0x81, 5, RSP, 24);
+    saved_addr_offset += 32;
+    
+    DECLARE_PATCHABLE_TARGET(vm_ptr_tgt);
+    vm_ptr_tgt.is_special = true;
+    vm_ptr_tgt.target.special = LoadVMPtr;
+    emit_rip_relative_load(state, RDI, vm_ptr_tgt);
+    
+    if (offset == 0) {
+        emit_load(state, S64, RSP, RSI, saved_addr_offset);
+    } else {
+        emit_load(state, S64, RSP, RSI, saved_addr_offset);
+        emit_alu64_imm32(state, 0x81, 0, RSI, offset);
+    }
+    
+    emit_load_imm(state, RDX, access_size);
+    emit_load_imm(state, RCX, (uint64_t)type);
+    emit_load_imm(state, R8, cur_pc);
+    emit_load(state, S64, RBP, R9, -8);
+    
+    emit_load(state, S64, RBP, RAX, -16);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x04); emit1(state, 0x24);
+    
+    if (jit_mode == ExtendedJitMode) {
+        emit_load(state, S64, RBP, RAX, -24);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x08);
+        emit_load(state, S64, RBP, RAX, -32);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
+    } else {
+        emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x08);
+        emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
+    }
+#endif
+
+    emit_load_imm(state, RAX, (uint64_t)ubpf_jit_bounds_check);
+    emit1(state, 0xff); emit1(state, 0xd0);
+    
+#if defined(_WIN32)
+    emit_alu64_imm32(state, 0x81, 0, RSP, 80);
+#else
+    emit_alu64_imm32(state, 0x81, 0, RSP, 24);
+#endif
+    
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
+    
+    emit_cmp_imm32(state, RAX, 0);
+    
+    emit1(state, 0x74);
+    emit1(state, 0x13);
+    
+    emit_load_imm(state, RAX, -1);
+    emit_alu64_imm32(state, 0x81, 0, RSP, 72);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(error_exit, Exit);
+    emit_jmp(state, error_exit);
+    
+    emit_pop(state, R11);
+    emit_pop(state, R10);
+    emit_pop(state, R9);
+    emit_pop(state, R8);
+    emit_pop(state, RDI);
+    emit_pop(state, RSI);
+    emit_pop(state, RDX);
+    emit_pop(state, RCX);
+    emit_pop(state, RAX);
+}
+
+static uint32_t
 emit_retpoline(struct jit_state* state)
 {
 
@@ -1734,6 +1906,38 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      * Let's set RBP to RSP so that we can restore RSP later!
      */
     emit_mov(state, RSP, RBP);
+
+    /* Save JIT function parameters for bounds checking */
+    /* We need mem, mem_len, stack, stack_len for bounds checking */
+    /* Allocate 32 bytes (4 * 8) on stack to save these */
+    if (vm->bounds_check_enabled) {
+        emit_alu64_imm32(state, 0x81, 5, RSP, 32);
+        /* Save mem (already in VOLATILE_CTXT) */
+        emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x5d); emit1(state, 0xf8); // mov [rbp-8], r11
+        /* Save mem_len from platform_parameter_registers[1] */
+#if defined(_WIN32)
+        /* Windows: mem_len is in RDX */
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x55); emit1(state, 0xf0); // mov [rbp-16], rdx
+#else
+        /* SystemV: mem_len is in RSI */
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x75); emit1(state, 0xf0); // mov [rbp-16], rsi
+#endif
+        /* Save stack and stack_len (ExtendedJitMode only) */
+        if (state->jit_mode == ExtendedJitMode) {
+#if defined(_WIN32)
+            /* Windows: stack in R8, stack_len in R9 */
+            emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x45); emit1(state, 0xe8); // mov [rbp-24], r8
+            emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x4d); emit1(state, 0xe0); // mov [rbp-32], r9
+#else
+            /* SystemV: stack in RDX, stack_len in RCX */
+            emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x55); emit1(state, 0xe8); // mov [rbp-24], rdx
+            emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x4d); emit1(state, 0xe0); // mov [rbp-32], rcx
+#endif
+        } else {
+            /* BasicJitMode: stack will be RSP, stack_len will be UBPF_EBPF_STACK_SIZE */
+            /* We'll compute these dynamically in emit_bounds_check */
+        }
+    }
 
     /* Configure eBPF program stack space */
     if (state->jit_mode == BasicJitMode) {
@@ -2248,51 +2452,96 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_LDXW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S32, "load", i, state->jit_mode);
+            }
             emit_load(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S16, "load", i, state->jit_mode);
+            }
             emit_load(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S8, "load", i, state->jit_mode);
+            }
             emit_load(state, S8, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S64, "load", i, state->jit_mode);
+            }
             emit_load(state, S64, src, dst, inst.offset);
             break;
 
         case EBPF_OP_LDXWSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S32, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXHSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S16, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXBSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S8, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S8, src, dst, inst.offset);
             break;
 
         case EBPF_OP_STW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S32, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S16, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S16, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S8, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S8, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S64, dst, inst.offset, inst.imm);
             break;
 
         case EBPF_OP_STXW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             emit_store(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_STXH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S16, "store", i, state->jit_mode);
+            }
             emit_store(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_STXB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S8, "store", i, state->jit_mode);
+            }
             emit_store(state, S8, src, dst, inst.offset);
             break;
         case EBPF_OP_STXDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             emit_store(state, S64, src, dst, inst.offset);
             break;
 
@@ -2465,6 +2714,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     state->retpoline_loc = emit_retpoline(state);
     state->dispatcher_loc = emit_dispatched_external_helper_address(state, vm);
     state->helper_table_loc = emit_helper_table(state, vm);
+    state->vm_ptr_loc = emit_vm_ptr(state, vm);
 
     return 0;
 }
@@ -2547,9 +2797,11 @@ resolve_patchable_relatives(struct jit_state* state)
         struct patchable_relative load = state->loads[i];
 
         int target_loc = 0;
-        // It is only possible to load from the external dispatcher's position.
+        // It is possible to load from the external dispatcher's position or VM pointer.
         if (load.target.is_special && load.target.target.special == ExternalDispatcher) {
             target_loc = state->dispatcher_loc;
+        } else if (load.target.is_special && load.target.target.special == LoadVMPtr) {
+            target_loc = state->vm_ptr_loc;
         } else {
             target_loc = -1;
             return false;
