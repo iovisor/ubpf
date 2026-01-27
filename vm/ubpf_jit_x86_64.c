@@ -498,14 +498,16 @@ emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     UNUSED_PARAMETER(src);
     /* Generate random blinding constant (32-bit) */
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
-    int32_t blinded_imm = imm ^ random;
+    /* Cast imm to unsigned to avoid sign extension issues during XOR */
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
     
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
     /* mov temp_reg_32bit, (imm ^ random) */
     emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* xor temp_reg_32bit, random */
-    emit_alu64_imm32(state, 0x81, 6, temp_reg, random);
+    emit_alu64_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
     /* op dst, temp_reg */
     emit_alu64(state, op, temp_reg, dst);
 }
@@ -517,14 +519,16 @@ emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     UNUSED_PARAMETER(src);
     /* Generate random blinding constant (32-bit) */
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
-    int32_t blinded_imm = imm ^ random;
+    /* Cast imm to unsigned to avoid sign extension issues during XOR */
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
     
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
     /* mov temp_reg_32bit, (imm ^ random) */
     emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* xor temp_reg_32bit, random */
-    emit_alu32_imm32(state, 0x81, 6, temp_reg, random);
+    emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
     /* op dst, temp_reg */
     emit_alu32(state, op, temp_reg, dst);
 }

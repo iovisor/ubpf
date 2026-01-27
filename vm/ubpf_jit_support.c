@@ -29,7 +29,7 @@
 #include <windows.h>
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
-#elif defined(__unix__) || defined(__APPLE__)
+#elif defined(__linux__)
 #include <sys/random.h>
 #endif
 
@@ -145,7 +145,16 @@ ubpf_generate_blinding_constant(void)
 
 #if defined(_WIN32)
     // Windows: Use BCryptGenRandom for cryptographically secure random
-    BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    NTSTATUS status = BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (!BCRYPT_SUCCESS(status)) {
+        // Fallback on error
+        static int seed_initialized = 0;
+        if (!seed_initialized) {
+            srand((unsigned int)time(NULL));
+            seed_initialized = 1;
+        }
+        random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
+    }
 #elif defined(__linux__)
     // Linux: Use getrandom() system call (available since kernel 3.17)
     // This doesn't require opening /dev/urandom and is more efficient
@@ -155,7 +164,7 @@ ubpf_generate_blinding_constant(void)
         // Initialize seed if not done yet
         static int seed_initialized = 0;
         if (!seed_initialized) {
-            srand(time(NULL));
+            srand((unsigned int)time(NULL));
             seed_initialized = 1;
         }
         random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
@@ -167,7 +176,7 @@ ubpf_generate_blinding_constant(void)
     // Generic fallback: use standard rand (not cryptographically secure)
     static int seed_initialized = 0;
     if (!seed_initialized) {
-        srand(time(NULL));
+        srand((unsigned int)time(NULL));
         seed_initialized = 1;
     }
     random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
