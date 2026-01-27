@@ -1387,7 +1387,15 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         int dst = map_register(inst.dst);
         int src = map_register(inst.src);
-        uint32_t target_pc = i + inst.offset + 1;
+
+        // Use int64_t to avoid signed overflow with large immediates
+        int64_t target_pc_64;
+        if (inst.opcode == EBPF_OP_JA32) {
+            target_pc_64 = (int64_t)i + (int64_t)inst.imm + 1;
+        } else {
+            target_pc_64 = (int64_t)i + (int64_t)inst.offset + 1;
+        }
+        uint32_t target_pc = (uint32_t)target_pc_64;
 
         DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
@@ -1637,6 +1645,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         /* TODO use 8 bit immediate when possible */
         case EBPF_OP_JA:
+        case EBPF_OP_JA32:
             emit_jmp(state, tgt);
             break;
         case EBPF_OP_JEQ_IMM:

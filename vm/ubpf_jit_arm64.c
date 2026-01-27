@@ -744,10 +744,10 @@ is_imm_op(struct ebpf_inst const* inst)
     bool is_neg = (inst->opcode & EBPF_ALU_OP_MASK) == 0x80;
     bool is_call = inst->opcode == EBPF_OP_CALL;
     bool is_exit = inst->opcode == EBPF_OP_EXIT;
-    bool is_ja = inst->opcode == EBPF_OP_JA;
+    bool is_ja = inst->opcode == EBPF_OP_JA || inst->opcode == EBPF_OP_JA32;
     bool is_alu = (class == EBPF_CLS_ALU || class == EBPF_CLS_ALU64) && !is_endian && !is_neg;
     bool is_jmp = (class == EBPF_CLS_JMP && !is_ja && !is_call && !is_exit);
-    bool is_jmp32 = class == EBPF_CLS_JMP32;
+    bool is_jmp32 = (class == EBPF_CLS_JMP32 && inst->opcode != EBPF_OP_JA32);
     bool is_store = class == EBPF_CLS_ST;
     return (is_imm && (is_alu || is_jmp || is_jmp32)) || is_store;
 }
@@ -1075,7 +1075,15 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         enum Registers dst = map_register(inst.dst);
         enum Registers src = map_register(inst.src);
         uint8_t opcode = inst.opcode;
-        uint32_t target_pc = i + inst.offset + 1;
+
+        // Use int64_t to avoid signed overflow with large immediates
+        int64_t target_pc_64;
+        if (inst.opcode == EBPF_OP_JA32) {
+            target_pc_64 = (int64_t)i + (int64_t)inst.imm + 1;
+        } else {
+            target_pc_64 = (int64_t)i + (int64_t)inst.offset + 1;
+        }
+        uint32_t target_pc = (uint32_t)target_pc_64;
 
         DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
@@ -1182,6 +1190,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         /* TODO use 8 bit immediate when possible */
         case EBPF_OP_JA:
+        case EBPF_OP_JA32:
             emit_unconditionalbranch_immediate(state, UBR_B, tgt);
             break;
         case EBPF_OP_JEQ_IMM:
