@@ -269,10 +269,15 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     // Allocate memory for bytecode using mmap if read-only mode is enabled
     if (vm->readonly_bytecode_enabled) {
         // Get page size for alignment
+#if defined(_WIN32)
+        // On Windows, use the standard page size
+        long page_size = 4096;
+#else
         long page_size = sysconf(_SC_PAGESIZE);
         if (page_size <= 0) {
             page_size = 4096;  // Fallback to common page size
         }
+#endif
         
         // Calculate page-aligned allocation size
         vm->insts_alloc_size = (code_len + page_size - 1) & ~(page_size - 1);
@@ -348,7 +353,7 @@ ubpf_unload_code(struct ubpf_vm* vm)
         vm->jitted_size = 0;
     }
     if (vm->insts) {
-        if (vm->readonly_bytecode_enabled && vm->insts_alloc_size > 0) {
+        if (vm->readonly_bytecode_enabled) {
             munmap(vm->insts, vm->insts_alloc_size);
         } else {
             free(vm->insts);
