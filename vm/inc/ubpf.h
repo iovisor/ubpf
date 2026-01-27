@@ -141,6 +141,13 @@ extern "C"
      * in the JIT-compiled code. Constant blinding is disabled by default for backward compatibility
      * and performance reasons.
      *
+     * **Platform Support:**
+     * - x86-64: Fully supported
+     * - ARM64: Not yet implemented - enabling on ARM64 will have no effect
+     *
+     * **Thread Safety:** This function is thread-safe. The blinding itself uses thread-safe
+     * random number generation on all supported platforms.
+     *
      * @param[in] vm The VM to enable / disable constant blinding on.
      * @param[in] enable Enable constant blinding if true, disable if false.
      * @retval true Constant blinding was previously enabled.
