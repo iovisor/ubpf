@@ -6,3 +6,5 @@ exit
 uBPF error: address overflow in store at PC 1
 -- result
 0xffffffffffffffff
+-- no jit
+JIT does not implement address overflow detection

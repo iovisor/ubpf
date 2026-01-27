@@ -7,3 +7,5 @@ exit
 uBPF error: integer overflow in store at PC 2, addr .*, size 1
 -- result
 0xffffffffffffffff
+-- no jit
+JIT does not implement integer overflow detection in bounds check

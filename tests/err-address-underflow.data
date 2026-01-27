@@ -6,3 +6,5 @@ exit
 uBPF error: address underflow in load at PC 1
 -- result
 0xffffffffffffffff
+-- no jit
+JIT does not implement address underflow detection
