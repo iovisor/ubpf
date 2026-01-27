@@ -67,6 +67,14 @@ ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable)
     return old;
 }
 
+bool
+ubpf_toggle_readonly_bytecode(struct ubpf_vm* vm, bool enable)
+{
+    bool old = vm->readonly_bytecode_enabled;
+    vm->readonly_bytecode_enabled = enable;
+    return old;
+}
+
 void
 ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...))
 {
@@ -104,6 +112,7 @@ ubpf_create(void)
 
     vm->bounds_check_enabled = true;
     vm->undefined_behavior_check_enabled = false;
+    vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
     vm->error_printf = fprintf;
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -257,10 +266,46 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
         return -1;
     }
 
-    vm->insts = malloc(code_len);
-    if (vm->insts == NULL) {
-        *errmsg = ubpf_error("out of memory");
-        return -1;
+    // Allocate memory for bytecode using mmap if read-only mode is enabled
+    if (vm->readonly_bytecode_enabled) {
+        // Get page size for alignment
+        size_t page_size;
+#if defined(_WIN32)
+        // On Windows, assume 4 KiB page size (typical for x86/x64).
+        // Using a smaller value than actual page size is still correct.
+        page_size = 4096;
+#else
+        long page_size_long = sysconf(_SC_PAGESIZE);
+        if (page_size_long <= 0) {
+            // Fallback to 4 KiB, the most common page size; using a smaller
+            // value than the actual system page size is still correct, though
+            // it may be slightly less efficient on systems with larger pages.
+            page_size = 4096;
+        } else {
+            page_size = (size_t)page_size_long;
+        }
+#endif
+        
+        // Calculate page-aligned allocation size
+        vm->insts_alloc_size = (code_len + page_size - 1) & ~(page_size - 1);
+        
+        // Allocate using mmap with read+write permissions initially
+        vm->insts = mmap(NULL, vm->insts_alloc_size, 
+                        PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (vm->insts == MAP_FAILED) {
+            vm->insts = NULL;
+            *errmsg = ubpf_error("out of memory");
+            return -1;
+        }
+    } else {
+        // Use malloc for writable bytecode
+        vm->insts = malloc(code_len);
+        if (vm->insts == NULL) {
+            *errmsg = ubpf_error("out of memory");
+            return -1;
+        }
+        vm->insts_alloc_size = code_len;
     }
 
     vm->num_insts = code_len / sizeof(vm->insts[0]);
@@ -268,6 +313,15 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     vm->int_funcs = (bool*)calloc(vm->num_insts, sizeof(bool));
     if (!vm->int_funcs) {
         *errmsg = ubpf_error("out of memory");
+        // Clean up vm->insts allocation
+        if (vm->readonly_bytecode_enabled) {
+            munmap(vm->insts, vm->insts_alloc_size);
+        } else {
+            free(vm->insts);
+        }
+        vm->insts = NULL;
+        vm->insts_alloc_size = 0;
+        vm->num_insts = 0;
         return -1;
     }
 
@@ -283,6 +337,21 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
         }
         // Store instructions in the vm.
         ubpf_store_instruction(vm, i, source_inst[i]);
+    }
+
+    // Mark bytecode as read-only after loading
+    if (vm->readonly_bytecode_enabled) {
+        if (mprotect(vm->insts, vm->insts_alloc_size, PROT_READ) < 0) {
+            *errmsg = ubpf_error("failed to mark bytecode as read-only");
+            // Clean up on failure
+            munmap(vm->insts, vm->insts_alloc_size);
+            vm->insts = NULL;
+            vm->insts_alloc_size = 0;
+            vm->num_insts = 0;
+            free(vm->int_funcs);
+            vm->int_funcs = NULL;
+            return -1;
+        }
     }
 
     return 0;
@@ -302,9 +371,14 @@ ubpf_unload_code(struct ubpf_vm* vm)
         vm->jitted_size = 0;
     }
     if (vm->insts) {
-        free(vm->insts);
+        if (vm->readonly_bytecode_enabled) {
+            munmap(vm->insts, vm->insts_alloc_size);
+        } else {
+            free(vm->insts);
+        }
         vm->insts = NULL;
         vm->num_insts = 0;
+        vm->insts_alloc_size = 0;
     }
 }
 
