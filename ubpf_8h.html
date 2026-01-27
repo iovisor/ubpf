@@ -223,6 +223,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a4033cc1ab40ffc0d3de6efb70bb91768" id="r_a4033cc1ab40ffc0d3de6efb70bb91768"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a4033cc1ab40ffc0d3de6efb70bb91768">ubpf_toggle_undefined_behavior_check</a> (struct ubpf_vm *vm, bool enable)</td></tr>
 <tr class="memdesc:a4033cc1ab40ffc0d3de6efb70bb91768"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable undefined behavior checks. Undefined behavior includes reading from uninitialized memory or using uninitialized registers. Default is disabled to preserve performance and compatibility with existing eBPF programs.  <br /></td></tr>
 <tr class="separator:a4033cc1ab40ffc0d3de6efb70bb91768"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a02c3ecdd5fafbb6143163c426940dacc" id="r_a02c3ecdd5fafbb6143163c426940dacc"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a02c3ecdd5fafbb6143163c426940dacc">ubpf_toggle_readonly_bytecode</a> (struct ubpf_vm *vm, bool enable)</td></tr>
+<tr class="memdesc:a02c3ecdd5fafbb6143163c426940dacc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable read-only bytecode storage.  <br /></td></tr>
+<tr class="separator:a02c3ecdd5fafbb6143163c426940dacc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aae07506453000ed9fc787a27fa3b9f9e" id="r_aae07506453000ed9fc787a27fa3b9f9e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aae07506453000ed9fc787a27fa3b9f9e">ubpf_register_debug_fn</a> (struct ubpf_vm *vm, void *context, <a class="el" href="ubpf_8h.html#aebce576f96f17df34a30029636515fcc">ubpf_debug_fn</a> debug_function)</td></tr>
 <tr class="memdesc:aae07506453000ed9fc787a27fa3b9f9e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add option to invoke a debug function before each instruction. Note: This only applies to the interpreter and not the JIT.  <br /></td></tr>
 <tr class="separator:aae07506453000ed9fc787a27fa3b9f9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1539,6 +1542,54 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a02c3ecdd5fafbb6143163c426940dacc" name="a02c3ecdd5fafbb6143163c426940dacc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a02c3ecdd5fafbb6143163c426940dacc">&#9670;&#160;</a></span>ubpf_toggle_readonly_bytecode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool ubpf_toggle_readonly_bytecode </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>enable</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enable or disable read-only bytecode storage. </p>
+<p>When enabled, bytecode is stored in memory pages marked read-only after loading, preventing runtime modification. This security hardening prevents attackers from modifying bytecode after it has been loaded and validated.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM instance. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">enable</td><td>True to enable read-only storage, false to disable. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">true</td><td>Read-only bytecode was previously enabled. </td></tr>
+    <tr><td class="paramname">false</td><td>Read-only bytecode was previously disabled.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>Must be called before <a class="el" href="ubpf_8h.html#a8d32748c100c98d69dba8dcf0e9d4d0d" title="Load code into a VM. This must be done before calling ubpf_exec or ubpf_compile and after registering...">ubpf_load()</a>. Has no effect on already loaded code. </dd>
+<dd>
+Enabled by default for new VMs. </dd></dl>
 
 </div>
 </div>
