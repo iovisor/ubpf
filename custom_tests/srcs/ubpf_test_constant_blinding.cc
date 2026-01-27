@@ -7,7 +7,7 @@
  * 1. Constant blinding can be enabled/disabled via the API
  * 2. JIT compilation succeeds with and without blinding
  * 3. Execution results are identical with and without blinding
- * 4. Blinding produces different code each time (randomness verification)
+ * 4. Blinding produces different code each time (randomness verification) - x86_64 only
  * 5. All immediate ALU operations work correctly with blinding
  */
 
@@ -22,6 +22,16 @@ extern "C"
 {
 #include "ebpf.h"
 #include "ubpf.h"
+}
+
+// Check if constant blinding is supported on this platform
+static bool is_constant_blinding_supported()
+{
+#if defined(__x86_64__) || defined(_M_X64)
+    return true;
+#else
+    return false;
+#endif
 }
 
 // Helper function to test an immediate operation
@@ -131,9 +141,12 @@ int main(int, char**)
     ubpf_destroy(vm);
     
     // Test 2: Randomness verification - same program compiled twice with blinding
+    // Note: Only runs on x86_64 where constant blinding is implemented
     std::cout << "\nTest 2: Randomness verification..." << std::endl;
     
-    {
+    if (!is_constant_blinding_supported()) {
+        std::cout << "  SKIP: Constant blinding not implemented on this platform (ARM64)" << std::endl;
+    } else {
         struct ebpf_inst test_program[] = {
             {.opcode = EBPF_OP_MOV64_IMM, .dst = 0, .src = 0, .offset = 0, .imm = 0x12345678},
             {.opcode = EBPF_OP_ADD64_IMM, .dst = 0, .src = 0, .offset = 0, .imm = 0x11111111},
@@ -203,7 +216,7 @@ int main(int, char**)
             }
             ubpf_destroy(vm_rand1);
         }
-    }
+    } // end of if (is_constant_blinding_supported())
     
     // Test 3: 32-bit ALU immediate operations
     std::cout << "\nTest 3: 32-bit ALU immediate operations..." << std::endl;
