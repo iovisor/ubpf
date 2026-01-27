@@ -494,6 +494,7 @@ emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
 static inline void
 emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int32_t imm)
 {
+    UNUSED_PARAMETER(src);
     /* Generate random blinding constant (32-bit) */
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     int32_t blinded_imm = imm ^ random;
@@ -511,6 +512,7 @@ emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
 static inline void
 emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int32_t imm)
 {
+    UNUSED_PARAMETER(src);
     /* Generate random blinding constant (32-bit) */
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     int32_t blinded_imm = imm ^ random;
