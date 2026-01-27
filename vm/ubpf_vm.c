@@ -269,13 +269,20 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     // Allocate memory for bytecode using mmap if read-only mode is enabled
     if (vm->readonly_bytecode_enabled) {
         // Get page size for alignment
+        size_t page_size;
 #if defined(_WIN32)
-        // On Windows, use the standard page size
-        long page_size = 4096;
+        // On Windows, assume 4 KiB page size (typical for x86/x64).
+        // Using a smaller value than actual page size is still correct.
+        page_size = 4096;
 #else
-        long page_size = sysconf(_SC_PAGESIZE);
-        if (page_size <= 0) {
-            page_size = 4096;  // Fallback to common page size
+        long page_size_long = sysconf(_SC_PAGESIZE);
+        if (page_size_long <= 0) {
+            // Fallback to 4 KiB, the most common page size; using a smaller
+            // value than the actual system page size is still correct, though
+            // it may be slightly less efficient on systems with larger pages.
+            page_size = 4096;
+        } else {
+            page_size = (size_t)page_size_long;
         }
 #endif
         
@@ -306,6 +313,15 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     vm->int_funcs = (bool*)calloc(vm->num_insts, sizeof(bool));
     if (!vm->int_funcs) {
         *errmsg = ubpf_error("out of memory");
+        // Clean up vm->insts allocation
+        if (vm->readonly_bytecode_enabled) {
+            munmap(vm->insts, vm->insts_alloc_size);
+        } else {
+            free(vm->insts);
+        }
+        vm->insts = NULL;
+        vm->insts_alloc_size = 0;
+        vm->num_insts = 0;
         return -1;
     }
 
