@@ -6,4 +6,4 @@ exit
 -- result
 0x12345678
 -- error
-Failed to load code: sub-program does not end with EXIT at PC 1
+Failed to load code: sub-program does not end with EXIT or unconditional jump at PC 1
