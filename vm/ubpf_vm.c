@@ -60,6 +60,14 @@ ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable)
 }
 
 bool
+ubpf_toggle_constant_blinding(struct ubpf_vm* vm, bool enable)
+{
+    bool old = vm->constant_blinding_enabled;
+    vm->constant_blinding_enabled = enable;
+    return old;
+}
+
+bool
 ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable)
 {
     bool old = vm->undefined_behavior_check_enabled;
@@ -113,6 +121,7 @@ ubpf_create(void)
     vm->bounds_check_enabled = true;
     vm->undefined_behavior_check_enabled = false;
     vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
+    vm->constant_blinding_enabled = false;
     vm->error_printf = fprintf;
 
 #if defined(__x86_64__) || defined(_M_X64)
