@@ -1162,13 +1162,33 @@ ubpf_exec_ex(
              */
 #define BOUNDS_CHECK_LOAD(size)                                                                           \
     do {                                                                                                  \
+        /* Compute address safely to detect overflow before passing to bounds_check */                   \
+        uint64_t _base_addr = reg[inst.src];                                                              \
+        int64_t _offset = inst.offset;                                                                    \
+        uint64_t _addr;                                                                                   \
+        if (_offset >= 0) {                                                                               \
+            if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                           \
+                vm->error_printf(stderr, "uBPF error: address overflow in load at PC %u\n", cur_pc);     \
+                return_value = -1;                                                                        \
+                goto cleanup;                                                                             \
+            }                                                                                             \
+            _addr = _base_addr + (uint64_t)_offset;                                                       \
+        } else {                                                                                          \
+            if (_base_addr < (uint64_t)(-_offset)) {                                                     \
+                vm->error_printf(stderr, "uBPF error: address underflow in load at PC %u\n", cur_pc);    \
+                return_value = -1;                                                                        \
+                goto cleanup;                                                                             \
+            }                                                                                             \
+            _addr = _base_addr - (uint64_t)(-_offset);                                                    \
+        }                                                                                                 \
+        void* _ptr = (void*)_addr;                                                                        \
         if (!ubpf_check_shadow_stack(                                                                     \
-                vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.src] + inst.offset, size)) { \
+                vm, stack_start, stack_length, shadow_stack, _ptr, size)) {                               \
                 shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
         }                                                                                                 \
         if (!bounds_check(                                                                                \
                 vm,                                                                                       \
-                (char*)reg[inst.src] + inst.offset,                                                       \
+                _ptr,                                                                                     \
                 size,                                                                                     \
                 "load",                                                                                   \
                 cur_pc,                                                                                   \
@@ -1182,9 +1202,29 @@ ubpf_exec_ex(
     } while (0)
 #define BOUNDS_CHECK_STORE(size)                                                                                       \
     do {                                                                                                               \
+        /* Compute address safely to detect overflow before passing to bounds_check */                                \
+        uint64_t _base_addr = reg[inst.dst];                                                                           \
+        int64_t _offset = inst.offset;                                                                                 \
+        uint64_t _addr;                                                                                                \
+        if (_offset >= 0) {                                                                                            \
+            if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                                        \
+                vm->error_printf(stderr, "uBPF error: address overflow in store at PC %u\n", cur_pc);                 \
+                return_value = -1;                                                                                     \
+                goto cleanup;                                                                                          \
+            }                                                                                                          \
+            _addr = _base_addr + (uint64_t)_offset;                                                                    \
+        } else {                                                                                                       \
+            if (_base_addr < (uint64_t)(-_offset)) {                                                                  \
+                vm->error_printf(stderr, "uBPF error: address underflow in store at PC %u\n", cur_pc);                \
+                return_value = -1;                                                                                     \
+                goto cleanup;                                                                                          \
+            }                                                                                                          \
+            _addr = _base_addr - (uint64_t)(-_offset);                                                                 \
+        }                                                                                                              \
+        void* _ptr = (void*)_addr;                                                                                     \
         if (!bounds_check(                                                                                             \
                 vm,                                                                                                    \
-                (char*)reg[inst.dst] + inst.offset,                                                                    \
+                _ptr,                                                                                                  \
                 size,                                                                                                  \
                 "store",                                                                                               \
                 cur_pc,                                                                                                \
@@ -1195,7 +1235,7 @@ ubpf_exec_ex(
             return_value = -1;                                                                                         \
             goto cleanup;                                                                                              \
         }                                                                                                              \
-        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.dst] + inst.offset, size); \
+        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, _ptr, size);                              \
     } while (0)
 
         case EBPF_OP_LDXW:
