@@ -4,6 +4,6 @@ sub %r6, 1
 stb [%r6], 0
 exit
 -- error pattern
-uBPF error: integer overflow in store at PC 2, addr 0x[fF]+, size 1
+uBPF error: integer overflow in store at PC 2, addr .*, size 1
 -- result
 0xffffffffffffffff

@@ -2014,8 +2014,14 @@ bounds_check(
     }
     uintptr_t access_end = access_start + (uintptr_t)size;
 
+    // Declare all variables before any potential goto
     uintptr_t stack_start = (uintptr_t)stack;
-    uintptr_t stack_end;
+    uintptr_t stack_end = 0;
+    uintptr_t mem_start = (uintptr_t)mem;
+    uintptr_t mem_end = 0;
+    bool stack_valid = false;
+    bool mem_valid = false;
+
     // Check for overflow in stack_start + stack_len
     if (stack_len > UINTPTR_MAX - stack_start) {
         // stack_start + stack_len would overflow - skip stack check
@@ -2023,9 +2029,8 @@ bounds_check(
         goto check_custom;
     }
     stack_end = stack_start + stack_len;
+    stack_valid = true;
 
-    uintptr_t mem_start = (uintptr_t)mem;
-    uintptr_t mem_end = 0;
     // Check for overflow in mem_start + mem_len
     if (mem) {
         if (mem_len > UINTPTR_MAX - mem_start) {
@@ -2033,6 +2038,7 @@ bounds_check(
             goto check_custom;
         }
         mem_end = mem_start + mem_len;
+        mem_valid = true;
     }
 
     // Memory in the range [access_start, access_end) is being accessed.
@@ -2042,14 +2048,14 @@ bounds_check(
     // Check if the access is within the memory bounds.
     // Note: The comparison is <= because the end address is one past the last byte for both
     // the access and the memory regions.
-    if (mem && access_start >= mem_start && access_end <= mem_end) {
+    if (mem_valid && access_start >= mem_start && access_end <= mem_end) {
         return true;
     }
 
     // Check if the access is within the stack bounds.
     // Note: The comparison is <= because the end address is one past the last byte for both
     // the access and the stack regions.
-    if (access_start >= stack_start && access_end <= stack_end) {
+    if (stack_valid && access_start >= stack_start && access_end <= stack_end) {
         return true;
     }
 
