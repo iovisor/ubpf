@@ -1997,27 +1997,50 @@ bounds_check(
     if (!vm->bounds_check_enabled)
         return true;
 
+    // Check for negative size
+    if (size < 0) {
+        vm->error_printf(
+            stderr, "uBPF error: negative size in %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
+        return false;
+    }
+
     uintptr_t access_start = (uintptr_t)addr;
-    uintptr_t access_end = access_start + size;
+    
+    // Check for overflow in access_start + size
+    if ((uintptr_t)size > UINTPTR_MAX - access_start) {
+        vm->error_printf(
+            stderr, "uBPF error: integer overflow in %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
+        return false;
+    }
+    uintptr_t access_end = access_start + (uintptr_t)size;
+
     uintptr_t stack_start = (uintptr_t)stack;
-    uintptr_t stack_end = stack_start + stack_len;
+    uintptr_t stack_end;
+    // Check for overflow in stack_start + stack_len
+    if (stack_len > UINTPTR_MAX - stack_start) {
+        // stack_start + stack_len would overflow - skip stack check
+        // This shouldn't happen with valid inputs, but we check defensively
+        goto check_custom;
+    }
+    stack_end = stack_start + stack_len;
+
     uintptr_t mem_start = (uintptr_t)mem;
-    uintptr_t mem_end = mem_start + mem_len;
+    uintptr_t mem_end;
+    // Check for overflow in mem_start + mem_len
+    if (mem && mem_len > UINTPTR_MAX - mem_start) {
+        // mem_start + mem_len would overflow - skip mem check
+        goto check_custom;
+    }
+    mem_end = mem_start + mem_len;
 
     // Memory in the range [access_start, access_end) is being accessed.
     // Memory in the range [stack_start, stack_end) is the stack.
     // Memory in the range [mem_start, mem_end) is the memory.
 
-    if (access_start > access_end) {
-        vm->error_printf(
-            stderr, "uBPF error: invalid memory access %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
-        return false;
-    }
-
     // Check if the access is within the memory bounds.
     // Note: The comparison is <= because the end address is one past the last byte for both
     // the access and the memory regions.
-    if (access_start >= mem_start && access_end <= mem_end) {
+    if (mem && access_start >= mem_start && access_end <= mem_end) {
         return true;
     }
 
@@ -2027,6 +2050,8 @@ bounds_check(
     if (access_start >= stack_start && access_end <= stack_end) {
         return true;
     }
+
+check_custom:
 
     // The address may be invalid or it may be a region of memory that the caller
     // is aware of but that is not part of the stack or memory.
