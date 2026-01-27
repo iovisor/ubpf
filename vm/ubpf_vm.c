@@ -882,6 +882,7 @@ ubpf_exec_ex(
                     reg[inst.dst] = (uint32_t)(dividend % divisor);
                 }
             }
+            reg[inst.dst] &= UINT32_MAX;
             break;
         case EBPF_OP_XOR_IMM:
             reg[inst.dst] ^= inst.imm;
