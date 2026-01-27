@@ -458,6 +458,73 @@ emit_load_imm(struct jit_state* state, int dst, int64_t imm)
     }
 }
 
+/* Load sign-extended immediate into register with constant blinding */
+static inline void
+emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
+{
+    /* Generate random blinding constant */
+    uint64_t random = ubpf_generate_blinding_constant();
+    uint64_t blinded_imm = (uint64_t)imm ^ random;
+    
+    /* Load blinded constant: mov dst, (imm ^ random) */
+    if ((int64_t)blinded_imm >= INT32_MIN && (int64_t)blinded_imm <= INT32_MAX) {
+        emit_alu64_imm32(state, 0xc7, 0, dst, blinded_imm);
+    } else {
+        /* movabs $blinded_imm,dst */
+        emit_basic_rex(state, 1, 0, dst);
+        emit1(state, 0xb8 | (dst & 7));
+        emit8(state, blinded_imm);
+    }
+    
+    /* XOR with random to recover original: xor dst, random */
+    if ((int64_t)random >= INT32_MIN && (int64_t)random <= INT32_MAX) {
+        emit_alu64_imm32(state, 0x81, 6, dst, random);
+    } else {
+        /* Use RAX as temporary register for large random values */
+        /* mov rax, random */
+        emit_basic_rex(state, 1, 0, RAX);
+        emit1(state, 0xb8 | (RAX & 7));
+        emit8(state, random);
+        /* xor dst, rax */
+        emit_alu64(state, 0x31, RAX, dst);
+    }
+}
+
+/* Blinded version of emit_alu64_imm32 */
+static inline void
+emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    int32_t blinded_imm = imm ^ random;
+    
+    /* Use RAX as temporary for blinded operations */
+    /* mov eax, (imm ^ random) */
+    emit_alu64_imm32(state, 0xc7, 0, RAX, blinded_imm);
+    /* xor eax, random */
+    emit_alu64_imm32(state, 0x81, 6, RAX, random);
+    /* op dst, rax */
+    emit_alu64(state, op, RAX, dst);
+}
+
+/* Blinded version of emit_alu32_imm32 */
+static inline void
+emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    int32_t blinded_imm = imm ^ random;
+    
+    /* Use RAX as temporary for blinded operations */
+    /* mov eax, (imm ^ random) */
+    emit_alu32_imm32(state, 0xc7, 0, RAX, blinded_imm);
+    /* xor eax, random */
+    emit_alu32_imm32(state, 0x81, 6, RAX, random);
+    /* op dst, eax */
+    emit_alu32(state, op, RAX, dst);
+}
+
+
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
 {
@@ -1381,6 +1448,34 @@ ubpf_set_register_offset(int x)
  * The layout and invariants are identical for code JIT compiled for Arm.
  */
 
+/* Helper macros to conditionally use blinded versions */
+#define EMIT_LOAD_IMM(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_load_imm_blinded(state, dst, imm); \
+        } else { \
+            emit_load_imm(state, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_ALU64_IMM32(vm, state, op, src, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_alu64_imm32_blinded(state, op, src, dst, imm); \
+        } else { \
+            emit_alu64_imm32(state, op, src, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_ALU32_IMM32(vm, state, op, src, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_alu32_imm32_blinded(state, op, src, dst, imm); \
+        } else { \
+            emit_alu32_imm32(state, op, src, dst, imm); \
+        } \
+    } while (0)
+
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
@@ -1540,13 +1635,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         switch (inst.opcode) {
         case EBPF_OP_ADD_IMM:
-            emit_alu32_imm32(state, 0x81, 0, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0x81, 0, dst, inst.imm);
             break;
         case EBPF_OP_ADD_REG:
             emit_alu32(state, 0x01, src, dst);
             break;
         case EBPF_OP_SUB_IMM:
-            emit_alu32_imm32(state, 0x81, 5, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0x81, 5, dst, inst.imm);
             break;
         case EBPF_OP_SUB_REG:
             emit_alu32(state, 0x29, src, dst);
@@ -1560,13 +1655,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR_IMM:
-            emit_alu32_imm32(state, 0x81, 1, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0x81, 1, dst, inst.imm);
             break;
         case EBPF_OP_OR_REG:
             emit_alu32(state, 0x09, src, dst);
             break;
         case EBPF_OP_AND_IMM:
-            emit_alu32_imm32(state, 0x81, 4, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0x81, 4, dst, inst.imm);
             break;
         case EBPF_OP_AND_REG:
             emit_alu32(state, 0x21, src, dst);
@@ -1589,13 +1684,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_alu32(state, 0xf7, 3, dst);
             break;
         case EBPF_OP_XOR_IMM:
-            emit_alu32_imm32(state, 0x81, 6, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0x81, 6, dst, inst.imm);
             break;
         case EBPF_OP_XOR_REG:
             emit_alu32(state, 0x31, src, dst);
             break;
         case EBPF_OP_MOV_IMM:
-            emit_alu32_imm32(state, 0xc7, 0, dst, inst.imm);
+            EMIT_ALU32_IMM32(vm, state, 0xc7, 0, dst, inst.imm);
             break;
         case EBPF_OP_MOV_REG:
             emit_mov(state, src, dst);
@@ -1656,13 +1751,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_ADD64_IMM:
-            emit_alu64_imm32(state, 0x81, 0, dst, inst.imm);
+            EMIT_ALU64_IMM32(vm, state, 0x81, 0, dst, inst.imm);
             break;
         case EBPF_OP_ADD64_REG:
             emit_alu64(state, 0x01, src, dst);
             break;
         case EBPF_OP_SUB64_IMM:
-            emit_alu64_imm32(state, 0x81, 5, dst, inst.imm);
+            EMIT_ALU64_IMM32(vm, state, 0x81, 5, dst, inst.imm);
             break;
         case EBPF_OP_SUB64_REG:
             emit_alu64(state, 0x29, src, dst);
@@ -1676,13 +1771,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR64_IMM:
-            emit_alu64_imm32(state, 0x81, 1, dst, inst.imm);
+            EMIT_ALU64_IMM32(vm, state, 0x81, 1, dst, inst.imm);
             break;
         case EBPF_OP_OR64_REG:
             emit_alu64(state, 0x09, src, dst);
             break;
         case EBPF_OP_AND64_IMM:
-            emit_alu64_imm32(state, 0x81, 4, dst, inst.imm);
+            EMIT_ALU64_IMM32(vm, state, 0x81, 4, dst, inst.imm);
             break;
         case EBPF_OP_AND64_REG:
             emit_alu64(state, 0x21, src, dst);
@@ -1705,13 +1800,13 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_alu64(state, 0xf7, 3, dst);
             break;
         case EBPF_OP_XOR64_IMM:
-            emit_alu64_imm32(state, 0x81, 6, dst, inst.imm);
+            EMIT_ALU64_IMM32(vm, state, 0x81, 6, dst, inst.imm);
             break;
         case EBPF_OP_XOR64_REG:
             emit_alu64(state, 0x31, src, dst);
             break;
         case EBPF_OP_MOV64_IMM:
-            emit_load_imm(state, dst, inst.imm);
+            EMIT_LOAD_IMM(vm, state, dst, inst.imm);
             break;
         case EBPF_OP_MOV64_REG:
             emit_mov(state, src, dst);
