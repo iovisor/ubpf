@@ -2062,22 +2062,22 @@ bounds_check(
     }
     uintptr_t access_end = access_start + (uintptr_t)size;
 
-    // Declare all variables before any potential goto
+    // Initialize stack and memory region bounds and validity flags
     uintptr_t stack_start = (uintptr_t)stack;
     uintptr_t stack_end = 0;
     uintptr_t mem_start = (uintptr_t)mem;
     uintptr_t mem_end = 0;
     bool stack_valid = false;
     bool mem_valid = false;
+    bool stack_overflow = false;
+    bool mem_overflow = false;
 
     // Check for overflow in stack_start + stack_len
     if (stack_len > UINTPTR_MAX - stack_start) {
         // stack_start + stack_len would overflow
-        // This shouldn't happen with valid inputs, but we check defensively
-        vm->error_printf(
-            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", 
-            cur_pc, stack, stack_len);
+        // Mark as invalid and record the overflow for potential error reporting
         stack_valid = false;
+        stack_overflow = true;
     } else {
         stack_end = stack_start + stack_len;
         stack_valid = true;
@@ -2087,10 +2087,9 @@ bounds_check(
     if (mem) {
         if (mem_len > UINTPTR_MAX - mem_start) {
             // mem_start + mem_len would overflow
-            vm->error_printf(
-                stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", 
-                cur_pc, mem, mem_len);
+            // Mark as invalid and record the overflow for potential error reporting
             mem_valid = false;
+            mem_overflow = true;
         } else {
             mem_end = mem_start + mem_len;
             mem_valid = true;
@@ -2121,6 +2120,23 @@ bounds_check(
     if (vm->bounds_check_function != NULL &&
         vm->bounds_check_function(vm->bounds_check_user_data, access_start, (uint64_t)size)) {
         return true;
+    }
+
+    // Access is out of bounds. Check if any region overflows contributed to the failure
+    // and report those as potential root causes.
+    if (stack_overflow && access_start >= stack_start) {
+        // The access would have been in the stack region if not for the overflow
+        vm->error_printf(
+            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", 
+            cur_pc, stack, stack_len);
+        return false;
+    }
+    if (mem_overflow && mem && access_start >= mem_start) {
+        // The access would have been in the mem region if not for the overflow
+        vm->error_printf(
+            stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", 
+            cur_pc, mem, mem_len);
+        return false;
     }
 
     // Memory is neither stack, nor memory, nor valid according to the bounds check function.
