@@ -586,6 +586,24 @@ extern "C"
     ubpf_toggle_undefined_behavior_check(struct ubpf_vm* vm, bool enable);
 
     /**
+     * @brief Enable or disable read-only bytecode storage.
+     *
+     * When enabled, bytecode is stored in memory pages marked read-only
+     * after loading, preventing runtime modification. This security hardening
+     * prevents attackers from modifying bytecode after it has been loaded and validated.
+     *
+     * @param[in] vm The VM instance.
+     * @param[in] enable True to enable read-only storage, false to disable.
+     * @retval true Read-only bytecode was previously enabled.
+     * @retval false Read-only bytecode was previously disabled.
+     *
+     * @note Must be called before ubpf_load(). Has no effect on already loaded code.
+     * @note Enabled by default for new VMs.
+     */
+    bool
+    ubpf_toggle_readonly_bytecode(struct ubpf_vm* vm, bool enable);
+
+    /**
      * @brief A function to invoke before each instruction.
      *
      * @param[in, out] context Context passed in to ubpf_register_debug_fn.

@@ -67,6 +67,8 @@ struct ubpf_vm
 {
     struct ebpf_inst* insts;
     uint16_t num_insts;
+    size_t insts_alloc_size;           // Actual allocation size (page-aligned) for mmap'd bytecode
+    bool readonly_bytecode_enabled;     // Whether bytecode is stored in read-only memory
     ubpf_jit_ex_fn jitted;
     size_t jitted_size;
     size_t jitter_buffer_size;
