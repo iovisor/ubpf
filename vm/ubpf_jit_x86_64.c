@@ -480,13 +480,14 @@ emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
     if ((int64_t)random >= INT32_MIN && (int64_t)random <= INT32_MAX) {
         emit_alu64_imm32(state, 0x81, 6, dst, random);
     } else {
-        /* Use RAX as temporary register for large random values */
-        /* mov rax, random */
-        emit_basic_rex(state, 1, 0, RAX);
-        emit1(state, 0xb8 | (RAX & 7));
+        /* Use R11 as temporary register for large random values (safe - it's volatile) */
+        int temp_reg = (dst == R11) ? R10 : R11;
+        /* mov temp_reg, random */
+        emit_basic_rex(state, 1, 0, temp_reg);
+        emit1(state, 0xb8 | (temp_reg & 7));
         emit8(state, random);
-        /* xor dst, rax */
-        emit_alu64(state, 0x31, RAX, dst);
+        /* xor dst, temp_reg */
+        emit_alu64(state, 0x31, temp_reg, dst);
     }
 }
 
@@ -499,13 +500,14 @@ emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     int32_t blinded_imm = imm ^ random;
     
-    /* Use RAX as temporary for blinded operations */
-    /* mov eax, (imm ^ random) */
-    emit_alu64_imm32(state, 0xc7, 0, RAX, blinded_imm);
-    /* xor eax, random */
-    emit_alu64_imm32(state, 0x81, 6, RAX, random);
-    /* op dst, rax */
-    emit_alu64(state, op, RAX, dst);
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    /* mov temp_reg_32bit, (imm ^ random) */
+    emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* xor temp_reg_32bit, random */
+    emit_alu64_imm32(state, 0x81, 6, temp_reg, random);
+    /* op dst, temp_reg */
+    emit_alu64(state, op, temp_reg, dst);
 }
 
 /* Blinded version of emit_alu32_imm32 */
@@ -517,13 +519,14 @@ emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     int32_t blinded_imm = imm ^ random;
     
-    /* Use RAX as temporary for blinded operations */
-    /* mov eax, (imm ^ random) */
-    emit_alu32_imm32(state, 0xc7, 0, RAX, blinded_imm);
-    /* xor eax, random */
-    emit_alu32_imm32(state, 0x81, 6, RAX, random);
-    /* op dst, eax */
-    emit_alu32(state, op, RAX, dst);
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    /* mov temp_reg_32bit, (imm ^ random) */
+    emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* xor temp_reg_32bit, random */
+    emit_alu32_imm32(state, 0x81, 6, temp_reg, random);
+    /* op dst, temp_reg */
+    emit_alu32(state, op, temp_reg, dst);
 }
 
 

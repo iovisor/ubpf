@@ -22,6 +22,7 @@
 #include "ubpf.h"
 #include "ubpf_int.h"
 #include <memory.h>
+#include <time.h>
 
 #if defined(_WIN32)
 #define _CRT_RAND_S
@@ -29,8 +30,7 @@
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
 #elif defined(__unix__) || defined(__APPLE__)
-#include <fcntl.h>
-#include <unistd.h>
+#include <sys/random.h>
 #endif
 
 int
@@ -133,7 +133,8 @@ emit_jump_target(struct jit_state* state, uint32_t jump_src)
  *
  * This function uses platform-specific secure random number generators:
  * - Windows: BCryptGenRandom with BCRYPT_USE_SYSTEM_PREFERRED_RNG
- * - Unix/Linux/macOS: /dev/urandom
+ * - Unix/Linux: getrandom() system call
+ * - macOS: arc4random()
  *
  * @return A 64-bit random value.
  */
@@ -145,23 +146,31 @@ ubpf_generate_blinding_constant(void)
 #if defined(_WIN32)
     // Windows: Use BCryptGenRandom for cryptographically secure random
     BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-#elif defined(__unix__) || defined(__APPLE__)
-    // Unix/Linux/macOS: Use /dev/urandom for cryptographically secure random
-    int fd = open("/dev/urandom", O_RDONLY);
-    if (fd >= 0) {
-        ssize_t result = read(fd, &random_value, sizeof(random_value));
-        close(fd);
-        if (result != sizeof(random_value)) {
-            // Fallback: use time-based random if read fails
-            random_value = (uint64_t)rand() ^ ((uint64_t)rand() << 32);
+#elif defined(__linux__)
+    // Linux: Use getrandom() system call (available since kernel 3.17)
+    // This doesn't require opening /dev/urandom and is more efficient
+    ssize_t result = getrandom(&random_value, sizeof(random_value), 0);
+    if (result != sizeof(random_value)) {
+        // Fallback: use time-based random if getrandom fails
+        // Initialize seed if not done yet
+        static int seed_initialized = 0;
+        if (!seed_initialized) {
+            srand(time(NULL));
+            seed_initialized = 1;
         }
-    } else {
-        // Fallback: use time-based random if open fails
-        random_value = (uint64_t)rand() ^ ((uint64_t)rand() << 32);
+        random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
     }
+#elif defined(__APPLE__)
+    // macOS: Use arc4random_buf which is available and doesn't need seeding
+    arc4random_buf(&random_value, sizeof(random_value));
 #else
     // Generic fallback: use standard rand (not cryptographically secure)
-    random_value = (uint64_t)rand() ^ ((uint64_t)rand() << 32);
+    static int seed_initialized = 0;
+    if (!seed_initialized) {
+        srand(time(NULL));
+        seed_initialized = 1;
+    }
+    random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
 #endif
 
     return random_value;
