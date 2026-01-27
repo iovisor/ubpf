@@ -2059,7 +2059,7 @@ check_custom:
     // is aware of but that is not part of the stack or memory.
     // Call any registered bounds check function to determine if the access is valid.
     if (vm->bounds_check_function != NULL &&
-        vm->bounds_check_function(vm->bounds_check_user_data, access_start, size)) {
+        vm->bounds_check_function(vm->bounds_check_user_data, access_start, (uint64_t)size)) {
         return true;
     }
 
