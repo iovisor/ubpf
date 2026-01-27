@@ -1576,18 +1576,21 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
 {
     int access_size = operand_size_to_bytes(size);
     
-    /* Compute effective address (addr_reg + offset) into RAX before saving registers */
+    /* Compute effective address (addr_reg + offset) into R11 (non-mapped scratch register)
+     * to avoid corrupting eBPF r0 (which may be mapped to RAX)
+     */
     if (offset == 0) {
-        emit_mov(state, addr_reg, RAX);
+        emit_mov(state, addr_reg, R11);
     } else {
-        /* LEA rax, [addr_reg + offset] */
-        emit_basic_rex(state, 1, RAX, addr_reg);
+        /* LEA r11, [addr_reg + offset] */
+        emit_basic_rex(state, 1, R11, addr_reg);
         emit1(state, 0x8d);
-        emit_modrm_and_displacement(state, RAX, addr_reg, offset);
+        emit_modrm_and_displacement(state, R11, addr_reg, offset);
     }
     
     /* Save all volatile registers that we'll clobber */
-    emit_push(state, RAX);  /* The computed address */
+    emit_push(state, R11);  /* The computed address */
+    emit_push(state, RAX);
     emit_push(state, RCX);
     emit_push(state, RDX);
     emit_push(state, RSI);
@@ -1595,7 +1598,6 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_push(state, R8);
     emit_push(state, R9);
     emit_push(state, R10);
-    emit_push(state, R11);
     
     /* Align stack to 16 bytes (we pushed 9*8=72 bytes, need 8 more) */
     emit_alu64_imm32(state, 0x81, 5, RSP, 8);
@@ -1610,16 +1612,12 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RCX, vm_ptr_tgt);
     
-    /* Arg 2 (RDX): address (from stack where we saved RAX)
-     * Stack layout: RSP -> [80 bytes arg space][8 bytes align][R11...RAX 72 bytes]
-     * RAX is at RSP + 80 + 8 + 64 = RSP + 152
-     */
-    emit_load(state, S64, RSP, RDX, 88);  /* 80 (shadow) + 8 (align) = 88, then RAX is at offset 64 more = 152 total */
-    
-    /* Actually, let me recalculate correctly:
-     * After push R11: [RSP] = R11, [RSP+8] = R10, ..., [RSP+64] = RAX
-     * After sub rsp, 8: [RSP+8] = R11, [RSP+16] = R10, ..., [RSP+72] = RAX  
-     * After sub rsp, 80: [RSP+88] = R11, [RSP+96] = R10, ..., [RSP+152] = RAX
+    /* Arg 2 (RDX): address (from stack where we saved R11).
+     * Stack layout at this point:
+     *   - Caller shadow space and outgoing args: [RSP .. RSP+79]  (80 bytes)
+     *   - Alignment padding:                     [RSP+80 .. RSP+87]  (8 bytes)
+     *   - Callee-saved registers: R10 at RSP+88, R9 at RSP+96, ..., R11 at RSP+152
+     * Hence the saved R11 (the address argument) is located at RSP + 152.
      */
     emit_load(state, S64, RSP, RDX, 152);
     
@@ -1654,7 +1652,8 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     }
 #else
     /* SystemV: RDI, RSI, RDX, RCX, R8, R9, then stack */
-    emit_alu64_imm32(state, 0x81, 5, RSP, 24);  /* Allocate stack args */
+    /* Allocate 32 bytes for stack args to maintain 16-byte alignment */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 32);
     
     /* Arg 1 (RDI): vm pointer */
     DECLARE_PATCHABLE_TARGET(vm_ptr_tgt);
@@ -1662,11 +1661,14 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RDI, vm_ptr_tgt);
     
-    /* Arg 2 (RSI): address (from stack where we saved RAX)
-     * Stack layout: RSP -> [24 bytes arg space][8 bytes align][R11...RAX 72 bytes]
-     * RAX is at RSP + 24 + 8 + 64 = RSP + 96
+    /* Arg 2 (RSI): address (from stack where we saved R11)
+     * Stack layout at this point:
+     *   - Stack args:              [RSP .. RSP+31]        (32 bytes)
+     *   - Alignment padding:       [RSP+32 .. RSP+39]    (8 bytes)
+     *   - Callee-saved registers:  R10 at RSP+40, ..., R11 at RSP+104
+     * Hence the saved R11 (the address argument) is located at RSP + 104.
      */
-    emit_load(state, S64, RSP, RSI, 96);
+    emit_load(state, S64, RSP, RSI, 104);
     
     /* Arg 3 (RDX): size */
     emit_load_imm(state, RDX, access_size);
@@ -1707,7 +1709,7 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
 #if defined(_WIN32)
     emit_alu64_imm32(state, 0x81, 0, RSP, 80);
 #else
-    emit_alu64_imm32(state, 0x81, 0, RSP, 24);
+    emit_alu64_imm32(state, 0x81, 0, RSP, 32);
 #endif
     
     /* Restore alignment */
@@ -1725,8 +1727,9 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     /* Jump to success path if RAX == 0 */
     uint32_t success_jump_source = emit_jcc(state, 0x84, success_target);  /* JE (jump if equal) */
     
-    /* Error path: bounds check failed */
-    emit_load_imm(state, RAX, -1);
+    /* Error path: bounds check failed - set eBPF r0 to -1 */
+    int r0_reg = map_register(BPF_REG_0);
+    emit_load_imm(state, r0_reg, -1);
     emit_alu64_imm32(state, 0x81, 0, RSP, 72);  /* Restore register saves */
     DECLARE_PATCHABLE_SPECIAL_TARGET(error_exit, Exit);
     emit_jmp(state, error_exit);
@@ -1734,7 +1737,6 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     /* Success path: restore registers and continue */
     emit_jump_target(state, success_jump_source);
     
-    emit_pop(state, R11);
     emit_pop(state, R10);
     emit_pop(state, R9);
     emit_pop(state, R8);
@@ -1743,6 +1745,7 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_pop(state, RDX);
     emit_pop(state, RCX);
     emit_pop(state, RAX);
+    emit_pop(state, R11);  /* Restore R11 last (was pushed first) */
 }
 
 static uint32_t

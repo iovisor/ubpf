@@ -2186,16 +2186,16 @@ bounds_check(
 int
 ubpf_jit_bounds_check(
     const struct ubpf_vm* vm,
-    uint64_t addr,
-    uint64_t size,
+    uintptr_t addr,
+    size_t size,
     const char* type,
-    uint64_t cur_pc,
+    uint16_t cur_pc,
     void* mem,
-    uint64_t mem_len,
+    size_t mem_len,
     void* stack,
-    uint64_t stack_len)
+    size_t stack_len)
 {
-    if (bounds_check(vm, (void*)addr, (int)size, type, (uint16_t)cur_pc, mem, (size_t)mem_len, stack, (size_t)stack_len)) {
+    if (bounds_check(vm, (void*)addr, (int)size, type, cur_pc, mem, mem_len, stack, stack_len)) {
         return 0;
     }
     return -1;
