@@ -38,8 +38,15 @@ BINARY_ALU_OPS = {
     'arsh': 12,
 }
 
+# Signed division and modulo operations (same opcode as div/mod but with offset=1)
+SIGNED_BINARY_ALU_OPS = {
+    'sdiv': 3,
+    'smod': 9,
+}
+
 UNARY_ALU32_OPS = { k + '32': v for k, v in list(UNARY_ALU_OPS.items()) }
 BINARY_ALU32_OPS = { k + '32': v for k, v in list(BINARY_ALU_OPS.items()) }
+SIGNED_BINARY_ALU32_OPS = { k + '32': v for k, v in list(SIGNED_BINARY_ALU_OPS.items()) }
 
 END_OPS = {
     'le16': (0xd4, 16),
@@ -111,6 +118,10 @@ def assemble_one(inst):
         return assemble_binop(op, 0x07, BINARY_ALU_OPS, inst[1], inst[2], 0)
     elif op in BINARY_ALU32_OPS:
         return assemble_binop(op, 0x04, BINARY_ALU32_OPS, inst[1], inst[2], 0)
+    elif op in SIGNED_BINARY_ALU_OPS:
+        return assemble_binop(op, 0x07, SIGNED_BINARY_ALU_OPS, inst[1], inst[2], 1)
+    elif op in SIGNED_BINARY_ALU32_OPS:
+        return assemble_binop(op, 0x04, SIGNED_BINARY_ALU32_OPS, inst[1], inst[2], 1)
     elif op in END_OPS:
         opcode, imm = END_OPS[op]
         return pack(opcode, inst[1].num, 0, 0, imm)

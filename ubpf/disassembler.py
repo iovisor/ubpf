@@ -78,6 +78,8 @@ BPF_CLASS_ALU = 7
 
 BPF_ALU_NEG = 8
 BPF_ALU_END = 13
+BPF_ALU_DIV = 3
+BPF_ALU_MOD = 9
 
 def R(reg):
     return "%r" + str(reg)
@@ -131,6 +133,12 @@ def disassemble_one(data, offset, verbose = False):
         source = (code >> 3) & 1
         opcode = (code >> 4) & 0xf
         opcode_name = ALU_OPCODES.get(opcode)
+
+        # Check for signed div/mod (offset == 1)
+        if (opcode == BPF_ALU_DIV or opcode == BPF_ALU_MOD) and off == 1:
+            opcode_name = 's' + opcode_name
+            fields["off"].used = True
+
         if clz == BPF_CLASS_ALU32:
             opcode_name += "32"
 

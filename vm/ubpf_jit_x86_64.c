@@ -1020,13 +1020,14 @@ emit_atomic_fetch_xor32(struct jit_state* state, int src, int dst, int offset)
 }
 
 static void
-emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm)
+emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm, int16_t offset)
 {
     bool mul = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MUL_IMM & EBPF_ALU_OP_MASK);
     bool div = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_DIV_IMM & EBPF_ALU_OP_MASK);
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool is64 = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
     bool reg = (opcode & EBPF_SRC_REG) == EBPF_SRC_REG;
+    bool is_signed = (offset == 1);
 
     // Short circuit for imm == 0.
     if (!reg && imm == 0) {
@@ -1088,8 +1089,79 @@ emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_
         emit1(state, 0x44);
         emit1(state, 0xca); /* cmove rcx,rdx */
 
-        /* xor %edx,%edx */
-        emit_alu32(state, 0x31, RDX, RDX);
+        if (is_signed) {
+            // For signed division, sign-extend RAX into RDX:RAX.
+            if (is64) {
+                emit1(state, 0x48); /* REX.W prefix for CQO */
+                emit1(state, 0x99); /* cqo: sign-extend RAX into RDX:RAX (64-bit) */
+            } else {
+                emit1(state, 0x99); /* cdq: sign-extend EAX into EDX:EAX (32-bit) */
+            }
+        } else {
+            /* xor %edx,%edx */
+            emit_alu32(state, 0x31, RDX, RDX);
+        }
+    }
+
+    // Handle signed division overflow case: INT_MIN / -1.
+    // On x86-64, IDIV with INT_MIN / -1 causes a divide error exception.
+    // Per RFC 9669, the result should be INT_MIN (overflow wraps).
+    uint32_t overflow_jump_source = 0;
+    if ((div || mod) && is_signed) {
+        // Check if divisor (RCX) == -1.
+        if (is64) {
+            // cmp rcx, -1
+            emit1(state, 0x48);
+            emit1(state, 0x83);
+            emit1(state, 0xf9);
+            emit1(state, 0xff);
+        } else {
+            // cmp ecx, -1
+            emit1(state, 0x83);
+            emit1(state, 0xf9);
+            emit1(state, 0xff);
+        }
+        // jne skip_overflow_check (short jump, patched later)
+        emit1(state, 0x75);
+        uint32_t jne_source = state->offset;
+        emit1(state, 0x00); // placeholder for jump offset
+
+        // Check if dividend (RAX) == INT_MIN.
+        if (is64) {
+            // mov r11, 0x8000000000000000
+            emit1(state, 0x49);
+            emit1(state, 0xbb);
+            emit8(state, 0x8000000000000000ULL);
+            // cmp rax, r11
+            emit1(state, 0x4c);
+            emit1(state, 0x39);
+            emit1(state, 0xd8);
+        } else {
+            // cmp eax, 0x80000000
+            emit1(state, 0x3d);
+            emit4(state, 0x80000000);
+        }
+        // jne skip_overflow_handling (short jump, patched later)
+        emit1(state, 0x75);
+        uint32_t jne2_source = state->offset;
+        emit1(state, 0x00); // placeholder
+
+        // INT_MIN / -1 case: set result directly without IDIV.
+        if (div) {
+            // For division, result is INT_MIN (already in RAX), so nothing to do.
+        } else {
+            // For modulo, result is 0.
+            // xor rdx, rdx (or edx, edx for 32-bit)
+            emit_alu32(state, 0x31, RDX, RDX);
+        }
+        // Jump over the IDIV instruction.
+        emit1(state, 0xeb); // jmp short
+        overflow_jump_source = state->offset;
+        emit1(state, 0x00); // placeholder
+
+        // Patch the jne jumps to land here.
+        state->buf[jne_source] = state->offset - jne_source - 1;
+        state->buf[jne2_source] = state->offset - jne2_source - 1;
     }
 
     if (is64) {
@@ -1097,7 +1169,16 @@ emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_
     }
 
     // Multiply or divide.
-    emit_alu32(state, 0xf7, mul ? 4 : 6, RCX);
+    // For multiplication: opcode /4 (MUL)
+    // For unsigned division: opcode /6 (DIV)
+    // For signed division: opcode /7 (IDIV)
+    int modrm_reg = mul ? 4 : (is_signed ? 7 : 6);
+    emit_alu32(state, 0xf7, modrm_reg, RCX);
+
+    // Patch the overflow jump to land here (after IDIV).
+    if ((div || mod) && is_signed && overflow_jump_source != 0) {
+        state->buf[overflow_jump_source] = state->offset - overflow_jump_source - 1;
+    }
 
     // Division operation stores the remainder in RDX and the quotient in RAX.
     if (div || mod) {
@@ -1476,7 +1557,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV_REG:
         case EBPF_OP_MOD_IMM:
         case EBPF_OP_MOD_REG:
-            emit_muldivmod(state, inst.opcode, src, dst, inst.imm);
+            emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR_IMM:
             emit_alu32_imm32(state, 0x81, 1, dst, inst.imm);
@@ -1592,7 +1673,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_IMM:
         case EBPF_OP_MOD64_REG:
-            emit_muldivmod(state, inst.opcode, src, dst, inst.imm);
+            emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR64_IMM:
             emit_alu64_imm32(state, 0x81, 1, dst, inst.imm);

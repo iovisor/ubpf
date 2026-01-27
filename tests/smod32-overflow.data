@@ -1,0 +1,8 @@
+-- asm
+# Test signed 32-bit modulo overflow case: INT32_MIN % -1
+# Per RFC 9669, this should return 0 (no remainder)
+mov32 %r0, 0x80000000
+smod32 %r0, -1
+exit
+-- result
+0x0

@@ -1,0 +1,8 @@
+-- asm
+# Test signed 64-bit division by zero returns 0
+mov %r0, 10
+mov %r1, 0
+sdiv %r0, %r1
+exit
+-- result
+0x0

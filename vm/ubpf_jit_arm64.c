@@ -130,7 +130,7 @@ map_register(int r)
 static void
 emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm);
 static void
-divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm);
+divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm, int16_t offset);
 
 static uint32_t inline align_to(uint32_t amount, uint64_t boundary)
 {
@@ -1128,7 +1128,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_MOD_REG:
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_REG:
-            divmod(state, opcode, dst, dst, src);
+            divmod(state, opcode, dst, dst, src, inst.offset);
             break;
         case EBPF_OP_OR_REG:
         case EBPF_OP_AND_REG:
@@ -1376,16 +1376,18 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 }
 
 static void
-divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm)
+divmod(struct jit_state* state, uint8_t opcode, int rd, int rn, int rm, int16_t offset)
 {
     bool mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
     bool sixty_four = (opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
+    bool is_signed = (offset == 1);
     enum Registers div_dest = mod ? temp_div_register : rd;
 
-    /* Do not need to treet divide by zero as special because the UDIV instruction already
-     * returns 0 when dividing by zero.
+    /* Do not need to treat divide by zero as special because the UDIV/SDIV instructions
+     * already return 0 when dividing by zero.
      */
-    emit_dataprocessing_twosource(state, sixty_four, DP2_UDIV, div_dest, rn, rm);
+    enum DP2Opcode div_op = is_signed ? DP2_SDIV : DP2_UDIV;
+    emit_dataprocessing_twosource(state, sixty_four, div_op, div_dest, rn, rm);
     if (mod) {
         emit_dataprocessing_threesource(state, sixty_four, DP3_MSUB, rd, rm, div_dest, rn);
     }

@@ -91,6 +91,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_DIV_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        .offset_upper_bound = 1,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -100,6 +101,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_upper_bound = 1,
     },
     {
         .opcode = EBPF_OP_OR_IMM,
@@ -166,6 +168,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_MOD_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        .offset_upper_bound = 1,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -175,6 +178,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_upper_bound = 1,
     },
     {
         .opcode = EBPF_OP_XOR_IMM,
@@ -288,6 +292,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_DIV64_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        .offset_upper_bound = 1,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -297,6 +302,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_upper_bound = 1,
     },
     {
         .opcode = EBPF_OP_OR64_IMM,
@@ -363,6 +369,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .opcode = EBPF_OP_MOD64_IMM,
         .destination_lower_bound = BPF_REG_0,
         .destination_upper_bound = BPF_REG_9,
+        .offset_upper_bound = 1,
         .immediate_lower_bound = INT32_MIN,
         .immediate_upper_bound = INT32_MAX,
     },
@@ -372,6 +379,7 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_upper_bound = 1,
     },
     {
         .opcode = EBPF_OP_XOR64_IMM,
