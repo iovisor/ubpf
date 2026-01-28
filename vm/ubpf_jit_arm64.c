@@ -658,8 +658,6 @@ emit_jit_epilogue(struct jit_state* state)
 static void
 emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm, unsigned int idx)
 {
-    UNUSED_PARAMETER(vm);
-
     /*
      * There are two paths through the function:
      * 1. There is an external dispatcher registered. If so, we prioritize that.
@@ -685,7 +683,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, default_tgt);
 
     // We are not ready to roll. In other words, we are going to load the helper function address by index.
-    emit_movewide_immediate(state, true, R5, idx);
+    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, R5, idx);
     emit_movewide_immediate(state, true, R6, 3);
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
 
@@ -710,7 +708,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // ... set up the final two arguments for the external dispatcher.
 
     // The index of the helper to be invoked.
-    emit_movewide_immediate(state, true, R5, idx);
+    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, R5, idx);
 
     // The context.
     // Use a sneaky way to copy the context register into the R6 register (as the final parameter).
@@ -763,6 +761,7 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 static void
 emit_atomic_operation(
     struct jit_state* state,
+    struct ubpf_vm* vm,
     bool is_64bit,
     enum Registers value_reg,
     enum Registers addr_reg,
@@ -797,7 +796,7 @@ emit_atomic_operation(
             // Choose a scratch register for the offset that is distinct from addr_temp.
             enum Registers offset_temp =
                 (addr_temp == offset_register) ? temp_div_register : offset_register;
-            emit_movewide_immediate(state, true, offset_temp, offset);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_temp, offset);
             emit_addsub_register(state, true, AS_ADD, addr_temp, addr_reg, offset_temp);
         }
     } else {
@@ -1514,24 +1513,24 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
                 break;
             case EBPF_ALU_OP_OR:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
                 break;
             case EBPF_ALU_OP_AND:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
                 break;
             case EBPF_ALU_OP_XOR:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 // For CMPXCHG, result goes to R0 (BPF register 0)
                 result_reg = map_register(0);
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
                 break;
             default:
                 *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
@@ -1550,24 +1549,24 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
                 break;
             case EBPF_ALU_OP_OR:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
                 break;
             case EBPF_ALU_OP_AND:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
                 break;
             case EBPF_ALU_OP_XOR:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 // For CMPXCHG, result goes to R0 (BPF register 0)
                 result_reg = map_register(0);
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
                 break;
             default:
                 *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
