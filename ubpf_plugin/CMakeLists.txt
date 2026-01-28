@@ -27,7 +27,7 @@ target_include_directories("ubpf_plugin" PRIVATE
 target_link_libraries(
     ubpf_plugin
     ubpf
-    ubpf_settings
+    ubpf_warnings_as_errors
 )
 
 

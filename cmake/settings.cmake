@@ -7,6 +7,10 @@
 #
 
 add_library("ubpf_settings" INTERFACE)
+add_library("ubpf_warnings_as_errors" INTERFACE)
+target_link_libraries("ubpf_warnings_as_errors" INTERFACE
+  "ubpf_settings"
+)
 
 # Only configure our settings target if we are being built directly.
 # If we are being used as a submodule, give a chance to the parent
@@ -91,6 +95,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
     target_compile_options("ubpf_settings" INTERFACE
       /W4
+    )
+
+    target_compile_options("ubpf_warnings_as_errors" INTERFACE
       /WX
     )
 
