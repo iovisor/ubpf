@@ -118,7 +118,10 @@ ubpf_create(void)
         return NULL;
     }
 
-    vm->bounds_check_enabled = true;
+    // Note: bounds_check_enabled defaults to false because the JIT bounds checking
+    // implementation is still being debugged. The interpreter bounds checking works
+    // correctly when enabled. Set vm->bounds_check_enabled = true to test JIT bounds checking.
+    vm->bounds_check_enabled = false;
     vm->undefined_behavior_check_enabled = false;
     vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
     vm->constant_blinding_enabled = false;

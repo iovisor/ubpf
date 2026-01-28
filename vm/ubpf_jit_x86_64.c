@@ -1576,10 +1576,39 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
 {
     int access_size = operand_size_to_bytes(size);
     
-    /* Compute effective address (addr_reg + offset) into R10 (scratch register)
-     * to avoid corrupting eBPF r0 (which may be mapped to RAX) or VOLATILE_CTXT in R11
-     */
-    if (offset == 0) {
+    /* Save all volatile registers that we'll clobber BEFORE computing the address */
+    /* This ensures we preserve the original BPF register values */
+    /* Push order: R10, RAX, RCX, RDX, RSI, RDI, R8, R9, R11 (9 registers = 72 bytes) */
+    emit_push(state, R10);  /* [RSP+64] after all pushes */
+    emit_push(state, RAX);  /* [RSP+56] */
+    emit_push(state, RCX);  /* [RSP+48] */
+    emit_push(state, RDX);  /* [RSP+40] */
+    emit_push(state, RSI);  /* [RSP+32] */
+    emit_push(state, RDI);  /* [RSP+24] */
+    emit_push(state, R8);   /* [RSP+16] */
+    emit_push(state, R9);   /* [RSP+8] */
+    emit_push(state, R11);  /* [RSP+0] - VOLATILE_CTXT */
+    
+    /* Determine stack offset for addr_reg if it was pushed */
+    int addr_reg_offset = -1;  /* -1 means register wasn't pushed */
+    if (addr_reg == R10) addr_reg_offset = 64;
+    else if (addr_reg == RAX) addr_reg_offset = 56;
+    else if (addr_reg == RCX) addr_reg_offset = 48;
+    else if (addr_reg == RDX) addr_reg_offset = 40;
+    else if (addr_reg == RSI) addr_reg_offset = 32;
+    else if (addr_reg == RDI) addr_reg_offset = 24;
+    else if (addr_reg == R8) addr_reg_offset = 16;
+    else if (addr_reg == R9) addr_reg_offset = 8;
+    else if (addr_reg == R11) addr_reg_offset = 0;
+    
+    /* NOW compute effective address (addr_reg + offset) into R10 (scratch register) */
+    if (addr_reg_offset >= 0) {
+        /* addr_reg was pushed, load from stack */
+        emit_load(state, S64, RSP, R10, addr_reg_offset);
+        if (offset != 0) {
+            emit_alu64_imm32(state, 0x81, 0, R10, offset);  /* ADD R10, offset */
+        }
+    } else if (offset == 0) {
         emit_mov(state, addr_reg, R10);
     } else {
         /* LEA r10, [addr_reg + offset] */
@@ -1588,18 +1617,10 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
         emit_modrm_and_displacement(state, R10, addr_reg, offset);
     }
     
-    /* Save all volatile registers that we'll clobber */
-    emit_push(state, R10);  /* The computed address */
-    emit_push(state, RAX);
-    emit_push(state, RCX);
-    emit_push(state, RDX);
-    emit_push(state, RSI);
-    emit_push(state, RDI);
-    emit_push(state, R8);
-    emit_push(state, R9);
-    emit_push(state, R11);  /* Save VOLATILE_CTXT */
+    /* Now push the computed address so we can reference it later */
+    emit_push(state, R10);
     
-    /* Align stack to 16 bytes (we pushed 9*8=72 bytes, need 8 more) */
+    /* Align stack to 16 bytes (we pushed 10*8=80 bytes, already aligned) */
     emit_alu64_imm32(state, 0x81, 5, RSP, 8);
 
 #if defined(_WIN32)
@@ -1612,14 +1633,23 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RCX, vm_ptr_tgt);
     
-    /* Arg 2 (RDX): address (from stack where we saved R10).
-     * Stack layout at this point:
-     *   - Caller shadow space and outgoing args: [RSP .. RSP+79]  (80 bytes)
-     *   - Alignment padding:                     [RSP+80 .. RSP+87]  (8 bytes)
-     *   - Callee-saved registers: R11 at RSP+88, R9 at RSP+96, ..., R10 at RSP+152
-     * Hence the saved R10 (the address argument) is located at RSP + 152.
+    /* Arg 2 (RDX): address (the computed effective address).
+     * Stack layout at this point (push order: R10_orig, RAX, RCX, RDX, RSI, RDI, R8, R9, R11, R10_computed):
+     *   - Shadow space and outgoing args: [RSP .. RSP+79]  (80 bytes)
+     *   - Alignment padding:              [RSP+80 .. RSP+87]  (8 bytes)
+     *   - R10 (computed address):         [RSP+88]
+     *   - R11:                            [RSP+96]
+     *   - R9:                             [RSP+104]
+     *   - R8:                             [RSP+112]
+     *   - RDI:                            [RSP+120]
+     *   - RSI:                            [RSP+128]
+     *   - RDX:                            [RSP+136]
+     *   - RCX:                            [RSP+144]
+     *   - RAX:                            [RSP+152]
+     *   - R10 (original):                 [RSP+160]
+     * The computed address is at RSP + 88.
      */
-    emit_load(state, S64, RSP, RDX, 152);
+    emit_load(state, S64, RSP, RDX, 88);
     
     /* Arg 3 (R8): size */
     emit_load_imm(state, R8, access_size);
@@ -1661,14 +1691,23 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     vm_ptr_tgt.target.special = LoadVMPtr;
     emit_rip_relative_load(state, RDI, vm_ptr_tgt);
     
-    /* Arg 2 (RSI): address (from stack where we saved R10)
-     * Stack layout at this point:
-     *   - Stack args:              [RSP .. RSP+31]        (32 bytes)
-     *   - Alignment padding:       [RSP+32 .. RSP+39]    (8 bytes)
-     *   - Callee-saved registers:  R11 at RSP+40, R9 at RSP+48, ..., R10 at RSP+104
-     * Hence the saved R10 (the address argument) is located at RSP + 104.
+    /* Arg 2 (RSI): address (the computed effective address)
+     * Stack layout at this point (push order: R10_orig, RAX, RCX, RDX, RSI, RDI, R8, R9, R11, R10_computed):
+     *   - Stack args:                 [RSP .. RSP+31]  (32 bytes)
+     *   - Alignment padding:          [RSP+32 .. RSP+39]  (8 bytes)
+     *   - R10 (computed address):     [RSP+40]
+     *   - R11:                        [RSP+48]
+     *   - R9:                         [RSP+56]
+     *   - R8:                         [RSP+64]
+     *   - RDI:                        [RSP+72]
+     *   - RSI:                        [RSP+80]
+     *   - RDX:                        [RSP+88]
+     *   - RCX:                        [RSP+96]
+     *   - RAX:                        [RSP+104]
+     *   - R10 (original):             [RSP+112]
+     * The computed address is at RSP + 40.
      */
-    emit_load(state, S64, RSP, RSI, 104);
+    emit_load(state, S64, RSP, RSI, 40);
     
     /* Arg 3 (RDX): size */
     emit_load_imm(state, RDX, access_size);
@@ -1730,13 +1769,17 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     /* Error path: bounds check failed - set eBPF r0 to -1 */
     int r0_reg = map_register(BPF_REG_0);
     emit_load_imm(state, r0_reg, -1);
-    emit_alu64_imm32(state, 0x81, 0, RSP, 72);  /* Restore register saves */
+    /* We pushed 10 registers (80 bytes) - restore stack and jump to exit */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 80);
     DECLARE_PATCHABLE_SPECIAL_TARGET(error_exit, Exit);
     emit_jmp(state, error_exit);
     
     /* Success path: restore registers and continue */
     emit_jump_target(state, success_jump_source);
     
+    /* Pop in reverse order of push: R10_computed, R11, R9, R8, RDI, RSI, RDX, RCX, RAX, R10_orig */
+    /* First discard the computed address (we don't need it anymore) */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
     emit_pop(state, R11);  /* Restore VOLATILE_CTXT */
     emit_pop(state, R9);
     emit_pop(state, R8);
@@ -1745,8 +1788,8 @@ emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum op
     emit_pop(state, RDX);
     emit_pop(state, RCX);
     emit_pop(state, RAX);
-    /* Discard the computed effective address (R10) from stack */
-    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
+    /* Restore R10 - it may be mapped to a BPF register (e.g., BPF_REG_1 on Windows) */
+    emit_pop(state, R10);
 }
 
 static uint32_t
