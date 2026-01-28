@@ -1,5 +1,6 @@
 import struct
 from nose.plugins.skip import Skip, SkipTest
+from parcon import ParseException
 import ubpf.assembler
 import ubpf.disassembler
 import testdata
@@ -171,13 +172,14 @@ def test_label_starts_with_digit_error():
     """
     try:
         ubpf.assembler.assemble(source)
-        assert False, "Should have raised parse error for label starting with digit"
+        assert False, "Should have raised ParseException for label starting with digit"
+    except ParseException as e:
+        # Parser should reject this with a parse exception
+        # Verify it's about the label name constraint
+        assert "expected" in str(e).lower() or "position" in str(e).lower()
     except ValueError:
         # Should not be a ValueError (that's for undefined/duplicate labels)
-        assert False, "Should have raised parse error, not ValueError"
-    except Exception:
-        # Parser should reject this with a parse exception
-        pass
+        assert False, "Should have raised ParseException, not ValueError"
 
 def test_label_with_lddw():
     """Test label offset calculation with LDDW instruction"""
