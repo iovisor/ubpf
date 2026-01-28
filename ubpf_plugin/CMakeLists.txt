@@ -67,11 +67,6 @@ endif()
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
 list(APPEND TESTS_EXPECTED_TO_FAIL "duplicate_label")
 
-# Interlocked operations are not supported on ARM64 or MacOS
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 OR CMAKE_SYSTEM_NAME STREQUAL Darwin)
-    # All files that have lock in the name are expected to fail
-    list(APPEND TESTS_EXPECTED_TO_FAIL_JIT "lock")
-endif()
 
 foreach(file ${files})
     unset(EXPECT_FAILURE)
