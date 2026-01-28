@@ -27,8 +27,13 @@ if [ -z "$ARCH" ]; then
 	ARCH=$(gcc -print-multiarch 2>/dev/null)
 fi
 if [ -z "$ARCH" ]; then
-	# Final fallback to x86_64-linux-gnu
-	ARCH="x86_64-linux-gnu"
+	# Final fallback based on machine architecture
+	MACHINE=$(uname -m)
+	if [ "$MACHINE" = "aarch64" ]; then
+		ARCH="aarch64-linux-gnu"
+	else
+		ARCH="x86_64-linux-gnu"
+	fi
 fi
 
 sudo PREFIX=/usr LIBDIR=/usr/lib/${ARCH}/ make install
