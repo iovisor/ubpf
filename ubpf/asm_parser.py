@@ -19,9 +19,10 @@ decnum = +Digit()
 offset = (CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)]
 imm = (-CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)][Imm]
 
-# Label identifier: alphanumeric and underscore
-label_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789'
-label_name = Exact(+CharIn(label_chars))[flatten]["".join]
+# Label identifier: must start with letter or underscore, then alphanumeric or underscore
+label_start_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
+label_cont_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789'
+label_name = Exact(CharIn(label_start_chars) + ZeroOrMore(CharIn(label_cont_chars)))[flatten]["".join]
 label_def = (label_name + Literal(':'))[lambda x: Label(x[0] if isinstance(x, tuple) else x)]
 label_ref = label_name[LabelRef]
 
@@ -52,7 +53,7 @@ jmp_cmp_ops = ['jeq', 'jgt', 'jge', 'jlt', 'jle', 'jset', 'jne', 'jsgt', 'jsge',
 jmp_instruction = \
     (keywords(jmp_cmp_ops) + reg + "," + (reg | imm) + "," + (offset | label_ref)) | \
     (keywords(['ja']) + (offset | label_ref)) | \
-    (keywords(['call']) + Keyword(SignificantLiteral('local')) + (label_ref | imm)) | \
+    (keywords(['call']) + Keyword(SignificantLiteral('local')) + (imm | label_ref)) | \
     (keywords(['call']) + imm) | \
     (keywords(['exit'])[lambda x: (x, )])
 

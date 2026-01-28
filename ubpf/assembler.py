@@ -1,4 +1,4 @@
-from .asm_parser import parse, Reg, Imm, MemRef, Label, LabelRef
+from .asm_parser import parse, Imm, Label, LabelRef
 import struct
 try:
     from StringIO import StringIO as io
@@ -132,7 +132,13 @@ def assemble_one(inst):
         if op == 'ja':
             return pack(opcode, 0, 0, inst[1], 0)
         elif op == 'call':
-            return pack(opcode, 0, 0, 0, inst[1].value)
+            # Check if it's a local call (3-tuple with 'local' marker)
+            if len(inst) > 2 and inst[1] == 'local':
+                # call local: set src_reg=1, imm=relative offset
+                return pack(opcode, 0, 1, 0, inst[2].value)
+            else:
+                # Regular call: src_reg=0, imm=function index
+                return pack(opcode, 0, 0, 0, inst[1].value)
         elif op == 'exit':
             return pack(opcode, 0, 0, 0, 0)
     else:
@@ -199,12 +205,13 @@ def resolve_labels_in_inst(inst, current_idx, labels):
             if target.name not in labels:
                 raise ValueError("Undefined label: %s" % target.name)
             target_idx = labels[target.name]
-            # For 'call local', we use the absolute instruction index
-            resolved_imm = Imm(target_idx)
-            return ('call', resolved_imm)
+            # For 'call local', use relative offset: target_idx - current_idx - 1
+            offset = target_idx - current_idx - 1
+            resolved_imm = Imm(offset)
+            return ('call', 'local', resolved_imm)
         else:
-            # Already an Imm
-            return ('call', target)
+            # Already an Imm; preserve the 'local' marker
+            return ('call', 'local', target)
     
     # No labels to resolve in this instruction
     return inst
