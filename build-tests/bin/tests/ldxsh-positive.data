@@ -1,0 +1,7 @@
+-- asm
+ldxsh %r0, [%r1+2]
+exit
+-- mem
+aa bb ff 7f cc dd
+-- result
+0x7fff

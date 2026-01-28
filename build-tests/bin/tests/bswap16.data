@@ -1,0 +1,6 @@
+-- asm
+mov %r0, 0x1234
+bswap16 %r0
+exit
+-- result
+0x3412

@@ -1,0 +1,4 @@
+-- pyelf
+sqrti_rel.r_info = (10 << 32) | 2
+-- error
+Failed to load code: bad symbol index

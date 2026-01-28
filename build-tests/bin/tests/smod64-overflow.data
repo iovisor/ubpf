@@ -1,0 +1,9 @@
+-- asm
+# Test signed 64-bit modulo overflow case: INT64_MIN % -1
+# Per RFC 9669, this should return 0 (no remainder)
+lddw %r0, 0x8000000000000000
+mov %r1, -1
+smod %r0, %r1
+exit
+-- result
+0x0

@@ -1,0 +1,4 @@
+-- pyelf
+rel_shdr.sh_link = 30
+-- error
+Failed to load code: bad symbol table section index

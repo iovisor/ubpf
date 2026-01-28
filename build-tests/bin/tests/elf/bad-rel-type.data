@@ -1,0 +1,4 @@
+-- pyelf
+sqrti_rel.r_info = (1 << 32) | 3
+-- error
+Failed to load code: bad relocation type 3

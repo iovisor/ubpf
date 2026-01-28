@@ -1,0 +1,7 @@
+-- asm
+ldxsw %r0, [%r1+2]
+exit
+-- mem
+aa bb 01 00 00 80 cc dd
+-- result
+0xffffffff80000001

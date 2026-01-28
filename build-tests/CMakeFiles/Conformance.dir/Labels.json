@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/CMakeFiles/Conformance"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/CMakeFiles/Conformance.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/CMakeFiles/Conformance-complete.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-build.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-configure.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-download.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-install.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-mkdir.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-patch.rule"
+		},
+		{
+			"file" : "/home/runner/work/ubpf/ubpf/build-tests/Conformance-prefix/src/Conformance-stamp/Conformance-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"Conformance"
+		],
+		"name" : "Conformance"
+	}
+}

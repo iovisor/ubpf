@@ -1,0 +1,158 @@
+[
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_instruction_valid.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_instruction_valid.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_instruction_valid.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_instruction_valid.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_jit_arm64.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_jit_arm64.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_jit_arm64.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_jit_arm64.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_jit.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_jit.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_jit.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_jit.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_jit_support.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_jit_support.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_jit_support.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_jit_support.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_jit_x86_64.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_jit_x86_64.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_jit_x86_64.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_jit_x86_64.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_loader.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_loader.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_loader.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_loader.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf.dir/ubpf_vm.c.o -c /home/runner/work/ubpf/ubpf/vm/ubpf_vm.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/ubpf_vm.c",
+  "output": "vm/CMakeFiles/ubpf.dir/ubpf_vm.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/cc -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm -O2 -g -DNDEBUG -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o vm/CMakeFiles/ubpf_test.dir/test.c.o -c /home/runner/work/ubpf/ubpf/vm/test.c",
+  "file": "/home/runner/work/ubpf/ubpf/vm/test.c",
+  "output": "vm/CMakeFiles/ubpf_test.dir/test.c.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_custom_test_support.dir/srcs/ubpf_custom_test_support.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_custom_test_support.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_custom_test_support.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_custom_test_support.dir/srcs/ubpf_custom_test_support.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_atomic_validate.dir/srcs/ubpf_test_atomic_validate.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_atomic_validate.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_atomic_validate.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_atomic_validate.dir/srcs/ubpf_test_atomic_validate.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_constant_blinding.dir/srcs/ubpf_test_constant_blinding.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_constant_blinding.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_constant_blinding.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_constant_blinding.dir/srcs/ubpf_test_constant_blinding.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size.dir/srcs/ubpf_test_custom_local_function_stack_size.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size.dir/srcs/ubpf_test_custom_local_function_stack_size.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size_unaligned.dir/srcs/ubpf_test_custom_local_function_stack_size_unaligned.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size_unaligned.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size_unaligned.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size_unaligned.dir/srcs/ubpf_test_custom_local_function_stack_size_unaligned.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size_zero.dir/srcs/ubpf_test_custom_local_function_stack_size_zero.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size_zero.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_custom_local_function_stack_size_zero.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_custom_local_function_stack_size_zero.dir/srcs/ubpf_test_custom_local_function_stack_size_zero.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_debug_function.dir/srcs/ubpf_test_debug_function.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_debug_function.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_debug_function.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_debug_function.dir/srcs/ubpf_test_debug_function.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_default_dispatcher_helper_context.dir/srcs/ubpf_test_default_dispatcher_helper_context.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_default_dispatcher_helper_context.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_default_dispatcher_helper_context.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_default_dispatcher_helper_context.dir/srcs/ubpf_test_default_dispatcher_helper_context.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_default_local_function_stack_size.dir/srcs/ubpf_test_default_local_function_stack_size.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_default_local_function_stack_size.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_default_local_function_stack_size.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_default_local_function_stack_size.dir/srcs/ubpf_test_default_local_function_stack_size.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_external_dispatcher_context_overwrite.dir/srcs/ubpf_test_external_dispatcher_context_overwrite.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_external_dispatcher_context_overwrite.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_external_dispatcher_context_overwrite.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_external_dispatcher_context_overwrite.dir/srcs/ubpf_test_external_dispatcher_context_overwrite.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_external_dispatcher_simple_context.dir/srcs/ubpf_test_external_dispatcher_simple_context.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_external_dispatcher_simple_context.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_external_dispatcher_simple_context.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_external_dispatcher_simple_context.dir/srcs/ubpf_test_external_dispatcher_simple_context.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_frame_pointer.dir/srcs/ubpf_test_frame_pointer.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_frame_pointer.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_frame_pointer.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_frame_pointer.dir/srcs/ubpf_test_frame_pointer.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_jit_buffer_too_small.dir/srcs/ubpf_test_jit_buffer_too_small.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_jit_buffer_too_small.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_jit_buffer_too_small.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_jit_buffer_too_small.dir/srcs/ubpf_test_jit_buffer_too_small.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_jit_unexpected_instruction.dir/srcs/ubpf_test_jit_unexpected_instruction.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_jit_unexpected_instruction.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_jit_unexpected_instruction.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_jit_unexpected_instruction.dir/srcs/ubpf_test_jit_unexpected_instruction.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_readonly_bytecode.dir/srcs/ubpf_test_readonly_bytecode.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_readonly_bytecode.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_readonly_bytecode.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_readonly_bytecode.dir/srcs/ubpf_test_readonly_bytecode.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_update_dispatcher.dir/srcs/ubpf_test_update_dispatcher.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_update_dispatcher.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_update_dispatcher.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_update_dispatcher.dir/srcs/ubpf_test_update_dispatcher.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -I/home/runner/work/ubpf/ubpf/custom_tests/.srcs -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o custom_tests/CMakeFiles/ubpf_test_update_helpers.dir/srcs/ubpf_test_update_helpers.cc.o -c /home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_update_helpers.cc",
+  "file": "/home/runner/work/ubpf/ubpf/custom_tests/srcs/ubpf_test_update_helpers.cc",
+  "output": "custom_tests/CMakeFiles/ubpf_test_update_helpers.dir/srcs/ubpf_test_update_helpers.cc.o"
+},
+{
+  "directory": "/home/runner/work/ubpf/ubpf/build-tests",
+  "command": "/usr/bin/c++ -I/home/runner/work/ubpf/ubpf/vm -I/home/runner/work/ubpf/ubpf/build-tests/vm -I/home/runner/work/ubpf/ubpf/vm/inc -I/home/runner/work/ubpf/ubpf/build-tests/vm/inc -O2 -g -DNDEBUG -std=gnu++20 -Wall -Werror -Iinc -O2 -Wunused-parameter -fPIC -O0 -g -o ubpf_plugin/CMakeFiles/ubpf_plugin.dir/ubpf_plugin.cc.o -c /home/runner/work/ubpf/ubpf/ubpf_plugin/ubpf_plugin.cc",
+  "file": "/home/runner/work/ubpf/ubpf/ubpf_plugin/ubpf_plugin.cc",
+  "output": "ubpf_plugin/CMakeFiles/ubpf_plugin.dir/ubpf_plugin.cc.o"
+}
+]

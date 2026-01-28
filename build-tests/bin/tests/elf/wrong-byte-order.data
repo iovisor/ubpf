@@ -1,0 +1,4 @@
+-- pyelf
+ehdr.e_ident.EI_DATA = 'ELFDATA2MSB'
+-- error
+Failed to load code: wrong byte order

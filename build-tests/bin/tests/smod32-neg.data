@@ -1,0 +1,11 @@
+-- asm
+# Test signed 32-bit modulo with negative dividend
+# RFC 9669 requires truncated division: a % n = a - n * trunc(a / n)
+# -13 % 4 = -13 - 4 * trunc(-13 / 4) = -13 - 4 * (-3) = -13 + 12 = -1
+# -13 in 32-bit = 0xfffffff3
+lddw %r0, 0xfffffff3
+smod32 %r0, 4
+# Result: -1 = 0xffffffff (32-bit)
+exit
+-- result
+0xffffffff

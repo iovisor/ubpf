@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+include("${CMAKE_SOURCE_DIR}/cmake/test_support.cmake")
+
 if (UBPF_SKIP_EXTERNAL)
     message(WARNING "Skipping configuration of tests that require external package support.")
     return()
@@ -11,11 +13,10 @@ set(Boost_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/packages/boost/lib/native/include)
 set(Boost_LIBRARY_DIRS ${CMAKE_BINARY_DIR}/packages/boost_filesystem-vc143/lib/native)
 endif()
 
-set(UBPF_FUZZER_INCLUDES "${CMAKE_SOURCE_DIR}/vm"
-    "${CMAKE_BINARY_DIR}/vm"
+# Extend base test includes with fuzzer-specific includes
+set(UBPF_FUZZER_INCLUDES 
+    ${UBPF_TEST_INCLUDES}
     "${CMAKE_BINARY_DIR}/_deps/gsl-src/include"
-    "${CMAKE_SOURCE_DIR}/vm/inc"
-    "${CMAKE_BINARY_DIR}/vm/inc"
     "${CMAKE_SOURCE_DIR}/ubpf_plugin"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/crab"
@@ -23,9 +24,9 @@ set(UBPF_FUZZER_INCLUDES "${CMAKE_SOURCE_DIR}/vm"
     "${CMAKE_CURRENT_BINARY_DIR}"
     "${Boost_INCLUDE_DIRS}")
 
+# Extend base test libs with fuzzer-specific libs
 set(UBPF_FUZZER_LIBS
-    ubpf
-    ubpf_settings
+    ${UBPF_TEST_LIBS}
     ebpfverifier)
 
 set(CMAKE_REQUIRED_INCLUDES ${UBPF_FUZZER_INCLUDES})

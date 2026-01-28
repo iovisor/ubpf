@@ -1,0 +1,4 @@
+-- pyelf
+sqrti_sym.st_name += 1
+-- error
+Failed to load code: function 'qrti' not found

@@ -1,0 +1,8 @@
+-- asm
+# Test signed 32-bit modulo with positive values
+mov32 %r0, 13
+smod32 %r0, 4
+# 13 % 4 = 1
+exit
+-- result
+0x1

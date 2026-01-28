@@ -1,0 +1,4 @@
+-- pyelf
+ehdr.e_machine = 1
+-- error
+Failed to load code: wrong machine, expected none or BPF, got 1

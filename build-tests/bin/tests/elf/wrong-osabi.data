@@ -1,0 +1,4 @@
+-- pyelf
+ehdr.e_ident.EI_OSABI = 'ELFOSABI_LINUX'
+-- error
+Failed to load code: wrong OS ABI

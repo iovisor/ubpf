@@ -1,0 +1,4 @@
+-- pyelf
+ehdr.e_ident.EI_VERSION = 2
+-- error
+Failed to load code: wrong version

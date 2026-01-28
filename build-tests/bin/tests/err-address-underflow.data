@@ -1,0 +1,10 @@
+-- asm
+mov %r6, 0
+ldxb %r0, [%r6-1]
+exit
+-- error pattern
+uBPF error: address underflow in load at PC 1
+-- result
+0xffffffffffffffff
+-- no jit
+JIT does not implement address underflow detection

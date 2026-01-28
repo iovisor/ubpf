@@ -1,0 +1,4 @@
+-- pyelf
+ehdr.e_ident.EI_CLASS = 'ELFCLASS32'
+-- error
+Failed to load code: wrong class

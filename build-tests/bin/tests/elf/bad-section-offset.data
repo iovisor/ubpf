@@ -1,0 +1,4 @@
+-- pyelf
+text_shdr.sh_offset = 1024
+-- error
+Failed to load code: bad section offset or size

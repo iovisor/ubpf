@@ -1,0 +1,12 @@
+-- asm
+mov %r0, 0x7
+ldxw %r1, [%r1]
+add %r1, 0x2
+mul %r0, 0x7
+add %r1, 0xffffffff
+jne %r1, 0x0, -3
+exit
+-- mem
+00 00 00 00
+-- result
+0x157

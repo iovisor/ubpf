@@ -1,0 +1,8 @@
+-- asm
+# Test signed 64-bit modulo by zero returns dividend
+mov %r0, 10
+mov %r1, 0
+smod %r0, %r1
+exit
+-- result
+0xa

@@ -1,0 +1,71 @@
+-- asm
+mov %r6, 0x0001
+mov %r7, 0x0020
+mov %r8, 0x0300
+mov %r9, 0x4000
+
+# r1 should contain pointer to program memory.
+# Don't screw that up because helper function 1 (memfrob)
+# needs it.
+mov %r2, 0x0001
+mov %r3, 0x0001
+mov %r4, 0x0001
+mov %r5, 0x0001
+call 1
+mov %r0, 0
+or %r0, %r6
+or %r0, %r7
+or %r0, %r8
+or %r0, %r9
+jeq %r0, 0x4321, +1
+exit
+
+# Call helper function 0 -- the memory pointer is
+# no longer needed for any other helper functions, so
+# we don't have to worry about keeping it safe.
+mov %r1, 0x0001
+mov %r2, 0x0001
+mov %r3, 0x0001
+mov %r4, 0x0001
+mov %r5, 0x0001
+call 0
+mov %r0, 0
+or %r0, %r6
+or %r0, %r7
+or %r0, %r8
+or %r0, %r9
+jeq %r0, 0x4321, +1
+exit
+
+mov %r1, 0x0001
+mov %r2, 0x0001
+mov %r3, 0x0001
+mov %r4, 0x0001
+mov %r5, 0x0001
+call 2
+mov %r0, 0
+or %r0, %r6
+or %r0, %r7
+or %r0, %r8
+or %r0, %r9
+jeq %r0, 0x4321, +1
+exit
+
+mov %r1, 0x0001
+mov %r2, 0x0001
+mov %r3, 0x0001
+mov %r4, 0x0001
+mov %r5, 0x0001
+call 3
+mov %r0, 0
+or %r0, %r6
+or %r0, %r7
+or %r0, %r8
+or %r0, %r9
+exit
+-- mem
+01 02 03 04 05 06 07 08
+-- result
+0x4321
+-- no register offset
+call instruction

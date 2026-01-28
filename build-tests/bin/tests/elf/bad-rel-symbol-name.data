@@ -1,0 +1,4 @@
+-- pyelf
+sqrti_sym.st_name = 100
+-- error
+Failed to load code: bad symbol name
