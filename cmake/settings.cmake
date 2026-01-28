@@ -91,6 +91,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
     target_compile_options("ubpf_settings" INTERFACE
       /W4
+      /WX
     )
 
     target_compile_definitions("ubpf_settings" INTERFACE
