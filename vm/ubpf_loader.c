@@ -52,6 +52,10 @@
 #define R_BPF_64_32 10
 #endif
 
+#ifndef R_BPF_64_32_LEGACY
+#define R_BPF_64_32_LEGACY 2
+#endif
+
 #if defined(UBPF_HAS_ELF_H)
 
 typedef struct _bounds
@@ -435,6 +439,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                 applies_to_inst2->imm = (uint32_t)(imm >> 32);
                 break;
             }
+            case R_BPF_64_32_LEGACY: // Support legacy type 2 from older clang versions
             case R_BPF_64_32: {
                 if (applies_to_inst->src == 1) {
                     // Perform local function call relocation.
