@@ -1156,19 +1156,49 @@ ubpf_exec_ex(
             break;
 
             /*
+             * Helper macro to safely compute effective address with overflow detection.
+             * Computes: base_addr + offset, handling signed offset and overflow/underflow.
+             * Stores result in _eff_addr variable.
+             * On overflow/underflow, prints error and jumps to cleanup.
+             */
+#define COMPUTE_EFFECTIVE_ADDR(base_reg, is_load)                                                        \
+    uint64_t _base_addr = reg[base_reg];                                                                  \
+    int64_t _offset = inst.offset;                                                                        \
+    uint64_t _eff_addr;                                                                                   \
+    if (_offset >= 0) {                                                                                   \
+        if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                               \
+            vm->error_printf(stderr, "uBPF error: address overflow in %s at PC %u\n",                    \
+                             is_load ? "load" : "store", cur_pc);                                        \
+            return_value = -1;                                                                            \
+            goto cleanup;                                                                                 \
+        }                                                                                                 \
+        _eff_addr = _base_addr + (uint64_t)_offset;                                                      \
+    } else {                                                                                              \
+        if (_base_addr < (uint64_t)(-_offset)) {                                                         \
+            vm->error_printf(stderr, "uBPF error: address underflow in %s at PC %u\n",                   \
+                             is_load ? "load" : "store", cur_pc);                                        \
+            return_value = -1;                                                                            \
+            goto cleanup;                                                                                 \
+        }                                                                                                 \
+        _eff_addr = _base_addr - (uint64_t)(-_offset);                                                   \
+    }
+
+/*
              * HACK runtime bounds check
              *
              * Needed since we don't have a verifier yet.
              */
 #define BOUNDS_CHECK_LOAD(size)                                                                           \
+    COMPUTE_EFFECTIVE_ADDR(inst.src, true)                                                                \
     do {                                                                                                  \
+        void* _ptr = (void*)_eff_addr;                                                                    \
         if (!ubpf_check_shadow_stack(                                                                     \
-                vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.src] + inst.offset, size)) { \
+                vm, stack_start, stack_length, shadow_stack, _ptr, size)) {                               \
                 shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
         }                                                                                                 \
         if (!bounds_check(                                                                                \
                 vm,                                                                                       \
-                (char*)reg[inst.src] + inst.offset,                                                       \
+                _ptr,                                                                                     \
                 size,                                                                                     \
                 "load",                                                                                   \
                 cur_pc,                                                                                   \
@@ -1180,87 +1210,105 @@ ubpf_exec_ex(
             goto cleanup;                                                                                 \
         }                                                                                                 \
     } while (0)
-#define BOUNDS_CHECK_STORE(size)                                                                                       \
-    do {                                                                                                               \
-        if (!bounds_check(                                                                                             \
-                vm,                                                                                                    \
-                (char*)reg[inst.dst] + inst.offset,                                                                    \
-                size,                                                                                                  \
-                "store",                                                                                               \
-                cur_pc,                                                                                                \
-                mem,                                                                                                   \
-                mem_len,                                                                                               \
-                stack_start,                                                                                           \
-                stack_length)) {                                                                                       \
-            return_value = -1;                                                                                         \
-            goto cleanup;                                                                                              \
-        }                                                                                                              \
-        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, (char*)reg[inst.dst] + inst.offset, size); \
+    
+#define BOUNDS_CHECK_STORE(size)                                                                          \
+    COMPUTE_EFFECTIVE_ADDR(inst.dst, false)                                                               \
+    do {                                                                                                  \
+        void* _ptr = (void*)_eff_addr;                                                                    \
+        if (!bounds_check(                                                                                \
+                vm,                                                                                       \
+                _ptr,                                                                                     \
+                size,                                                                                     \
+                "store",                                                                                  \
+                cur_pc,                                                                                   \
+                mem,                                                                                      \
+                mem_len,                                                                                  \
+                stack_start,                                                                              \
+                stack_length)) {                                                                          \
+            return_value = -1;                                                                            \
+            goto cleanup;                                                                                 \
+        }                                                                                                 \
+        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, _ptr, size);                 \
     } while (0)
 
-        case EBPF_OP_LDXW:
+        case EBPF_OP_LDXW: {
             BOUNDS_CHECK_LOAD(4);
-            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 4);
+            reg[inst.dst] = ubpf_mem_load(_eff_addr, 4);
             break;
-        case EBPF_OP_LDXH:
+        }
+        case EBPF_OP_LDXH: {
             BOUNDS_CHECK_LOAD(2);
-            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 2);
+            reg[inst.dst] = ubpf_mem_load(_eff_addr, 2);
             break;
-        case EBPF_OP_LDXB:
+        }
+        case EBPF_OP_LDXB: {
             BOUNDS_CHECK_LOAD(1);
-            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 1);
+            reg[inst.dst] = ubpf_mem_load(_eff_addr, 1);
             break;
-        case EBPF_OP_LDXDW:
+        }
+        case EBPF_OP_LDXDW: {
             BOUNDS_CHECK_LOAD(8);
-            reg[inst.dst] = ubpf_mem_load(reg[inst.src] + inst.offset, 8);
+            reg[inst.dst] = ubpf_mem_load(_eff_addr, 8);
             break;
+        }
 
-        case EBPF_OP_LDXWSX:
+        case EBPF_OP_LDXWSX: {
             BOUNDS_CHECK_LOAD(4);
-            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 4);
+            reg[inst.dst] = ubpf_mem_load_sx(_eff_addr, 4);
             break;
-        case EBPF_OP_LDXHSX:
+        }
+        case EBPF_OP_LDXHSX: {
             BOUNDS_CHECK_LOAD(2);
-            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 2);
+            reg[inst.dst] = ubpf_mem_load_sx(_eff_addr, 2);
             break;
-        case EBPF_OP_LDXBSX:
+        }
+        case EBPF_OP_LDXBSX: {
             BOUNDS_CHECK_LOAD(1);
-            reg[inst.dst] = ubpf_mem_load_sx(reg[inst.src] + inst.offset, 1);
+            reg[inst.dst] = ubpf_mem_load_sx(_eff_addr, 1);
             break;
+        }
 
-        case EBPF_OP_STW:
+        case EBPF_OP_STW: {
             BOUNDS_CHECK_STORE(4);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 4);
+            ubpf_mem_store(_eff_addr, inst.imm, 4);
             break;
-        case EBPF_OP_STH:
+        }
+        case EBPF_OP_STH: {
             BOUNDS_CHECK_STORE(2);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 2);
+            ubpf_mem_store(_eff_addr, inst.imm, 2);
             break;
-        case EBPF_OP_STB:
+        }
+        case EBPF_OP_STB: {
             BOUNDS_CHECK_STORE(1);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 1);
+            ubpf_mem_store(_eff_addr, inst.imm, 1);
             break;
-        case EBPF_OP_STDW:
+        }
+        case EBPF_OP_STDW: {
             BOUNDS_CHECK_STORE(8);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, inst.imm, 8);
+            ubpf_mem_store(_eff_addr, inst.imm, 8);
             break;
+        }
 
-        case EBPF_OP_STXW:
+        case EBPF_OP_STXW: {
             BOUNDS_CHECK_STORE(4);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 4);
+            ubpf_mem_store(_eff_addr, reg[inst.src], 4);
             break;
-        case EBPF_OP_STXH:
+        }
+        case EBPF_OP_STXH: {
             BOUNDS_CHECK_STORE(2);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 2);
+            ubpf_mem_store(_eff_addr, reg[inst.src], 2);
             break;
-        case EBPF_OP_STXB:
+        }
+        case EBPF_OP_STXB: {
             BOUNDS_CHECK_STORE(1);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 1);
+            ubpf_mem_store(_eff_addr, reg[inst.src], 1);
             break;
-        case EBPF_OP_STXDW:
+        }
+        case EBPF_OP_STXDW: {
             BOUNDS_CHECK_STORE(8);
-            ubpf_mem_store(reg[inst.dst] + inst.offset, reg[inst.src], 8);
+            ubpf_mem_store(_eff_addr, reg[inst.src], 8);
             break;
+        }
 
         case EBPF_OP_LDDW:
             reg[inst.dst] = u32(inst.imm) | ((uint64_t)ubpf_fetch_instruction(vm, pc++).imm << 32);
@@ -1558,7 +1606,7 @@ ubpf_exec_ex(
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
-            volatile uint64_t* destination = (volatile uint64_t*)(reg[inst.dst] + inst.offset);
+            volatile uint64_t* destination = (volatile uint64_t*)_eff_addr;
             uint64_t value = reg[inst.src];
             uint64_t result;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
@@ -1598,7 +1646,7 @@ ubpf_exec_ex(
                          (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
-            volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
+            volatile uint32_t* destination = (volatile uint32_t*)_eff_addr;
             uint32_t value = u32(reg[inst.src]);
             uint32_t result;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
@@ -1997,34 +2045,72 @@ bounds_check(
     if (!vm->bounds_check_enabled)
         return true;
 
+    // Check for negative size
+    if (size < 0) {
+        vm->error_printf(
+            stderr, "uBPF error: negative size in %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
+        return false;
+    }
+
     uintptr_t access_start = (uintptr_t)addr;
-    uintptr_t access_end = access_start + size;
+    
+    // Check for overflow in access_start + size
+    if ((uintptr_t)size > UINTPTR_MAX - access_start) {
+        vm->error_printf(
+            stderr, "uBPF error: integer overflow in %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
+        return false;
+    }
+    uintptr_t access_end = access_start + (uintptr_t)size;
+
+    // Initialize stack and memory region bounds and validity flags
     uintptr_t stack_start = (uintptr_t)stack;
-    uintptr_t stack_end = stack_start + stack_len;
+    uintptr_t stack_end = 0;
     uintptr_t mem_start = (uintptr_t)mem;
-    uintptr_t mem_end = mem_start + mem_len;
+    uintptr_t mem_end = 0;
+    bool stack_valid = false;
+    bool mem_valid = false;
+    bool stack_overflow = false;
+    bool mem_overflow = false;
+
+    // Check for overflow in stack_start + stack_len
+    if (stack_len > UINTPTR_MAX - stack_start) {
+        // stack_start + stack_len would overflow
+        // Mark as invalid and record the overflow for potential error reporting
+        stack_valid = false;
+        stack_overflow = true;
+    } else {
+        stack_end = stack_start + stack_len;
+        stack_valid = true;
+    }
+
+    // Check for overflow in mem_start + mem_len
+    if (mem) {
+        if (mem_len > UINTPTR_MAX - mem_start) {
+            // mem_start + mem_len would overflow
+            // Mark as invalid and record the overflow for potential error reporting
+            mem_valid = false;
+            mem_overflow = true;
+        } else {
+            mem_end = mem_start + mem_len;
+            mem_valid = true;
+        }
+    }
 
     // Memory in the range [access_start, access_end) is being accessed.
     // Memory in the range [stack_start, stack_end) is the stack.
     // Memory in the range [mem_start, mem_end) is the memory.
 
-    if (access_start > access_end) {
-        vm->error_printf(
-            stderr, "uBPF error: invalid memory access %s at PC %u, addr %p, size %d\n", type, cur_pc, addr, size);
-        return false;
-    }
-
     // Check if the access is within the memory bounds.
     // Note: The comparison is <= because the end address is one past the last byte for both
     // the access and the memory regions.
-    if (access_start >= mem_start && access_end <= mem_end) {
+    if (mem_valid && access_start >= mem_start && access_end <= mem_end) {
         return true;
     }
 
     // Check if the access is within the stack bounds.
     // Note: The comparison is <= because the end address is one past the last byte for both
     // the access and the stack regions.
-    if (access_start >= stack_start && access_end <= stack_end) {
+    if (stack_valid && access_start >= stack_start && access_end <= stack_end) {
         return true;
     }
 
@@ -2032,8 +2118,25 @@ bounds_check(
     // is aware of but that is not part of the stack or memory.
     // Call any registered bounds check function to determine if the access is valid.
     if (vm->bounds_check_function != NULL &&
-        vm->bounds_check_function(vm->bounds_check_user_data, access_start, size)) {
+        vm->bounds_check_function(vm->bounds_check_user_data, access_start, (uint64_t)size)) {
         return true;
+    }
+
+    // Access is out of bounds. Check if any region overflows contributed to the failure
+    // and report those as potential root causes.
+    if (stack_overflow && access_start >= stack_start) {
+        // The access would have been in the stack region if not for the overflow
+        vm->error_printf(
+            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", 
+            cur_pc, stack, stack_len);
+        return false;
+    }
+    if (mem_overflow && mem && access_start >= mem_start) {
+        // The access would have been in the mem region if not for the overflow
+        vm->error_printf(
+            stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", 
+            cur_pc, mem, mem_len);
+        return false;
     }
 
     // Memory is neither stack, nor memory, nor valid according to the bounds check function.

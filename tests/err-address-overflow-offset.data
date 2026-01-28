@@ -1,0 +1,10 @@
+-- asm
+mov %r6, -16
+stb [%r6+16], 0
+exit
+-- error pattern
+uBPF error: address overflow in store at PC 1
+-- result
+0xffffffffffffffff
+-- no jit
+JIT does not implement address overflow detection
