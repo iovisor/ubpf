@@ -124,3 +124,32 @@ When enabled, the fuzzer will:
 
 If the external VM fails to execute or is not available, the fuzzer will continue normally without external comparison.
 
+### Configuration Options
+
+You can combine external VM comparison with other fuzzer options:
+
+```bash
+# Enable external VM with constraint checking
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_CONSTRAINT_CHECK=1 \
+./build/bin/ubpf_fuzzer corpus
+
+# Compare only JIT vs external VM (disable interpreter)
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_INTERPRETER=0 \
+./build/bin/ubpf_fuzzer corpus
+
+# Run with verbose output
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_PRINT_EXECUTION_TRACE=1 \
+./build/bin/ubpf_fuzzer corpus
+```
+
+### Security Considerations
+
+The external VM is executed as a subprocess with the following protections:
+- Plugin paths are validated to prevent command injection
+- Plugin must not contain shell metacharacters (`;`, `&`, `|`, `<`, `>`, `` ` ``, `$`, `(`, `)`)
+- Plugin failures are handled gracefully without affecting fuzzer stability
+
+
