@@ -91,3 +91,36 @@ Or you can repro it using ubpf_test:
 build/bin/ubpf-test --mem artifacts/memory-7036cbef2b568fa0b6e458a9c8062571a65144e1 artifacts/program-7036cbef2b568fa0b6e458a9c8062571a65144e1 --jit
 ```
 
+## External VM Comparison
+
+The fuzzer can compare uBPF execution results against an external BPF VM to find semantic differences between implementations.
+
+### Usage
+
+Set the `UBPF_FUZZER_EXTERNAL_VM` environment variable to the path of an external VM plugin:
+
+```bash
+export UBPF_FUZZER_EXTERNAL_VM=/path/to/vm_plugin
+build/bin/ubpf_fuzzer corpus -artifact_prefix=artifacts/
+```
+
+The external VM plugin must follow the bpf_conformance plugin interface:
+- Accept memory as hex string as first argument
+- Accept program as hex string via `--program` argument
+- Output result as hex to stdout
+- Return exit code 0 on success, non-zero on error
+
+Example using the ubpf_plugin as external VM:
+```bash
+export UBPF_FUZZER_EXTERNAL_VM=build/bin/ubpf_plugin
+build/bin/ubpf_fuzzer corpus -artifact_prefix=artifacts/
+```
+
+When enabled, the fuzzer will:
+1. Execute the program using uBPF interpreter (if enabled)
+2. Execute the program using uBPF JIT (if enabled)
+3. Execute the program using the external VM
+4. Compare all results and report discrepancies as fuzzer findings
+
+If the external VM fails to execute or is not available, the fuzzer will continue normally without external comparison.
+

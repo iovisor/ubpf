@@ -5,11 +5,14 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <memory>
 #include <vector>
 #include <set>
 #include <string>
 #include <sstream>
+#include <cstdio>
+#include <array>
 
 #include "libfuzzer_config.h"
 
@@ -52,10 +55,19 @@ public:
                 value = std::stoi(env) != 0;
             }
         }
+        // Read string-valued environment variables
+        const char* external_vm_env = std::getenv("UBPF_FUZZER_EXTERNAL_VM");
+        if (external_vm_env != nullptr) {
+            external_vm_path = external_vm_env;
+        }
     }
 
     bool get(const std::string& key) const {
         return option.at(key);
+    }
+
+    std::string get_external_vm_path() const {
+        return external_vm_path;
     }
 
 private:
@@ -73,6 +85,7 @@ private:
       {"UBPF_FUZZER_PRINT_EXECUTION_TRACE", false}, ///< Print execution trace, with register state at each step. Useful for
                                                     ///< debugging.
   };
+  std::string external_vm_path; ///< Path to external VM plugin for comparison (empty if not set)
 } g_ubpf_fuzzer_options;
 
 
@@ -792,6 +805,83 @@ call_ubpf_jit(
 }
 
 /**
+ * @brief Convert a vector of bytes to a hex string (space-separated).
+ *
+ * @param[in] bytes Vector of bytes to convert.
+ * @return Hex string representation.
+ */
+std::string
+bytes_to_hex_string(const std::vector<uint8_t>& bytes)
+{
+    std::ostringstream oss;
+    for (size_t i = 0; i < bytes.size(); ++i) {
+        if (i > 0) {
+            oss << " ";
+        }
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(bytes[i]);
+    }
+    return oss.str();
+}
+
+/**
+ * @brief Execute the given program code using an external VM plugin.
+ *
+ * @param[in] plugin_path Path to the external VM plugin executable.
+ * @param[in] program_code The program code to execute.
+ * @param[in] memory The input memory to use when executing the program.
+ * @param[out] external_result The result of the program execution.
+ * @retval true The program executed successfully.
+ * @retval false The program failed to execute or the plugin is not available.
+ */
+bool
+call_external_vm(
+    const std::string& plugin_path,
+    const std::vector<uint8_t>& program_code,
+    const std::vector<uint8_t>& memory,
+    uint64_t& external_result)
+{
+    if (plugin_path.empty()) {
+        return false;
+    }
+
+    // Convert program and memory to hex strings
+    std::string program_hex = bytes_to_hex_string(program_code);
+    std::string memory_hex = bytes_to_hex_string(memory);
+
+    // Build command: plugin_path memory_hex --program program_hex
+    std::string command = plugin_path + " \"" + memory_hex + "\" --program \"" + program_hex + "\"";
+
+    // Execute the command and capture output
+    FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe) {
+        // Failed to execute external VM
+        return false;
+    }
+
+    // Read the result from stdout
+    std::array<char, 256> buffer;
+    std::string result_str;
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        result_str += buffer.data();
+    }
+
+    int exit_code = pclose(pipe);
+    if (exit_code != 0) {
+        // External VM failed to execute
+        return false;
+    }
+
+    // Parse the hex result
+    try {
+        external_result = std::stoull(result_str, nullptr, 16);
+        return true;
+    } catch (...) {
+        // Failed to parse result
+        return false;
+    }
+}
+
+/**
  * @brief Copy the program and memory from the input buffer into separate buffers.
  *
  * @param[in] data The input buffer from the fuzzer.
@@ -906,6 +996,18 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
         }
     }
 
+    // Call external VM if configured
+    uint64_t external_result = 0;
+    bool external_success = false;
+    std::string external_vm_path = g_ubpf_fuzzer_options.get_external_vm_path();
+    if (!external_vm_path.empty()) {
+        // Reset memory for external VM execution
+        if (!split_input(data, size, program, memory)) {
+            assert(!"split_input failed");
+        }
+        external_success = call_external_vm(external_vm_path, program, memory, external_result);
+    }
+
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_JIT") && g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
         // If interpreter_result is not equal to jit_result, raise a fatal signal
         if (interpreter_result != jit_result) {
@@ -913,6 +1015,24 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
             printf("interpreter_result: %lx\n", interpreter_result);
             printf("jit_result: %lx\n", jit_result);
             throw std::runtime_error("interpreter_result != jit_result");
+        }
+    }
+
+    // Compare external VM result with interpreter and JIT results
+    if (external_success) {
+        if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
+            if (interpreter_result != external_result) {
+                printf("interpreter_result: %lx\n", interpreter_result);
+                printf("external_result: %lx\n", external_result);
+                throw std::runtime_error("interpreter_result != external_result");
+            }
+        }
+        if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_JIT")) {
+            if (jit_result != external_result) {
+                printf("jit_result: %lx\n", jit_result);
+                printf("external_result: %lx\n", external_result);
+                throw std::runtime_error("jit_result != external_result");
+            }
         }
     }
 
