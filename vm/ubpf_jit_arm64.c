@@ -243,6 +243,15 @@ enum LoadStoreOpcode
     LS_LDRX = 0xc0400000U,   // 1100_0000_0100_0000_0000_0000_0000_0000
 };
 
+enum LoadStoreExclusiveOpcode
+{
+    // sz    o2 L  o1 Rs o0
+    LSE_STXRW = 0x88007c00U,  // 1000_1000_0000_0000_0111_1100_0000_0000
+    LSE_LDXRW = 0x885f7c00U,  // 1000_1000_0101_1111_0111_1100_0000_0000
+    LSE_STXRX = 0xc8007c00U,  // 1100_1000_0000_0000_0111_1100_0000_0000
+    LSE_LDXRX = 0xc85f7c00U,  // 1100_1000_0101_1111_0111_1100_0000_0000
+};
+
 /* [ArmARM-A H.a]: C4.1.66: Load/store register (unscaled immediate).  */
 static void
 emit_loadstore_immediate(
@@ -261,6 +270,15 @@ emit_loadstore_register(
 {
     const uint32_t reg_op_base = 0x38206800U;
     emit_instruction(state, op | reg_op_base | (rm << 16) | (rn << 5) | rt);
+}
+
+/* Load-Exclusive/Store-Exclusive for atomics */
+static void
+emit_loadstore_exclusive(
+    struct jit_state* state, enum LoadStoreExclusiveOpcode op, enum Registers rt, enum Registers rn, enum Registers rs)
+{
+    // For LDXR, Rs is ignored (set to 31/RZ), for STXR it's the status register
+    emit_instruction(state, op | (rs << 16) | (rn << 5) | rt);
 }
 
 static void
@@ -703,6 +721,165 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
     emit_addsub_immediate(state, true, AS_ADD, SP, SP, stack_movement);
 
     emit_addsub_register(state, true, AS_ADD, map_register(10), map_register(10), temp_register);
+}
+
+/* Helper for emitting atomic operations using LDXR/STXR loop */
+static void
+emit_atomic_operation(
+    struct jit_state* state,
+    bool is_64bit,
+    enum Registers value_reg,
+    enum Registers addr_reg,
+    enum Registers result_reg,
+    enum Registers temp_reg,
+    enum Registers status_reg,
+    int16_t offset,
+    uint8_t alu_op,
+    bool is_cmpxchg,
+    bool is_xchg,
+    bool fetch)
+{
+    // Save the target address (addr_reg + offset) into a temporary register.
+    // Ensure that the base address register used for LDXR/STXR never aliases
+    // the status register used by STXR.
+    enum Registers addr_temp =
+        (status_reg == temp_div_register) ? offset_register : temp_div_register;
+    
+    if (offset != 0) {
+        // Use int32_t to avoid undefined behavior when negating INT16_MIN
+        int32_t abs_offset = offset;
+        enum AddSubOpcode op = AS_ADD;
+
+        if (offset < 0) {
+            op = AS_SUB;
+            abs_offset = -(int32_t)offset;
+        }
+
+        if (abs_offset < 256) {
+            emit_addsub_immediate(state, true, op, addr_temp, addr_reg, (int16_t)abs_offset);
+        } else {
+            // Choose a scratch register for the offset that is distinct from addr_temp.
+            enum Registers offset_temp =
+                (addr_temp == offset_register) ? temp_div_register : offset_register;
+            emit_movewide_immediate(state, true, offset_temp, offset);
+            emit_addsub_register(state, true, AS_ADD, addr_temp, addr_reg, offset_temp);
+        }
+    } else {
+        // Copy addr_reg into addr_temp so that the base register used by LDXR/STXR
+        // is guaranteed not to alias status_reg.
+        emit_logical_register(state, true, LOG_ORR, addr_temp, RZ, addr_reg);
+    }
+
+    // Mark retry label location
+    uint32_t retry_loc = state->offset;
+    
+    // Load exclusive - use temp_reg to avoid clobbering value_reg or result_reg
+    enum Registers load_reg = temp_reg;
+    if (is_64bit) {
+        emit_loadstore_exclusive(state, LSE_LDXRX, load_reg, addr_temp, RZ);
+    } else {
+        emit_loadstore_exclusive(state, LSE_LDXRW, load_reg, addr_temp, RZ);
+    }
+    
+    // Perform the operation
+    if (is_cmpxchg) {
+        // Compare and exchange: compare loaded value with expected value (in value_reg for BPF semantics)
+        // For CMPXCHG, BPF expects r0 to contain the expected value
+        // value_reg points to the "new" value register, and we compare loaded value with map_register(0)
+        enum Registers expected_reg = map_register(0);
+        emit_addsub_register(state, is_64bit, AS_SUBS, RZ, load_reg, expected_reg);
+        
+        // If not equal, skip the store and return the loaded value
+        DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(skip_store_tgt, 0);
+        uint32_t skip_store_src = emit_conditionalbranch_immediate(state, COND_NE, skip_store_tgt);
+        
+        // Store exclusive with value_reg (the "new" value)
+        if (is_64bit) {
+            emit_loadstore_exclusive(state, LSE_STXRX, value_reg, addr_temp, status_reg);
+        } else {
+            emit_loadstore_exclusive(state, LSE_STXRW, value_reg, addr_temp, status_reg);
+        }
+        
+        // Check if store succeeded (status_reg == 0)
+        emit_addsub_immediate(state, false, AS_SUBS, RZ, status_reg, 0);
+        
+        // Retry if failed (status != 0)
+        DECLARE_PATCHABLE_REGULAR_JIT_TARGET(retry_tgt, retry_loc);
+        emit_conditionalbranch_immediate(state, COND_NE, retry_tgt);
+        
+        // Mark skip store target
+        emit_jump_target(state, skip_store_src);
+        
+        // CMPXCHG always returns the loaded value in result_reg (which is r0)
+        if (result_reg != load_reg) {
+            emit_logical_register(state, is_64bit, LOG_ORR, result_reg, RZ, load_reg);
+        }
+        
+    } else if (is_xchg) {
+        // Exchange: store value_reg, return old value in result_reg if fetch
+        if (is_64bit) {
+            emit_loadstore_exclusive(state, LSE_STXRX, value_reg, addr_temp, status_reg);
+        } else {
+            emit_loadstore_exclusive(state, LSE_STXRW, value_reg, addr_temp, status_reg);
+        }
+        
+        // Check if store succeeded
+        emit_addsub_immediate(state, false, AS_SUBS, RZ, status_reg, 0);
+        
+        // Retry if failed
+        DECLARE_PATCHABLE_REGULAR_JIT_TARGET(retry_tgt, retry_loc);
+        emit_conditionalbranch_immediate(state, COND_NE, retry_tgt);
+        
+        // XCHG always has implicit fetch semantics
+        if (result_reg != load_reg) {
+            emit_logical_register(state, is_64bit, LOG_ORR, result_reg, RZ, load_reg);
+        }
+        
+    } else {
+        // Arithmetic/logical operation based on alu_op
+        // Use R8 for the operation result. R8 is caller-saved and not used elsewhere.
+        // We cannot use status_reg (R25) because STXR writes status there.
+        // We cannot use addr_temp (R26) because it holds the address.
+        // We cannot use load_reg (R24/temp_reg) because we need the loaded value.
+        enum Registers op_result_reg = R8;
+        
+        switch (alu_op) {
+        case EBPF_ALU_OP_ADD:
+            emit_addsub_register(state, is_64bit, AS_ADD, op_result_reg, load_reg, value_reg);
+            break;
+        case EBPF_ALU_OP_OR:
+            emit_logical_register(state, is_64bit, LOG_ORR, op_result_reg, load_reg, value_reg);
+            break;
+        case EBPF_ALU_OP_AND:
+            emit_logical_register(state, is_64bit, LOG_AND, op_result_reg, load_reg, value_reg);
+            break;
+        case EBPF_ALU_OP_XOR:
+            emit_logical_register(state, is_64bit, LOG_EOR, op_result_reg, load_reg, value_reg);
+            break;
+        default:
+            // Should not happen
+            break;
+        }
+        
+        // Store exclusive
+        if (is_64bit) {
+            emit_loadstore_exclusive(state, LSE_STXRX, op_result_reg, addr_temp, status_reg);
+        } else {
+            emit_loadstore_exclusive(state, LSE_STXRW, op_result_reg, addr_temp, status_reg);
+        }
+        
+        // Check if store succeeded
+        emit_addsub_immediate(state, false, AS_SUBS, RZ, status_reg, 0);
+        
+        // Retry if failed
+        DECLARE_PATCHABLE_REGULAR_JIT_TARGET(retry_tgt, retry_loc);
+        emit_conditionalbranch_immediate(state, COND_NE, retry_tgt);
+        
+        // If fetch is requested, copy the old value (in load_reg) to result_reg
+        if (fetch && result_reg != load_reg) {
+            emit_logical_register(state, is_64bit, LOG_ORR, result_reg, RZ, load_reg);
+        }
+    }
 }
 
 static uint32_t
@@ -1288,6 +1465,78 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 emit_loadstore_register(state, to_loadstore_opcode(opcode), dst, src, offset_register);
             }
             break;
+
+        case EBPF_OP_ATOMIC_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            // Use R24 as temp for loaded value, offset_register (R26) for address calc
+            // Use temp_div_register (R25) as status register for STXR (not mapped to any BPF register)
+            enum Registers result_reg = src; // Where to store the fetched value
+            enum Registers temp_reg = temp_register; // Temp for operation result
+            enum Registers status_reg = temp_div_register; // Status register for STXR (R25)
+            
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_OR:
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_AND:
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_XOR:
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                // For CMPXCHG, result goes to R0 (BPF register 0)
+                result_reg = map_register(0);
+                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                break;
+            default:
+                *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
+                state->jit_status = UnknownInstruction;
+                break;
+            }
+        } break;
+
+        case EBPF_OP_ATOMIC32_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            // Use R24 as temp for loaded value, offset_register (R26) for address calc
+            // Use temp_div_register (R25) as status register for STXR (not mapped to any BPF register)
+            enum Registers result_reg = src; // Where to store the fetched value
+            enum Registers temp_reg = temp_register; // Temp for operation result
+            enum Registers status_reg = temp_div_register; // Status register for STXR (R25)
+            
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_OR:
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_AND:
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                break;
+            case EBPF_ALU_OP_XOR:
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                break;
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                break;
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
+                // For CMPXCHG, result goes to R0 (BPF register 0)
+                result_reg = map_register(0);
+                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                break;
+            default:
+                *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
+                state->jit_status = UnknownInstruction;
+                break;
+            }
+        } break;
 
         case EBPF_OP_LDDW: {
             struct ebpf_inst inst2 = ubpf_fetch_instruction(vm, ++i);
