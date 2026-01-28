@@ -1,8 +1,0 @@
--- asm
-# Test signed 64-bit modulo with positive values
-lddw %r0, 0x100000005
-smod %r0, 4
-# 0x100000005 % 4 = 1
-exit
--- result
-0x1

@@ -1,8 +1,0 @@
--- asm
-# Test signed 32-bit modulo by zero returns dividend
-mov32 %r0, 10
-mov32 %r1, 0
-smod32 %r0, %r1
-exit
--- result
-0xa

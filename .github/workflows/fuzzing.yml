@@ -97,13 +97,9 @@ jobs:
         export CCACHE_DIR="$(pwd)/ccache"
 
         ${command_prefix} cmake \
-          -G Ninja \
-          -S . \
-          -B build \
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DUBPF_ENABLE_LIBFUZZER=1 \
+          --preset fuzzing \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           ${arch_flags}
 
     - name: Build uBPF
@@ -153,7 +149,7 @@ jobs:
 
     - name: Configure uBPF
       run: |
-        cmake -S . -B build -DUBPF_ENABLE_LIBFUZZER=1
+        cmake --preset fuzzing-windows
 
     - name: Build uBPF
       run: |

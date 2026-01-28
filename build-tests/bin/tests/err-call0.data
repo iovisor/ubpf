@@ -1,9 +1,0 @@
--- asm
-mov %r0, 0x12345678
-call local next
-next:
-exit
--- result
-0x12345678
--- error
-Failed to load code: sub-program does not end with EXIT or unconditional jump at PC 1

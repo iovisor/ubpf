@@ -10,7 +10,7 @@
       "name": "base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build-${presetName}",
+      "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
@@ -48,7 +48,6 @@
       "description": "Build configuration for libFuzzer-based fuzzing on Windows",
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
-      "binaryDir": "${sourceDir}/build-${presetName}",
       "cacheVariables": {
         "UBPF_ENABLE_TESTS": "OFF",
         "UBPF_ENABLE_LIBFUZZER": "ON"

@@ -1,8 +1,0 @@
--- asm
-# Test signed 32-bit division by zero returns 0
-mov32 %r0, 10
-mov32 %r1, 0
-sdiv32 %r0, %r1
-exit
--- result
-0x0

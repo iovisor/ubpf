@@ -1,8 +1,0 @@
--- asm
-# Test signed 32-bit division overflow case: INT32_MIN / -1
-# Per RFC 9669, this should return INT32_MIN (0x80000000)
-mov32 %r0, 0x80000000
-sdiv32 %r0, -1
-exit
--- result
-0x80000000

@@ -1,8 +1,0 @@
--- asm
-# Test signed 64-bit division with positive/positive
-lddw %r0, 0x100000000
-sdiv %r0, 4
-# 0x100000000 / 4 = 0x40000000
-exit
--- result
-0x40000000

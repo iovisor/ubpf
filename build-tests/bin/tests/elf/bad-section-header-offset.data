@@ -1,4 +1,0 @@
--- pyelf
-ehdr.e_shoff = 1024
--- error
-Failed to load code: bad section header offset or size

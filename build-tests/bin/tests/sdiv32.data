@@ -1,8 +1,0 @@
--- asm
-# Test signed 32-bit division with positive/positive
-mov32 %r0, 15
-sdiv32 %r0, 4
-# 15 / 4 = 3
-exit
--- result
-0x3

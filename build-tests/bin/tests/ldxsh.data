@@ -1,7 +1,0 @@
--- asm
-ldxsh %r0, [%r1+2]
-exit
--- mem
-aa bb 01 80 cc dd
--- result
-0xffffffffffff8001
