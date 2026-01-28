@@ -1,4 +1,4 @@
-from .asm_parser import parse, Reg, Imm, MemRef
+from .asm_parser import parse, Imm, Label, LabelRef
 import struct
 try:
     from StringIO import StringIO as io
@@ -132,15 +132,169 @@ def assemble_one(inst):
         if op == 'ja':
             return pack(opcode, 0, 0, inst[1], 0)
         elif op == 'call':
-            return pack(opcode, 0, 0, 0, inst[1].value)
+            # Check if it's a local call (3-tuple with 'local' marker)
+            if len(inst) > 2 and inst[1] == 'local':
+                # call local: set src_reg=1, imm=relative offset
+                return pack(opcode, 0, 1, 0, inst[2].value)
+            else:
+                # Regular call: src_reg=0, imm=function index
+                return pack(opcode, 0, 0, 0, inst[1].value)
         elif op == 'exit':
             return pack(opcode, 0, 0, 0, 0)
     else:
         raise ValueError("unexpected instruction %r" % op)
 
+def resolve_label_ref(label_ref, current_idx, labels):
+    """
+    Resolve a label reference to an offset.
+    
+    Args:
+        label_ref: LabelRef or int (offset)
+        current_idx: Current instruction index
+        labels: Dictionary mapping label names to instruction indices
+    
+    Returns:
+        Resolved offset as an integer
+    """
+    if isinstance(label_ref, LabelRef):
+        if label_ref.name not in labels:
+            raise ValueError("Undefined label: %s" % label_ref.name)
+        target_idx = labels[label_ref.name]
+        offset = target_idx - current_idx - 1
+        return offset
+    else:
+        # Already an offset
+        return label_ref
+
+def resolve_labels_in_inst(inst, current_idx, labels):
+    """
+    Replace label references in an instruction with calculated offsets.
+    
+    Args:
+        inst: Instruction tuple
+        current_idx: Current instruction index
+        labels: Dictionary mapping label names to instruction indices
+    
+    Returns:
+        Instruction tuple with labels resolved to offsets.
+        Note: Return tuple size varies by instruction type as different
+        BPF instructions have different operand counts:
+        - Jump comparisons (jeq, jgt, etc.): 4-tuple (op, reg, reg/imm, offset)
+        - Unconditional jump (ja): 2-tuple ('ja', offset)
+        - Local calls: 3-tuple ('call', 'local', imm)
+        - Other instructions: returned unchanged
+    """
+    if not inst:
+        return inst
+    
+    op = inst[0]
+    
+    # Handle jump comparison operations (jeq, jgt, etc.)
+    if op in JMP_CMP_OPS:
+        # inst = (op, reg, reg/imm, offset/labelref)
+        target = inst[3]
+        resolved_offset = resolve_label_ref(target, current_idx, labels)
+        return (inst[0], inst[1], inst[2], resolved_offset)
+    
+    # Handle unconditional jump (ja)
+    elif op == 'ja':
+        # inst = ('ja', offset/labelref)
+        target = inst[1]
+        resolved_offset = resolve_label_ref(target, current_idx, labels)
+        return ('ja', resolved_offset)
+    
+    # Handle call instruction with 'local' keyword
+    elif op == 'call' and len(inst) > 2 and inst[1] == 'local':
+        # inst = ('call', 'local', imm/labelref)
+        target = inst[2]
+        if isinstance(target, LabelRef):
+            # Reuse generic label resolution logic
+            offset = resolve_label_ref(target, current_idx, labels)
+            resolved_imm = Imm(offset)
+            return ('call', 'local', resolved_imm)
+        else:
+            # Already an Imm; preserve the 'local' marker
+            return ('call', 'local', target)
+    
+    # No labels to resolve in this instruction
+    return inst
+
 def assemble(source):
-    insts = parse(source)
+    """
+    Assemble BPF assembly source code to bytecode.
+    
+    This uses a two-pass approach:
+    1. First pass: collect labels and build instruction list
+    2. Second pass: resolve label references and assemble
+    
+    Args:
+        source: Assembly source code as a string
+    
+    Returns:
+        Assembled bytecode as bytes
+    """
+    parsed = parse(source)
+    
+    # Pass 1: Collect labels and instructions
+    labels = {}
+    instructions = []
+    instruction_idx = 0
+    
+    for item in parsed:
+        if not item:
+            # Empty line
+            continue
+        
+        # item can be:
+        # 1. A tuple with (Label, 'opcode', ...) when label and instruction on same line
+        # 2. Just Label when only label on the line
+        # 3. A tuple ('opcode', ...) when just an instruction
+        label = None
+        inst = None
+        
+        # Check for Label first, before checking for tuple (Label is a namedtuple subclass)
+        if isinstance(item, Label):
+            # Standalone label
+            label = item
+        elif isinstance(item, tuple) and len(item) > 0:
+            # Check if first element is a Label
+            if isinstance(item[0], Label):
+                label = item[0]
+                # The rest is the instruction
+                if len(item) > 1:
+                    inst = item[1:]
+            else:
+                # It's just an instruction tuple
+                inst = item
+        else:
+            # Shouldn't happen, but just in case
+            inst = item
+        
+        # Process label if found
+        if label:
+            if label.name in labels:
+                raise ValueError("Duplicate label: %s" % label.name)
+            labels[label.name] = instruction_idx
+        
+        # Process instruction if found
+        if inst:
+            instructions.append(inst)
+            # LDDW takes 2 instruction slots
+            if inst[0] == 'lddw':
+                instruction_idx += 2
+            else:
+                instruction_idx += 1
+    
+    # Pass 2: Resolve labels and assemble
     output = io()
-    for inst in insts:
-        output.write(assemble_one(inst))
+    instruction_idx = 0
+    for inst in instructions:
+        resolved_inst = resolve_labels_in_inst(inst, instruction_idx, labels)
+        output.write(assemble_one(resolved_inst))
+        # LDDW takes 2 instruction slots
+        if inst[0] == 'lddw':
+            instruction_idx += 2
+        else:
+            instruction_idx += 1
+    
     return output.getvalue()
