@@ -77,7 +77,7 @@ ubpf_jit_fn ubpf_compile(struct ubpf_vm* vm, char** errmsg);
 - LLVM-based style with Mozilla brace rules (see `.clang-format`)
 - 120 column width
 - `clang-format` version 11+ required
-- Note: `docs/Contributing.md` mentions Allman braces, but `.clang-format` is authoritative (Mozilla braces).
+- Note: `docs/Contributing.md` mentions Allman braces and an 80 character column width, but `.clang-format` is authoritative (Mozilla braces, 120 columns).
 
 ### Naming
 - `lower_snake_case` for variables, functions, file names
