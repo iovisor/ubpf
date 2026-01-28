@@ -496,6 +496,14 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Opaque type for a uBPF JIT compiled function. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>The memory to pass to the program. This pointer is passed to the program in register r1. If the program accesses this pointer, it must be non-null. Programs verified with external verifiers like PREVAIL assume this is non-null. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mem_len</td><td>The length of the memory. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The value of register r0 when the program exits. </dd></dl>
 
 </div>
 </div>
@@ -793,7 +801,7 @@ Functions</h2></td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to execute the program in. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>The memory to pass to the program. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>The memory to pass to the program. This pointer is passed to the program in register r1 and serves as the context pointer. If the program accesses this pointer, it must be non-null and point to valid memory. Programs verified with external verifiers like PREVAIL assume this pointer is always non-null. See docs/VerifiedPrograms.md for more information. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">mem_len</td><td>The length of the memory. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bpf_return_value</td><td>The value of the r0 register when the program exits. </td></tr>
   </table>
