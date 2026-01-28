@@ -148,8 +148,14 @@ UBPF_FUZZER_PRINT_EXECUTION_TRACE=1 \
 ### Security Considerations
 
 The external VM is executed as a subprocess with the following protections:
-- Plugin paths are validated to prevent command injection
-- Plugin must not contain shell metacharacters (`;`, `&`, `|`, `<`, `>`, `` ` ``, `$`, `(`, `)`)
+- Plugin paths are validated to prevent common command injection patterns
+- Plugin paths must not contain shell metacharacters (`;`, `&`, `|`, `<`, `>`, `` ` ``, `$`, `(`, `)`)
 - Plugin failures are handled gracefully without affecting fuzzer stability
+
+**Important**: Only use trusted plugin paths. For maximum security:
+- Use absolute paths to known executables
+- Avoid paths with spaces or special characters
+- Do not allow untrusted users to specify plugin paths
+- Consider using access controls to restrict which plugins can be executed
 
 

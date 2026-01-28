@@ -881,6 +881,16 @@ call_external_vm(
         return false;
     }
 
+    // Trim whitespace from result
+    result_str.erase(0, result_str.find_first_not_of(" \t\n\r"));
+    result_str.erase(result_str.find_last_not_of(" \t\n\r") + 1);
+
+    // Check for empty result
+    if (result_str.empty()) {
+        std::cerr << "External VM produced no output" << std::endl;
+        return false;
+    }
+
     // Parse the hex result
     try {
         external_result = std::stoull(result_str, nullptr, 16);
@@ -1012,7 +1022,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
     bool external_success = false;
     std::string external_vm_path = g_ubpf_fuzzer_options.get_external_vm_path();
     if (!external_vm_path.empty()) {
-        // Reset memory for external VM execution
+        // Get fresh copy of program and memory for external VM
+        // (memory may have been modified by interpreter/JIT execution)
         if (!split_input(data, size, program, memory)) {
             assert(!"split_input failed");
         }
@@ -1023,8 +1034,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
         // If interpreter_result is not equal to jit_result, raise a fatal signal
         if (interpreter_result != jit_result) {
             printf("%lx ubpf_stack\n", reinterpret_cast<uintptr_t>(ubpf_stack.data()) + ubpf_stack.size());
-            printf("interpreter_result: %lx\n", interpreter_result);
-            printf("jit_result: %lx\n", jit_result);
+            printf("interpreter_result: %" PRIx64 "\n", interpreter_result);
+            printf("jit_result: %" PRIx64 "\n", jit_result);
             throw std::runtime_error("interpreter_result != jit_result");
         }
     }
