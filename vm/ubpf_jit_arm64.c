@@ -557,14 +557,28 @@ emit_movewide_immediate_blinded(struct jit_state* state, bool sixty_four, enum R
     uint64_t random = ubpf_generate_blinding_constant();
     uint64_t blinded = imm ^ random;
     
-    /* Use a second temp register for the random value.
-     * We need to be careful not to clobber rd if it's one of our temp registers.
-     * temp_register (R24) is used for the blinded value first.
-     * temp_div_register (R25) is used for the random value.
+    /* Choose two temporary registers that are different from rd and from each other.
+     * Available temp registers: temp_register (R24), temp_div_register (R25), offset_register (R26)
      */
-    enum Registers temp_random = (rd == temp_register) ? temp_div_register : 
-                                  (rd == temp_div_register) ? offset_register : temp_register;
-    enum Registers temp_blinded = (temp_random == temp_register) ? temp_div_register : temp_register;
+    enum Registers temp_blinded, temp_random;
+    
+    if (rd == temp_register) {
+        /* rd is R24, use R25 and R26 */
+        temp_blinded = temp_div_register;
+        temp_random = offset_register;
+    } else if (rd == temp_div_register) {
+        /* rd is R25, use R24 and R26 */
+        temp_blinded = temp_register;
+        temp_random = offset_register;
+    } else if (rd == offset_register) {
+        /* rd is R26, use R24 and R25 */
+        temp_blinded = temp_register;
+        temp_random = temp_div_register;
+    } else {
+        /* rd is not a temp register, use R24 and R25 */
+        temp_blinded = temp_register;
+        temp_random = temp_div_register;
+    }
     
     /* Load blinded constant into temporary register */
     emit_movewide_immediate(state, sixty_four, temp_blinded, blinded);
