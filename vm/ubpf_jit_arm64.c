@@ -837,19 +837,11 @@ emit_atomic_operation(
         
     } else {
         // Arithmetic/logical operation based on alu_op
-        // For non-FETCH: Use temp register for result (original behavior)
-        // For FETCH: Need to preserve load_reg, use a different register
-        enum Registers op_result_reg;
-        if (fetch) {
-            // Need to preserve load_reg for returning old value.
-            // Can't use R25 (status_reg) or R26 (addr_temp), so use R8.
-            op_result_reg = R8;
-        } else {
-            // Original behavior: use a temp register different from load_reg
-            // Note: This will be clobbered by STXR status, but that's OK for non-FETCH
-            // since the store happens before the clobber.
-            op_result_reg = (temp_reg == R24) ? R25 : R24;
-        }
+        // Use R8 for the operation result. R8 is caller-saved and not used elsewhere.
+        // We cannot use status_reg (R25) because STXR writes status there.
+        // We cannot use addr_temp (R26) because it holds the address.
+        // We cannot use load_reg (R24/temp_reg) because we need the loaded value.
+        enum Registers op_result_reg = R8;
         
         switch (alu_op) {
         case EBPF_ALU_OP_ADD:
