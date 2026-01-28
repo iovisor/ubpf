@@ -155,6 +155,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a80938918080712ac0667359fd163f1a5" id="r_a80938918080712ac0667359fd163f1a5"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a80938918080712ac0667359fd163f1a5">ubpf_toggle_bounds_check</a> (struct ubpf_vm *vm, bool enable)</td></tr>
 <tr class="memdesc:a80938918080712ac0667359fd163f1a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable / disable bounds_check. Bounds check is enabled by default, but it may be too restrictive.  <br /></td></tr>
 <tr class="separator:a80938918080712ac0667359fd163f1a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a02964b59e2e59ae6662c6a767efa9086" id="r_a02964b59e2e59ae6662c6a767efa9086"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a02964b59e2e59ae6662c6a767efa9086">ubpf_toggle_constant_blinding</a> (struct ubpf_vm *vm, bool enable)</td></tr>
+<tr class="memdesc:a02964b59e2e59ae6662c6a767efa9086"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable / disable constant blinding in the JIT compiler. Constant blinding is a security hardening technique that prevents JIT spray attacks by XORing immediate values with random values before emitting them. This ensures that attacker-controlled immediate values cannot be used to embed malicious instruction sequences in the JIT-compiled code. Constant blinding is disabled by default for backward compatibility and performance reasons.  <br /></td></tr>
+<tr class="separator:a02964b59e2e59ae6662c6a767efa9086"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae7e25aeeb15d5dc04a58f99239c4774c" id="r_ae7e25aeeb15d5dc04a58f99239c4774c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae7e25aeeb15d5dc04a58f99239c4774c">ubpf_set_error_print</a> (struct ubpf_vm *vm, int(*error_printf)(FILE *stream, const char *format,...))</td></tr>
 <tr class="memdesc:ae7e25aeeb15d5dc04a58f99239c4774c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the function to be invoked if the program hits a fatal error.  <br /></td></tr>
 <tr class="separator:ae7e25aeeb15d5dc04a58f99239c4774c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1539,6 +1542,54 @@ Functions</h2></td></tr>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
     <tr><td class="paramname">true</td><td>Bounds check was previously enabled. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a02964b59e2e59ae6662c6a767efa9086" name="a02964b59e2e59ae6662c6a767efa9086"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a02964b59e2e59ae6662c6a767efa9086">&#9670;&#160;</a></span>ubpf_toggle_constant_blinding()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool ubpf_toggle_constant_blinding </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>enable</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enable / disable constant blinding in the JIT compiler. Constant blinding is a security hardening technique that prevents JIT spray attacks by XORing immediate values with random values before emitting them. This ensures that attacker-controlled immediate values cannot be used to embed malicious instruction sequences in the JIT-compiled code. Constant blinding is disabled by default for backward compatibility and performance reasons. </p>
+<p><b>Platform Support:</b></p><ul>
+<li>x86-64: Fully supported - blinds all immediate values in ALU operations, comparisons, jumps, stores, loads, and MUL/DIV/MOD operations</li>
+<li>ARM64: Not yet implemented - enabling on ARM64 will have no effect</li>
+</ul>
+<p><b>Thread Safety:</b> This function is thread-safe. The blinding itself uses thread-safe random number generation on all supported platforms.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to enable / disable constant blinding on. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">enable</td><td>Enable constant blinding if true, disable if false. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">true</td><td>Constant blinding was previously enabled. </td></tr>
   </table>
   </dd>
 </dl>
