@@ -75,6 +75,12 @@ extern "C"
 
     /**
      * @brief Opaque type for a uBPF JIT compiled function.
+     *
+     * @param[in] mem The memory to pass to the program. This pointer is passed to the
+     * program in register r1. If the program accesses this pointer, it must be non-null.
+     * Programs verified with external verifiers like PREVAIL assume this is non-null.
+     * @param[in] mem_len The length of the memory.
+     * @return The value of register r0 when the program exits.
      */
     typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
 
@@ -363,7 +369,11 @@ extern "C"
      * registered before calling this function.
      *
      * @param[in] vm The VM to execute the program in.
-     * @param[in] mem The memory to pass to the program.
+     * @param[in] mem The memory to pass to the program. This pointer is passed to the
+     * program in register r1 and serves as the context pointer. If the program accesses
+     * this pointer, it must be non-null and point to valid memory. Programs verified
+     * with external verifiers like PREVAIL assume this pointer is always non-null.
+     * See docs/VerifiedPrograms.md for more information.
      * @param[in] mem_len The length of the memory.
      * @param[in] bpf_return_value The value of the r0 register when the program exits.
      * @retval 0 Success.

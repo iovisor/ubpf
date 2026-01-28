@@ -20,6 +20,10 @@ This project aims to create an Apache-licensed library for executing eBPF progra
 This project includes an eBPF assembler, disassembler, interpreter (for all platforms),
 and JIT compiler (for x86-64 and Arm64 targets).
 
+## Using Verified Programs
+
+If you're using external eBPF verifiers like [PREVAIL](https://github.com/vbpf/ebpf-verifier) with uBPF, please read [Using Verified eBPF Programs with uBPF](docs/VerifiedPrograms.md) for important information about context pointer requirements and how to avoid runtime crashes.
+
 ## Checking Out
 
 Before following any of the instructions below for [building](#building-with-cmake),

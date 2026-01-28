@@ -56,6 +56,18 @@ usage(const char* name)
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(
         stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
+    fprintf(
+        stderr,
+        "If --mem is not given, r1 will be NULL. Programs that access r1 will crash.\n");
+    fprintf(
+        stderr,
+        "NOTE: Programs verified with PREVAIL or similar verifiers assume r1 is non-null.\n");
+    fprintf(
+        stderr,
+        "      Always provide --mem when running verified programs that access the context.\n");
+    fprintf(
+        stderr,
+        "      See docs/VerifiedPrograms.md for more information.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
