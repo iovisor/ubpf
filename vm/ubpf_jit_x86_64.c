@@ -694,6 +694,16 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
     emit_store(state, size, temp_reg, dst, offset);
 }
 
+/* Helper macro for constant blinding - defined early so emit_muldivmod can use it */
+#define EMIT_LOAD_IMM(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_load_imm_blinded(state, dst, imm); \
+        } else { \
+            emit_load_imm(state, dst, imm); \
+        } \
+    } while (0)
+
 
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
@@ -1288,11 +1298,7 @@ emit_muldivmod(struct ubpf_vm* vm, struct jit_state* state, uint8_t opcode, int 
 
     // Load the divisor into RCX.
     if (!reg) {
-        if (vm->constant_blinding_enabled) {
-            emit_load_imm_blinded(state, RCX, imm);
-        } else {
-            emit_load_imm(state, RCX, imm);
-        }
+        EMIT_LOAD_IMM(vm, state, RCX, imm);
     } else {
         emit_mov(state, src, RCX);
     }
@@ -1623,14 +1629,8 @@ ubpf_set_register_offset(int x)
  */
 
 /* Helper macros to conditionally use blinded versions */
-#define EMIT_LOAD_IMM(vm, state, dst, imm) \
-    do { \
-        if ((vm)->constant_blinding_enabled) { \
-            emit_load_imm_blinded(state, dst, imm); \
-        } else { \
-            emit_load_imm(state, dst, imm); \
-        } \
-    } while (0)
+/* Note: EMIT_LOAD_IMM is defined earlier in the file (after blinded functions)
+ * so that emit_muldivmod can use it */
 
 #define EMIT_ALU64_IMM32(vm, state, op, src, dst, imm) \
     do { \

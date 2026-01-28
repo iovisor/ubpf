@@ -244,8 +244,18 @@ int main(int, char**)
     all_passed &= test_imm_operation("DIV64_IMM", EBPF_OP_DIV64_IMM, 0x00000003, 0x0000000F, 0x00000005ULL);
     all_passed &= test_imm_operation("MOD64_IMM", EBPF_OP_MOD64_IMM, 0x00000003, 0x0000000A, 0x00000001ULL);
     
-    // Test 5: Edge case - large immediates
-    std::cout << "\nTest 5: Edge case - large immediates..." << std::endl;
+    // Test 5: MUL/DIV/MOD immediate operations (32-bit and 64-bit)
+    std::cout << "\nTest 5: MUL/DIV/MOD immediate operations..." << std::endl;
+    
+    all_passed &= test_imm_operation("MUL_IMM", EBPF_OP_MUL_IMM, 3, 7, 21ULL);
+    all_passed &= test_imm_operation("MUL64_IMM", EBPF_OP_MUL64_IMM, 5, 13, 65ULL);
+    all_passed &= test_imm_operation("DIV_IMM", EBPF_OP_DIV_IMM, 3, 10, 3ULL);
+    all_passed &= test_imm_operation("DIV64_IMM", EBPF_OP_DIV64_IMM, 7, 100, 14ULL);
+    all_passed &= test_imm_operation("MOD_IMM", EBPF_OP_MOD_IMM, 3, 10, 1ULL);
+    all_passed &= test_imm_operation("MOD64_IMM", EBPF_OP_MOD64_IMM, 7, 100, 2ULL);
+    
+    // Test 6: Edge case - large immediates
+    std::cout << "\nTest 6: Edge case - large immediates..." << std::endl;
     
     {
         struct ebpf_inst large_imm_program[] = {
