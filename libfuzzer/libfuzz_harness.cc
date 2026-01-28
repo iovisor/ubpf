@@ -647,13 +647,14 @@ ubpf_context_t
 ubpf_context_from(const std::vector<uint8_t>& program_code, std::vector<uint8_t>& memory, std::vector<uint8_t>& ubpf_stack)
 {
     ubpf_context_t context{};
-    context.data = reinterpret_cast<uint64_t>(memory.data());
+    // Avoid calling .data() on empty vectors as it may return nullptr, which leads to undefined behavior when cast to uint64_t
+    context.data = memory.empty() ? 0 : reinterpret_cast<uint64_t>(memory.data());
     context.data_end = context.data + memory.size();
     context.original_data = context.data;
     context.original_data_end = context.data_end;
-    context.stack_start = reinterpret_cast<uint64_t>(ubpf_stack.data());
+    context.stack_start = ubpf_stack.empty() ? 0 : reinterpret_cast<uint64_t>(ubpf_stack.data());
     context.stack_end = context.stack_start + ubpf_stack.size();
-    context.program_start = reinterpret_cast<uint64_t>(program_code.data());
+    context.program_start = program_code.empty() ? 0 : reinterpret_cast<uint64_t>(program_code.data());
     context.program_end = context.program_start + program_code.size();
     return context;
 }
