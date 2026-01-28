@@ -27,7 +27,7 @@ extern "C"
 // Check if constant blinding is supported on this platform
 static bool is_constant_blinding_supported()
 {
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
     return true;
 #else
     return false;

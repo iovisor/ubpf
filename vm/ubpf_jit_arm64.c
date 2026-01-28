@@ -263,15 +263,6 @@ emit_loadstore_immediate(
     emit_instruction(state, imm_op_base | op | (imm9 << 12) | (rn << 5) | rt);
 }
 
-/* [ArmARM-A H.a]: C4.1.66: Load/store register (register offset).  */
-static void
-emit_loadstore_register(
-    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, enum Registers rm)
-{
-    const uint32_t reg_op_base = 0x38206800U;
-    emit_instruction(state, op | reg_op_base | (rm << 16) | (rn << 5) | rt);
-}
-
 /* Load-Exclusive/Store-Exclusive for atomics */
 static void
 emit_loadstore_exclusive(
@@ -546,6 +537,42 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
     }
 }
 
+/* [ArmARM-A H.a]: C4.1.64: Move wide (Immediate) with constant blinding.
+ * This variant loads a blinded immediate value and XORs it with a random value
+ * to recover the original constant, preventing JIT spray attacks.
+ */
+static void
+emit_movewide_immediate_blinded(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm)
+{
+    /* Generate random blinding constant */
+    uint64_t random = ubpf_generate_blinding_constant();
+    uint64_t blinded = imm ^ random;
+
+    /* Use a single scratch register to avoid clobbering live values (notably temp_register in
+     * load/store large-offset sequences).
+     */
+    enum Registers scratch = (rd == temp_div_register) ? temp_register : temp_div_register;
+
+    /* Load blinded constant into rd */
+    emit_movewide_immediate(state, sixty_four, rd, blinded);
+
+    /* Load random into scratch */
+    emit_movewide_immediate(state, sixty_four, scratch, random);
+
+    /* XOR to recover original: EOR rd, rd, scratch */
+    emit_logical_register(state, sixty_four, LOG_EOR, rd, rd, scratch);
+}
+
+/* Macro to conditionally emit movewide immediate with or without blinding */
+#define EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, rd, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_movewide_immediate_blinded(state, sixty_four, rd, imm); \
+        } else { \
+            emit_movewide_immediate(state, sixty_four, rd, imm); \
+        } \
+    } while (0)
+
 /* Generate the function prologue.
  *
  * We set the stack to look like:
@@ -622,8 +649,6 @@ emit_jit_epilogue(struct jit_state* state)
 static void
 emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm, unsigned int idx)
 {
-    UNUSED_PARAMETER(vm);
-
     /*
      * There are two paths through the function:
      * 1. There is an external dispatcher registered. If so, we prioritize that.
@@ -649,7 +674,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     uint32_t external_dispatcher_jump_source = emit_conditionalbranch_immediate(state, COND_NE, default_tgt);
 
     // We are not ready to roll. In other words, we are going to load the helper function address by index.
-    emit_movewide_immediate(state, true, R5, idx);
+    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, R5, idx);
     emit_movewide_immediate(state, true, R6, 3);
     emit_dataprocessing_twosource(state, true, DP2_LSLV, R5, R5, R6);
 
@@ -674,7 +699,7 @@ emit_dispatched_external_helper_call(struct jit_state* state, struct ubpf_vm* vm
     // ... set up the final two arguments for the external dispatcher.
 
     // The index of the helper to be invoked.
-    emit_movewide_immediate(state, true, R5, idx);
+    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, R5, idx);
 
     // The context.
     // Use a sneaky way to copy the context register into the R6 register (as the final parameter).
@@ -727,6 +752,7 @@ emit_local_call(struct jit_state* state, uint32_t target_pc)
 static void
 emit_atomic_operation(
     struct jit_state* state,
+    struct ubpf_vm* vm,
     bool is_64bit,
     enum Registers value_reg,
     enum Registers addr_reg,
@@ -761,7 +787,7 @@ emit_atomic_operation(
             // Choose a scratch register for the offset that is distinct from addr_temp.
             enum Registers offset_temp =
                 (addr_temp == offset_register) ? temp_div_register : offset_register;
-            emit_movewide_immediate(state, true, offset_temp, offset);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_temp, offset);
             emit_addsub_register(state, true, AS_ADD, addr_temp, addr_reg, offset_temp);
         }
     } else {
@@ -1269,8 +1295,15 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // If this is an operation with an immediate operand (and that immediate
         // operand is _not_ simple), then we convert the operation to the equivalent
         // register version after moving the immediate into a temporary register.
-        if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
-            emit_movewide_immediate(state, sixty_four, temp_register, (int64_t)inst.imm);
+        // When constant blinding is enabled, we also convert simple immediates to ensure
+        // all attacker-controlled immediates are blinded.
+        // Exception: MOV_IMM/MOV64_IMM are handled directly in their switch case to avoid
+        // an extra ORR instruction when blinding is enabled.
+        if (is_imm_op(&inst) &&
+            opcode != EBPF_OP_MOV_IMM &&
+            opcode != EBPF_OP_MOV64_IMM &&
+            (!is_simple_imm(&inst) || vm->constant_blinding_enabled)) {
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
             opcode = to_reg_op(opcode);
         }
@@ -1321,7 +1354,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_MOV_IMM:
         case EBPF_OP_MOV64_IMM:
-            emit_movewide_immediate(state, sixty_four, dst, (int64_t)inst.imm);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, dst, (int64_t)inst.imm);
             break;
         case EBPF_OP_MOV_REG:
         case EBPF_OP_MOV64_REG:
@@ -1461,8 +1494,25 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.offset >= -256 && inst.offset < 256) {
                 emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, src, inst.offset);
             } else {
-                emit_movewide_immediate(state, true, offset_register, inst.offset);
-                emit_loadstore_register(state, to_loadstore_opcode(opcode), dst, src, offset_register);
+                // Compute address into a temporary register so negative large offsets work correctly.
+                // (A64 load/store register-offset form is unsuitable for negative offsets.)
+                enum Registers addr_temp = temp_div_register;
+                int32_t abs_offset = inst.offset;
+                enum AddSubOpcode op = AS_ADD;
+
+                if (inst.offset < 0) {
+                    op = AS_SUB;
+                    abs_offset = -(int32_t)inst.offset;
+                }
+
+                if (abs_offset < 0x1000) {
+                    emit_addsub_immediate(state, true, op, addr_temp, src, (uint32_t)abs_offset);
+                } else {
+                    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_register, (uint32_t)abs_offset);
+                    emit_addsub_register(state, true, op, addr_temp, src, offset_register);
+                }
+
+                emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, addr_temp, 0);
             }
             break;
 
@@ -1476,24 +1526,24 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
                 break;
             case EBPF_ALU_OP_OR:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
                 break;
             case EBPF_ALU_OP_AND:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
                 break;
             case EBPF_ALU_OP_XOR:
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 // For CMPXCHG, result goes to R0 (BPF register 0)
                 result_reg = map_register(0);
-                emit_atomic_operation(state, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                emit_atomic_operation(state, vm, true, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
                 break;
             default:
                 *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
@@ -1512,24 +1562,24 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_ADD, false, false, fetch);
                 break;
             case EBPF_ALU_OP_OR:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_OR, false, false, fetch);
                 break;
             case EBPF_ALU_OP_AND:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_AND, false, false, fetch);
                 break;
             case EBPF_ALU_OP_XOR:
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, EBPF_ALU_OP_XOR, false, false, fetch);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, false, true, true);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
                 // For CMPXCHG, result goes to R0 (BPF register 0)
                 result_reg = map_register(0);
-                emit_atomic_operation(state, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
+                emit_atomic_operation(state, vm, false, src, dst, result_reg, temp_reg, status_reg, inst.offset, 0, true, false, true);
                 break;
             default:
                 *errmsg = ubpf_error("Unknown atomic operation at PC %d: imm %02x", i, inst.imm);
@@ -1541,7 +1591,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_LDDW: {
             struct ebpf_inst inst2 = ubpf_fetch_instruction(vm, ++i);
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
-            emit_movewide_immediate(state, true, dst, imm);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, dst, imm);
             break;
         }
 
