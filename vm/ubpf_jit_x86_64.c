@@ -585,6 +585,115 @@ emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     }
 }
 
+/* Forward declaration for emit_store (defined later) */
+static inline void
+emit_store(struct jit_state* state, enum operand_size size, int src, int dst, int32_t offset);
+
+/* Blinded version of emit_cmp_imm32 (64-bit compare with immediate) */
+static inline void
+emit_cmp_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
+    
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    
+    /* Load blinded immediate into temp register */
+    emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* XOR with random to recover original value */
+    emit_alu64_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    /* CMP dst, temp_reg */
+    emit_alu64(state, 0x39, temp_reg, dst);
+}
+
+/* Blinded version of emit_cmp32_imm32 (32-bit compare with immediate) */
+static inline void
+emit_cmp32_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
+    
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    
+    /* Load blinded immediate into temp register (32-bit) */
+    emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* XOR with random to recover original value */
+    emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    /* CMP dst, temp_reg (32-bit) */
+    emit_alu32(state, 0x39, temp_reg, dst);
+}
+
+/* Blinded version of TEST instruction (for JSET) - 64-bit */
+static inline void
+emit_test_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
+    
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    
+    /* Load blinded immediate into temp register */
+    emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* XOR with random to recover original value */
+    emit_alu64_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    /* TEST dst, temp_reg */
+    emit_alu64(state, 0x85, temp_reg, dst);
+}
+
+/* Blinded version of TEST instruction (for JSET32) - 32-bit */
+static inline void
+emit_test32_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
+    
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = (dst == R11) ? R10 : R11;
+    
+    /* Load blinded immediate into temp register (32-bit) */
+    emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+    /* XOR with random to recover original value */
+    emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    /* TEST dst, temp_reg (32-bit) */
+    emit_alu32(state, 0x85, temp_reg, dst);
+}
+
+/* Blinded version of emit_store_imm32 */
+static inline void
+emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int dst, int32_t offset, int32_t imm)
+{
+    /* Generate random blinding constant (32-bit) */
+    uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
+    uint32_t imm_unsigned = (uint32_t)imm;
+    int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
+    
+    /* Use R11 as temporary for blinded operations (safe - it's volatile) */
+    int temp_reg = R11;
+    
+    /* Load blinded immediate into temp register */
+    if (size == S64) {
+        emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+        emit_alu64_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    } else {
+        emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
+        emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
+    }
+    
+    /* Store temp_reg to [dst + offset] using the register store function */
+    emit_store(state, size, temp_reg, dst, offset);
+}
+
 
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
@@ -1537,6 +1646,51 @@ ubpf_set_register_offset(int x)
         } \
     } while (0)
 
+#define EMIT_CMP_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_cmp_imm32_blinded(state, dst, imm); \
+        } else { \
+            emit_cmp_imm32(state, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_CMP32_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_cmp32_imm32_blinded(state, dst, imm); \
+        } else { \
+            emit_cmp32_imm32(state, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_TEST_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_test_imm32_blinded(state, dst, imm); \
+        } else { \
+            emit_alu64_imm32(state, 0xf7, 0, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_TEST32_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_test32_imm32_blinded(state, dst, imm); \
+        } else { \
+            emit_alu32_imm32(state, 0xf7, 0, dst, imm); \
+        } \
+    } while (0)
+
+#define EMIT_STORE_IMM32(vm, state, size, dst, offset, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_store_imm32_blinded(state, size, dst, offset, imm); \
+        } else { \
+            emit_store_imm32(state, size, dst, offset, imm); \
+        } \
+    } while (0)
+
 static int
 translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 {
@@ -1886,7 +2040,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jmp(state, tgt);
             break;
         case EBPF_OP_JEQ_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JEQ_REG:
@@ -1894,7 +2048,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JGT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGT_REG:
@@ -1902,7 +2056,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JGE_REG:
@@ -1910,7 +2064,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JLT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLT_REG:
@@ -1918,7 +2072,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JLE_REG:
@@ -1926,7 +2080,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JSET_IMM:
-            emit_alu64_imm32(state, 0xf7, 0, dst, inst.imm);
+            EMIT_TEST_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSET_REG:
@@ -1934,7 +2088,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE_REG:
@@ -1942,7 +2096,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSGT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGT_REG:
@@ -1950,7 +2104,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSGE_REG:
@@ -1958,7 +2112,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSLT_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLT_REG:
@@ -1966,7 +2120,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLE_IMM:
-            emit_cmp_imm32(state, dst, inst.imm);
+            EMIT_CMP_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JSLE_REG:
@@ -1974,7 +2128,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JEQ32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JEQ32_REG:
@@ -1982,7 +2136,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x84, tgt);
             break;
         case EBPF_OP_JGT32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGT32_REG:
@@ -1990,7 +2144,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x87, tgt);
             break;
         case EBPF_OP_JGE32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JGE32_REG:
@@ -1998,7 +2152,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x83, tgt);
             break;
         case EBPF_OP_JLT32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLT32_REG:
@@ -2006,7 +2160,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x82, tgt);
             break;
         case EBPF_OP_JLE32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JLE32_REG:
@@ -2014,7 +2168,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x86, tgt);
             break;
         case EBPF_OP_JSET32_IMM:
-            emit_alu32_imm32(state, 0xf7, 0, dst, inst.imm);
+            EMIT_TEST32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSET32_REG:
@@ -2022,7 +2176,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JNE32_REG:
@@ -2030,7 +2184,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x85, tgt);
             break;
         case EBPF_OP_JSGT32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGT32_REG:
@@ -2038,7 +2192,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8f, tgt);
             break;
         case EBPF_OP_JSGE32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSGE32_REG:
@@ -2046,7 +2200,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8d, tgt);
             break;
         case EBPF_OP_JSLT32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLT32_REG:
@@ -2054,7 +2208,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_jcc(state, 0x8c, tgt);
             break;
         case EBPF_OP_JSLE32_IMM:
-            emit_cmp32_imm32(state, dst, inst.imm);
+            EMIT_CMP32_IMM32(vm, state, dst, inst.imm);
             emit_jcc(state, 0x8e, tgt);
             break;
         case EBPF_OP_JSLE32_REG:
@@ -2113,16 +2267,16 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_STW:
-            emit_store_imm32(state, S32, dst, inst.offset, inst.imm);
+            EMIT_STORE_IMM32(vm, state, S32, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STH:
-            emit_store_imm32(state, S16, dst, inst.offset, inst.imm);
+            EMIT_STORE_IMM32(vm, state, S16, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STB:
-            emit_store_imm32(state, S8, dst, inst.offset, inst.imm);
+            EMIT_STORE_IMM32(vm, state, S8, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STDW:
-            emit_store_imm32(state, S64, dst, inst.offset, inst.imm);
+            EMIT_STORE_IMM32(vm, state, S64, dst, inst.offset, inst.imm);
             break;
 
         case EBPF_OP_STXW:
@@ -2141,7 +2295,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_LDDW: {
             struct ebpf_inst inst2 = ubpf_fetch_instruction(vm, ++i);
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
-            emit_load_imm(state, dst, imm);
+            EMIT_LOAD_IMM(vm, state, dst, imm);
             break;
         }
         case EBPF_OP_ATOMIC_STORE: {

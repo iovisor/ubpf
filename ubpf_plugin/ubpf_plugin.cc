@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cstdlib>
 #include <sys/mman.h>
 #include "ubpf_int.h"
 
@@ -137,6 +138,13 @@ int main(int argc, char **argv)
     }
 
     ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
+
+    // Check environment variable for constant blinding
+    const char* enable_blinding_env = std::getenv("UBPF_ENABLE_CONSTANT_BLINDING");
+    if (enable_blinding_env != nullptr && std::string(enable_blinding_env) == "1")
+    {
+        ubpf_toggle_constant_blinding(vm.get(), true);
+    }
 
     if (ubpf_set_unwind_function_index(vm.get(), 5) != 0)
     {
