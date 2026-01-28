@@ -134,15 +134,19 @@ ubpf_exec(vm, context, context_len, &ret);
 
 ### For Fuzzer/Testing
 
-The uBPF libfuzzer correctly handles this by always providing a proper context structure. See `libfuzzer/libfuzz_harness.cc` for an example of proper context setup:
+The uBPF libfuzzer correctly handles this by always providing a proper context structure. See `libfuzzer/libfuzz_harness.cc` for the complete implementation. Here's the essential pattern:
 
 ```cpp
+// Simplified example - see libfuzz_harness.cc for full implementation
 ubpf_context_t context{};
 context.data = reinterpret_cast<uint64_t>(memory.data());
 context.data_end = context.data + memory.size();
-// ... properly initialized context
-ubpf_exec_ex(vm.get(), &context, sizeof(context), ...);
+context.stack_start = reinterpret_cast<uint64_t>(stack.data());
+context.stack_end = context.stack_start + stack.size();
+// ... other fields initialized
 ```
+
+The fuzzer then executes with this properly initialized context, ensuring programs that access r1 have valid memory to work with.
 
 ## When is NULL Context Safe?
 
@@ -182,7 +186,7 @@ exit
 - [PREVAIL Verifier](https://github.com/vbpf/ebpf-verifier)
 - [uBPF API Documentation](https://iovisor.github.io/ubpf)
 - [BPF Instruction Set Architecture (ISA) - RFC 9669](https://www.rfc-editor.org/rfc/rfc9669.html)
-- Related issue: [PREVAIL context assumptions](https://github.com/vbpf/ebpf-verifier/issues/492)
+- GitHub issue [vbpf/ebpf-verifier#492](https://github.com/vbpf/ebpf-verifier/issues/492) - Discussion on PREVAIL context assumptions
 
 ## Example: Creating Context for XDP-like Programs
 
