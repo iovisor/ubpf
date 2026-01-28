@@ -20,6 +20,8 @@ endfunction()
 
 find_program(clang_path "clang" VALIDATOR clang_validator NO_CACHE HINTS ${UBPF_ALTERNATE_LLVM_PATH})
 
+# Only use QEMU when cross-compiling for ARM64 (building on x86_64 for ARM64)
+# On native ARM64 systems, CMAKE_HOST_SYSTEM_PROCESSOR will also be aarch64
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL aarch64))
     set(PREFIX qemu-aarch64 -L /usr/aarch64-linux-gnu)
 else()
