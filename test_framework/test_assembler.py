@@ -61,7 +61,7 @@ def test_label_forward_jump():
     
     # Verify the ja instruction has correct offset (+1 to skip mov and reach done/exit)
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 8)
-    assert off == 1, f"Expected ja offset=1, got {off}"
+    assert off == 1, "Expected ja offset=1, got %s" % off
 
 def test_label_backward_jump():
     """Test backward jump (loop) with label"""
@@ -79,7 +79,7 @@ def test_label_backward_jump():
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 16)
     # Convert to signed
     signed_off = off if off < 32768 else off - 65536
-    assert signed_off == -2, f"Expected jne offset=-2, got {signed_off}"
+    assert signed_off == -2, "Expected jne offset=-2, got %s" % signed_off
 
 def test_label_conditional_jump():
     """Test conditional jump with label"""
@@ -97,11 +97,11 @@ def test_label_conditional_jump():
     
     # Verify jeq offset (+2 to skip mov and ja)
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 0)
-    assert off == 2, f"Expected jeq offset=2, got {off}"
+    assert off == 2, "Expected jeq offset=2, got %s" % off
     
     # Verify ja offset (+1 to skip mov)
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 16)
-    assert off == 1, f"Expected ja offset=1, got {off}"
+    assert off == 1, "Expected ja offset=1, got %s" % off
 
 def test_label_local_call():
     """Test local function call with label"""
@@ -120,8 +120,8 @@ def test_label_local_call():
     # Verify call local has src_reg=1 and correct relative offset
     _, regs, _, imm = struct.unpack_from("=BBHI", bytecode, 8)
     src_reg = (regs >> 4) & 0xf
-    assert src_reg == 1, f"Expected src_reg=1 for call local, got {src_reg}"
-    assert imm == 1, f"Expected call local offset=1, got {imm}"
+    assert src_reg == 1, "Expected src_reg=1 for call local, got %s" % src_reg
+    assert imm == 1, "Expected call local offset=1, got %s" % imm
 
 def test_label_on_same_line():
     """Test label and instruction on same line"""
@@ -136,7 +136,7 @@ def test_label_on_same_line():
     # Verify jne has correct offset (-2)
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 8)
     signed_off = off if off < 32768 else off - 65536
-    assert signed_off == -2, f"Expected jne offset=-2, got {signed_off}"
+    assert signed_off == -2, "Expected jne offset=-2, got %s" % signed_off
 
 def test_label_undefined_error():
     """Test error for undefined label"""
@@ -176,7 +176,7 @@ def test_label_with_lddw():
     
     # Verify ja offset accounts for lddw taking 2 slots (+1 to skip mov)
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 16)
-    assert off == 1, f"Expected ja offset=1, got {off}"
+    assert off == 1, "Expected ja offset=1, got %s" % off
 
 def test_numeric_offset_backward_compatibility():
     """Test that numeric offsets still work"""
@@ -191,4 +191,4 @@ def test_numeric_offset_backward_compatibility():
     
     # Verify ja has offset +2
     _, _, off, _ = struct.unpack_from("=BBHI", bytecode, 8)
-    assert off == 2, f"Expected ja offset=2, got {off}"
+    assert off == 2, "Expected ja offset=2, got %s" % off

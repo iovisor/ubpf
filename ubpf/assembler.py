@@ -176,7 +176,13 @@ def resolve_labels_in_inst(inst, current_idx, labels):
         labels: Dictionary mapping label names to instruction indices
     
     Returns:
-        Instruction tuple with labels resolved to offsets
+        Instruction tuple with labels resolved to offsets.
+        Note: Return tuple size varies by instruction type as different
+        BPF instructions have different operand counts:
+        - Jump comparisons (jeq, jgt, etc.): 4-tuple (op, reg, reg/imm, offset)
+        - Unconditional jump (ja): 2-tuple ('ja', offset)
+        - Local calls: 3-tuple ('call', 'local', imm)
+        - Other instructions: returned unchanged
     """
     if not inst:
         return inst
