@@ -172,22 +172,11 @@ def test_label_starts_with_digit_error():
     try:
         ubpf.assembler.assemble(source)
         assert False, "Should have raised parse error for label starting with digit"
+    except ValueError:
+        # Should not be a ValueError (that's for undefined/duplicate labels)
+        assert False, "Should have raised parse error, not ValueError"
     except Exception:
-        # Parser should reject this - any parse exception is acceptable
-        pass
-    
-    # Test label reference starting with digit
-    source2 = """
-    ja 1bad
-    exit
-    """
-    try:
-        ubpf.assembler.assemble(source2)
-        # If it parses, it should be treated as offset, not label
-        # This is acceptable behavior
-        pass
-    except Exception:
-        # Or parser rejects it - also acceptable
+        # Parser should reject this with a parse exception
         pass
 
 def test_label_with_lddw():

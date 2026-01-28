@@ -208,11 +208,8 @@ def resolve_labels_in_inst(inst, current_idx, labels):
         # inst = ('call', 'local', imm/labelref)
         target = inst[2]
         if isinstance(target, LabelRef):
-            if target.name not in labels:
-                raise ValueError("Undefined label: %s" % target.name)
-            target_idx = labels[target.name]
-            # For 'call local', use relative offset: target_idx - current_idx - 1
-            offset = target_idx - current_idx - 1
+            # Reuse generic label resolution logic
+            offset = resolve_label_ref(target, current_idx, labels)
             resolved_imm = Imm(offset)
             return ('call', 'local', resolved_imm)
         else:
