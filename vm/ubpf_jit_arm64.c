@@ -1498,8 +1498,25 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.offset >= -256 && inst.offset < 256) {
                 emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, src, inst.offset);
             } else {
-                EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_register, inst.offset);
-                emit_loadstore_register(state, to_loadstore_opcode(opcode), dst, src, offset_register);
+                // Compute address into a temporary register so negative large offsets work correctly.
+                // (A64 load/store register-offset form is unsuitable for negative offsets.)
+                enum Registers addr_temp = temp_div_register;
+                int32_t abs_offset = inst.offset;
+                enum AddSubOpcode op = AS_ADD;
+
+                if (inst.offset < 0) {
+                    op = AS_SUB;
+                    abs_offset = -(int32_t)inst.offset;
+                }
+
+                if (abs_offset < 0x1000) {
+                    emit_addsub_immediate(state, true, op, addr_temp, src, (uint32_t)abs_offset);
+                } else {
+                    EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_register, (uint32_t)abs_offset);
+                    emit_addsub_register(state, true, op, addr_temp, src, offset_register);
+                }
+
+                emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, addr_temp, 0);
             }
             break;
 
