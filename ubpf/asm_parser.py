@@ -8,6 +8,8 @@ hexchars = '0123456789abcdefABCDEF'
 Reg = namedtuple("Reg", ["num"])
 Imm = namedtuple("Imm", ["value"])
 MemRef = namedtuple("MemRef", ["reg", "offset"])
+Label = namedtuple("Label", ["name"])
+LabelRef = namedtuple("LabelRef", ["name"])
 
 def keywords(vs):
     return First(*[Keyword(SignificantLiteral(v)) for v in vs])
@@ -16,6 +18,12 @@ hexnum = SignificantLiteral('0x') + +CharIn(hexchars)
 decnum = +Digit()
 offset = (CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)]
 imm = (-CharIn("+-") + Exact(hexnum | decnum))[flatten]["".join][lambda x: int(x, 0)][Imm]
+
+# Label identifier: alphanumeric and underscore
+label_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789'
+label_name = Exact(+CharIn(label_chars))[flatten]["".join]
+label_def = (label_name + Literal(':'))[lambda x: Label(x[0] if isinstance(x, tuple) else x)]
+label_ref = label_name[LabelRef]
 
 reg = Literal('%') + Literal('r') + integer[int][Reg]
 memref = (Literal('[') + reg + Optional(offset, 0) + Literal(']'))[lambda x: MemRef(*x)]
@@ -42,14 +50,21 @@ mem_instruction = \
 
 jmp_cmp_ops = ['jeq', 'jgt', 'jge', 'jlt', 'jle', 'jset', 'jne', 'jsgt', 'jsge', 'jslt', 'jsle']
 jmp_instruction = \
-    (keywords(jmp_cmp_ops) + reg + "," + (reg | imm) + "," + offset) | \
-    (keywords(['ja']) + offset) | \
+    (keywords(jmp_cmp_ops) + reg + "," + (reg | imm) + "," + (offset | label_ref)) | \
+    (keywords(['ja']) + (offset | label_ref)) | \
+    (keywords(['call']) + Keyword(SignificantLiteral('local')) + (label_ref | imm)) | \
     (keywords(['call']) + imm) | \
     (keywords(['exit'])[lambda x: (x, )])
 
 instruction = alu_instruction | mem_instruction | jmp_instruction
 
-start = ZeroOrMore(instruction + Optional(Literal(';'))) + End()
+# A line can be:
+# 1. A label definition followed by optional instruction
+# 2. Just an instruction
+# The label_def includes the colon, so it's unambiguous
+line_item = (label_def + Optional(instruction)) | instruction
+
+start = ZeroOrMore(line_item + Optional(Literal(';'))) + End()
 
 def parse(source):
     return start.parse_string(source)
