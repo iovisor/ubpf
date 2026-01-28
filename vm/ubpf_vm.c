@@ -1527,9 +1527,9 @@ ubpf_exec_ex(
                 if (stack_frame_index >= UBPF_MAX_CALL_DEPTH) {
                     vm->error_printf(
                         stderr,
-                        "uBPF error: number of nested functions calls (%lu) exceeds max (%lu) at PC %u\n",
-                        stack_frame_index + 1,
-                        UBPF_MAX_CALL_DEPTH,
+                        "uBPF error: number of nested functions calls (%u) exceeds max (%u) at PC %u\n",
+                        (unsigned)(stack_frame_index + 1),
+                        (unsigned)UBPF_MAX_CALL_DEPTH,
                         cur_pc);
                     return_value = -1;
                     goto cleanup;
