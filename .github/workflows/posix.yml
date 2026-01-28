@@ -217,7 +217,8 @@ jobs:
         UBPF_ENABLE_CONSTANT_BLINDING: 1
       run: |
         # Run JIT tests with constant blinding enabled to verify compatibility
-        ctest -R "_TEST_JIT$" --output-on-failure
+        # Tests end with "-JIT" (e.g., "add.data-JIT", "mov64-imm.data-JIT")
+        ctest -R "\-JIT$" --output-on-failure
 
     - name: Rerun failed tests with more verbose output
       if: (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm') && failure()
