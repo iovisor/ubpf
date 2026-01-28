@@ -169,7 +169,7 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     (void)user_context;
     for (int index = 0; index < _map_entries_count; index++) {
         if (addr >= (uint64_t)_map_entries[index].array &&
-            addr + size <= (uint64_t)_map_entries[index].array + _map_entries[index].map_definition.max_entries *
+            addr + size <= (uint64_t)_map_entries[index].array + (uint64_t)_map_entries[index].map_definition.max_entries *
                                                                      _map_entries[index].map_definition.value_size) {
             return true;
         }
@@ -485,7 +485,7 @@ bpf_map_lookup_elem_impl(struct bpf_map* map, const void* key)
         if (index >= map_entry->map_definition.max_entries) {
             return NULL;
         }
-        return map_entry->array + index * map_entry->map_definition.value_size;
+        return map_entry->array + (uint64_t)index * map_entry->map_definition.value_size;
     } else {
         fprintf(stderr, "bpf_map_lookup_elem not implemented for this map type.\n");
         exit(1);
@@ -504,7 +504,7 @@ bpf_map_update_elem_impl(struct bpf_map* map, const void* key, const void* value
             return -1;
         }
         memcpy(
-            map_entry->array + index * map_entry->map_definition.value_size,
+            map_entry->array + (uint64_t)index * map_entry->map_definition.value_size,
             value,
             map_entry->map_definition.value_size);
         return 0;
@@ -525,7 +525,7 @@ bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
             return -1;
         }
         memset(
-            map_entry->array + index * map_entry->map_definition.value_size, 0, map_entry->map_definition.value_size);
+            map_entry->array + (uint64_t)index * map_entry->map_definition.value_size, 0, map_entry->map_definition.value_size);
         return 0;
     } else {
         fprintf(stderr, "bpf_map_delete_elem not implemented for this map type.\n");
