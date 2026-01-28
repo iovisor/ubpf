@@ -1537,6 +1537,253 @@ emit_helper_table(struct jit_state* state, struct ubpf_vm* vm)
 }
 
 static uint32_t
+emit_vm_ptr(struct jit_state* state, struct ubpf_vm* vm)
+{
+    uint32_t vm_ptr_target = state->offset;
+    emit8(state, (uint64_t)vm);
+    return vm_ptr_target;
+}
+
+/* Helper to get byte size from operand_size */
+static inline int
+operand_size_to_bytes(enum operand_size size)
+{
+    switch (size) {
+        case S8: return 1;
+        case S16: return 2;
+        case S32: return 4;
+        case S64: return 8;
+        default: return 0;
+    }
+}
+
+/* Emit bounds check call for load/store operations
+ * Calls ubpf_jit_bounds_check(vm, addr, size, type, cur_pc, mem, mem_len, stack, stack_len)
+ * Returns 0 on success, -1 on failure (out of bounds)
+ */
+static void
+emit_bounds_check(struct jit_state* state, int addr_reg, int32_t offset, enum operand_size size, 
+                  const char* type, uint16_t cur_pc, enum JitMode jit_mode)
+{
+    int access_size = operand_size_to_bytes(size);
+    
+    /* Save all volatile registers that we'll clobber BEFORE computing the address */
+    /* This ensures we preserve the original BPF register values */
+    /* Push order: R10, RAX, RCX, RDX, RSI, RDI, R8, R9, R11 (9 registers = 72 bytes) */
+    emit_push(state, R10);  /* [RSP+64] after all pushes */
+    emit_push(state, RAX);  /* [RSP+56] */
+    emit_push(state, RCX);  /* [RSP+48] */
+    emit_push(state, RDX);  /* [RSP+40] */
+    emit_push(state, RSI);  /* [RSP+32] */
+    emit_push(state, RDI);  /* [RSP+24] */
+    emit_push(state, R8);   /* [RSP+16] */
+    emit_push(state, R9);   /* [RSP+8] */
+    emit_push(state, R11);  /* [RSP+0] - VOLATILE_CTXT */
+    
+    /* Determine stack offset for addr_reg if it was pushed */
+    int addr_reg_offset = -1;  /* -1 means register wasn't pushed */
+    if (addr_reg == R10) addr_reg_offset = 64;
+    else if (addr_reg == RAX) addr_reg_offset = 56;
+    else if (addr_reg == RCX) addr_reg_offset = 48;
+    else if (addr_reg == RDX) addr_reg_offset = 40;
+    else if (addr_reg == RSI) addr_reg_offset = 32;
+    else if (addr_reg == RDI) addr_reg_offset = 24;
+    else if (addr_reg == R8) addr_reg_offset = 16;
+    else if (addr_reg == R9) addr_reg_offset = 8;
+    else if (addr_reg == R11) addr_reg_offset = 0;
+    
+    /* NOW compute effective address (addr_reg + offset) into R10 (scratch register) */
+    if (addr_reg_offset >= 0) {
+        /* addr_reg was pushed, load from stack */
+        emit_load(state, S64, RSP, R10, addr_reg_offset);
+        if (offset != 0) {
+            emit_alu64_imm32(state, 0x81, 0, R10, offset);  /* ADD R10, offset */
+        }
+    } else if (offset == 0) {
+        emit_mov(state, addr_reg, R10);
+    } else {
+        /* LEA r10, [addr_reg + offset] */
+        emit_basic_rex(state, 1, R10, addr_reg);
+        emit1(state, 0x8d);
+        emit_modrm_and_displacement(state, R10, addr_reg, offset);
+    }
+    
+    /* Now push the computed address so we can reference it later */
+    emit_push(state, R10);
+    
+    /* Align stack to 16 bytes (we pushed 10*8=80 bytes, already aligned) */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 8);
+
+#if defined(_WIN32)
+    /* Windows: RCX, RDX, R8, R9, then stack */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 80);  /* Allocate shadow space + args */
+    
+    /* Arg 1 (RCX): vm pointer */
+    DECLARE_PATCHABLE_TARGET(vm_ptr_tgt);
+    vm_ptr_tgt.is_special = true;
+    vm_ptr_tgt.target.special = LoadVMPtr;
+    emit_rip_relative_load(state, RCX, vm_ptr_tgt);
+    
+    /* Arg 2 (RDX): address (the computed effective address).
+     * Stack layout at this point (push order: R10_orig, RAX, RCX, RDX, RSI, RDI, R8, R9, R11, R10_computed):
+     *   - Shadow space and outgoing args: [RSP .. RSP+79]  (80 bytes)
+     *   - Alignment padding:              [RSP+80 .. RSP+87]  (8 bytes)
+     *   - R10 (computed address):         [RSP+88]
+     *   - R11:                            [RSP+96]
+     *   - R9:                             [RSP+104]
+     *   - R8:                             [RSP+112]
+     *   - RDI:                            [RSP+120]
+     *   - RSI:                            [RSP+128]
+     *   - RDX:                            [RSP+136]
+     *   - RCX:                            [RSP+144]
+     *   - RAX:                            [RSP+152]
+     *   - R10 (original):                 [RSP+160]
+     * The computed address is at RSP + 88.
+     */
+    emit_load(state, S64, RSP, RDX, 88);
+    
+    /* Arg 3 (R8): size */
+    emit_load_imm(state, R8, access_size);
+    
+    /* Arg 4 (R9): type */
+    emit_load_imm(state, R9, (uint64_t)type);
+    
+    /* Arg 5-9 on stack */
+    emit_load_imm(state, RAX, cur_pc);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x20);
+    
+    emit_load(state, S64, RBP, RAX, -8);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x28);
+    
+    emit_load(state, S64, RBP, RAX, -16);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x30);
+    
+    if (jit_mode == ExtendedJitMode) {
+        emit_load(state, S64, RBP, RAX, -24);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x38);
+        emit_load(state, S64, RBP, RAX, -32);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
+    } else {
+        /* BasicJitMode: compute stack base dynamically */
+        emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit_alu64_imm32(state, 0x81, 5, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x38);
+        emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x40);
+    }
+#else
+    /* SystemV: RDI, RSI, RDX, RCX, R8, R9, then stack */
+    /* Allocate 32 bytes for stack args to maintain 16-byte alignment */
+    emit_alu64_imm32(state, 0x81, 5, RSP, 32);
+    
+    /* Arg 1 (RDI): vm pointer */
+    DECLARE_PATCHABLE_TARGET(vm_ptr_tgt);
+    vm_ptr_tgt.is_special = true;
+    vm_ptr_tgt.target.special = LoadVMPtr;
+    emit_rip_relative_load(state, RDI, vm_ptr_tgt);
+    
+    /* Arg 2 (RSI): address (the computed effective address)
+     * Stack layout at this point (push order: R10_orig, RAX, RCX, RDX, RSI, RDI, R8, R9, R11, R10_computed):
+     *   - Stack args:                 [RSP .. RSP+31]  (32 bytes)
+     *   - Alignment padding:          [RSP+32 .. RSP+39]  (8 bytes)
+     *   - R10 (computed address):     [RSP+40]
+     *   - R11:                        [RSP+48]
+     *   - R9:                         [RSP+56]
+     *   - R8:                         [RSP+64]
+     *   - RDI:                        [RSP+72]
+     *   - RSI:                        [RSP+80]
+     *   - RDX:                        [RSP+88]
+     *   - RCX:                        [RSP+96]
+     *   - RAX:                        [RSP+104]
+     *   - R10 (original):             [RSP+112]
+     * The computed address is at RSP + 40.
+     */
+    emit_load(state, S64, RSP, RSI, 40);
+    
+    /* Arg 3 (RDX): size */
+    emit_load_imm(state, RDX, access_size);
+    
+    /* Arg 4 (RCX): type */
+    emit_load_imm(state, RCX, (uint64_t)type);
+    
+    /* Arg 5 (R8): cur_pc */
+    emit_load_imm(state, R8, cur_pc);
+    
+    /* Arg 6 (R9): mem */
+    emit_load(state, S64, RBP, R9, -8);
+    
+    /* Arg 7-9 on stack */
+    emit_load(state, S64, RBP, RAX, -16);
+    emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x04); emit1(state, 0x24);
+    
+    if (jit_mode == ExtendedJitMode) {
+        emit_load(state, S64, RBP, RAX, -24);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x08);
+        emit_load(state, S64, RBP, RAX, -32);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
+    } else {
+        /* BasicJitMode: compute stack base dynamically */
+        emit_mov(state, map_register(BPF_REG_10), RAX);
+        emit_alu64_imm32(state, 0x81, 5, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x08);
+        emit_load_imm(state, RAX, UBPF_EBPF_STACK_SIZE);
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x44); emit1(state, 0x24); emit1(state, 0x10);
+    }
+#endif
+
+    /* Call ubpf_jit_bounds_check */
+    emit_load_imm(state, RAX, (uint64_t)ubpf_jit_bounds_check);
+    emit1(state, 0xff); emit1(state, 0xd0);  /* call rax */
+    
+    /* Restore stack (undo argument space) */
+#if defined(_WIN32)
+    emit_alu64_imm32(state, 0x81, 0, RSP, 80);
+#else
+    emit_alu64_imm32(state, 0x81, 0, RSP, 32);
+#endif
+    
+    /* Restore alignment */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
+    
+    /* Check return value: 0 = success, -1 = failure */
+    emit_cmp_imm32(state, RAX, 0);
+    
+    /* Use patchable target for the success path */
+    DECLARE_PATCHABLE_TARGET(success_target);
+    success_target.is_special = false;
+    success_target.target.regular.ebpf_target_pc = 0;
+    success_target.target.regular.jit_target_pc = 0;
+    
+    /* Jump to success path if RAX == 0 */
+    uint32_t success_jump_source = emit_jcc(state, 0x84, success_target);  /* JE (jump if equal) */
+    
+    /* Error path: bounds check failed - set eBPF r0 to -1 */
+    int r0_reg = map_register(BPF_REG_0);
+    emit_load_imm(state, r0_reg, -1);
+    /* We pushed 10 registers (80 bytes) - restore stack and jump to exit */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 80);
+    DECLARE_PATCHABLE_SPECIAL_TARGET(error_exit, Exit);
+    emit_jmp(state, error_exit);
+    
+    /* Success path: restore registers and continue */
+    emit_jump_target(state, success_jump_source);
+    
+    /* Pop in reverse order of push: R10_computed, R11, R9, R8, RDI, RSI, RDX, RCX, RAX, R10_orig */
+    /* First discard the computed address (we don't need it anymore) */
+    emit_alu64_imm32(state, 0x81, 0, RSP, 8);
+    emit_pop(state, R11);  /* Restore VOLATILE_CTXT */
+    emit_pop(state, R9);
+    emit_pop(state, R8);
+    emit_pop(state, RDI);
+    emit_pop(state, RSI);
+    emit_pop(state, RDX);
+    emit_pop(state, RCX);
+    emit_pop(state, RAX);
+    /* Restore R10 - it may be mapped to a BPF register (e.g., BPF_REG_1 on Windows) */
+    emit_pop(state, R10);
+}
+
+static uint32_t
 emit_retpoline(struct jit_state* state)
 {
 
@@ -1735,11 +1982,44 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
      */
     emit_mov(state, RSP, RBP);
 
+    /* Reserve space for bounds check parameter storage (32 bytes for 4 parameters) */
+    /* This must be done BEFORE setting up eBPF stack to avoid conflicts with eBPF stack accesses */
+    if (vm->bounds_check_enabled) {
+        emit_alu64_imm32(state, 0x81, 5, RSP, 32);
+        
+        /* Save mem (already in VOLATILE_CTXT) at [rbp-8] */
+        emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x5d); emit1(state, 0xf8); // mov [rbp-8], r11
+        
+        /* Save mem_len from platform_parameter_registers[1] at [rbp-16] */
+#if defined(_WIN32)
+        /* Windows: mem_len is in RDX */
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x55); emit1(state, 0xf0); // mov [rbp-16], rdx
+#else
+        /* SystemV: mem_len is in RSI */
+        emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x75); emit1(state, 0xf0); // mov [rbp-16], rsi
+#endif
+        
+        /* Save stack and stack_len (ExtendedJitMode only) */
+        if (state->jit_mode == ExtendedJitMode) {
+#if defined(_WIN32)
+            /* Windows: stack in R8, stack_len in R9 */
+            emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x45); emit1(state, 0xe8); // mov [rbp-24], r8
+            emit1(state, 0x4c); emit1(state, 0x89); emit1(state, 0x4d); emit1(state, 0xe0); // mov [rbp-32], r9
+#else
+            /* SystemV: stack in RDX, stack_len in RCX */
+            emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x55); emit1(state, 0xe8); // mov [rbp-24], rdx
+            emit1(state, 0x48); emit1(state, 0x89); emit1(state, 0x4d); emit1(state, 0xe0); // mov [rbp-32], rcx
+#endif
+        }
+        /* Note: For BasicJitMode, stack base and stack_len are computed dynamically in emit_bounds_check */
+    }
+
     /* Configure eBPF program stack space */
     if (state->jit_mode == BasicJitMode) {
         /*
-         * Set BPF R10 (the way to access the frame in eBPF) the beginning
+         * Set BPF R10 (the way to access the frame in eBPF) to the beginning
          * of the eBPF program's stack space.
+         * Note: RSP has already been adjusted by 32 bytes for parameter storage if bounds checking is enabled.
          */
         emit_mov(state, RSP, map_register(BPF_REG_10));
         /* Allocate eBPF program stack space */
@@ -2248,51 +2528,96 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         case EBPF_OP_LDXW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S32, "load", i, state->jit_mode);
+            }
             emit_load(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S16, "load", i, state->jit_mode);
+            }
             emit_load(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S8, "load", i, state->jit_mode);
+            }
             emit_load(state, S8, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S64, "load", i, state->jit_mode);
+            }
             emit_load(state, S64, src, dst, inst.offset);
             break;
 
         case EBPF_OP_LDXWSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S32, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXHSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S16, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_LDXBSX:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, src, inst.offset, S8, "load", i, state->jit_mode);
+            }
             emit_load_sx(state, S8, src, dst, inst.offset);
             break;
 
         case EBPF_OP_STW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S32, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S16, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S16, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S8, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S8, dst, inst.offset, inst.imm);
             break;
         case EBPF_OP_STDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             EMIT_STORE_IMM32(vm, state, S64, dst, inst.offset, inst.imm);
             break;
 
         case EBPF_OP_STXW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             emit_store(state, S32, src, dst, inst.offset);
             break;
         case EBPF_OP_STXH:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S16, "store", i, state->jit_mode);
+            }
             emit_store(state, S16, src, dst, inst.offset);
             break;
         case EBPF_OP_STXB:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S8, "store", i, state->jit_mode);
+            }
             emit_store(state, S8, src, dst, inst.offset);
             break;
         case EBPF_OP_STXDW:
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             emit_store(state, S64, src, dst, inst.offset);
             break;
 
@@ -2303,6 +2628,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         }
         case EBPF_OP_ATOMIC_STORE: {
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S64, "store", i, state->jit_mode);
+            }
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
@@ -2346,6 +2674,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         } break;
 
         case EBPF_OP_ATOMIC32_STORE: {
+            if (vm->bounds_check_enabled) {
+                emit_bounds_check(state, dst, inst.offset, S32, "store", i, state->jit_mode);
+            }
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
@@ -2465,6 +2796,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
     state->retpoline_loc = emit_retpoline(state);
     state->dispatcher_loc = emit_dispatched_external_helper_address(state, vm);
     state->helper_table_loc = emit_helper_table(state, vm);
+    state->vm_ptr_loc = emit_vm_ptr(state, vm);
 
     return 0;
 }
@@ -2547,9 +2879,11 @@ resolve_patchable_relatives(struct jit_state* state)
         struct patchable_relative load = state->loads[i];
 
         int target_loc = 0;
-        // It is only possible to load from the external dispatcher's position.
+        // It is possible to load from the external dispatcher's position or VM pointer.
         if (load.target.is_special && load.target.target.special == ExternalDispatcher) {
             target_loc = state->dispatcher_loc;
+        } else if (load.target.is_special && load.target.target.special == LoadVMPtr) {
+            target_loc = state->vm_ptr_loc;
         } else {
             target_loc = -1;
             return false;

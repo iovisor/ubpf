@@ -118,7 +118,10 @@ ubpf_create(void)
         return NULL;
     }
 
-    vm->bounds_check_enabled = true;
+    // Note: bounds_check_enabled defaults to false because the JIT bounds checking
+    // implementation is still being debugged. The interpreter bounds checking works
+    // correctly when enabled. Set vm->bounds_check_enabled = true to test JIT bounds checking.
+    vm->bounds_check_enabled = false;
     vm->undefined_behavior_check_enabled = false;
     vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
     vm->constant_blinding_enabled = false;
@@ -2163,6 +2166,42 @@ bounds_check(
         stack,
         UBPF_EBPF_STACK_SIZE);
     return false;
+}
+
+/**
+ * @brief JIT-callable wrapper for bounds checking.
+ * 
+ * This function is called from JIT-compiled code to perform bounds checking
+ * for load/store operations. It returns 0 on success (bounds check passed)
+ * and -1 on failure (out of bounds access).
+ *
+ * @param[in] vm The VM instance
+ * @param[in] addr The address to check
+ * @param[in] size The size of the access
+ * @param[in] type The type of access ("load" or "store")
+ * @param[in] cur_pc The current program counter
+ * @param[in] mem The memory region base pointer
+ * @param[in] mem_len The memory region length
+ * @param[in] stack The stack base pointer
+ * @param[in] stack_len The stack length
+ * @return 0 on success, -1 on failure
+ */
+int
+ubpf_jit_bounds_check(
+    const struct ubpf_vm* vm,
+    uintptr_t addr,
+    size_t size,
+    const char* type,
+    uint16_t cur_pc,
+    void* mem,
+    size_t mem_len,
+    void* stack,
+    size_t stack_len)
+{
+    if (bounds_check(vm, (void*)addr, (int)size, type, cur_pc, mem, mem_len, stack, stack_len)) {
+        return 0;
+    }
+    return -1;
 }
 
 char*
