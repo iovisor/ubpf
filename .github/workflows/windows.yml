@@ -85,15 +85,17 @@ jobs:
           --config ${{ inputs.build_type }}
 
     - name: Run the CTest suite
+      working-directory: build
       run: |
-        cd build
         ctest --output-on-failure --build-config ${{ inputs.build_type }}
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Rerun failed tests with more verbose output
-      if: inputs.platform == 'ubuntu-latest' && failure()
+      if: failure()
       working-directory: ${{github.workspace}}/build
       run: |
-        ctest --rerun-failed --output-on-failure
+        ctest --rerun-failed --output-on-failure --build-config ${{ inputs.build_type }}
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Generate the TGZ package
       run: |
