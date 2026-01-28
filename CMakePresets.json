@@ -1,0 +1,114 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "tests",
+      "displayName": "Tests Configuration",
+      "description": "Build configuration for unit and custom tests",
+      "inherits": "base",
+      "cacheVariables": {
+        "UBPF_ENABLE_TESTS": "ON",
+        "UBPF_ENABLE_LIBFUZZER": "OFF"
+      }
+    },
+    {
+      "name": "fuzzing",
+      "displayName": "Fuzzing Configuration",
+      "description": "Build configuration for libFuzzer-based fuzzing",
+      "inherits": "base",
+      "cacheVariables": {
+        "UBPF_ENABLE_TESTS": "OFF",
+        "UBPF_ENABLE_LIBFUZZER": "ON",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "fuzzing-windows",
+      "displayName": "Fuzzing Configuration (Windows)",
+      "description": "Build configuration for libFuzzer-based fuzzing on Windows",
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "cacheVariables": {
+        "UBPF_ENABLE_TESTS": "OFF",
+        "UBPF_ENABLE_LIBFUZZER": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "all-testing",
+      "displayName": "All Testing Configuration",
+      "description": "Build configuration for both tests and fuzzing",
+      "inherits": "base",
+      "cacheVariables": {
+        "UBPF_ENABLE_TESTS": "ON",
+        "UBPF_ENABLE_LIBFUZZER": "ON",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "tests",
+      "configurePreset": "tests"
+    },
+    {
+      "name": "fuzzing",
+      "configurePreset": "fuzzing"
+    },
+    {
+      "name": "fuzzing-windows",
+      "configurePreset": "fuzzing-windows",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "all-testing",
+      "configurePreset": "all-testing"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests",
+      "configurePreset": "tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "all-testing",
+      "configurePreset": "all-testing",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

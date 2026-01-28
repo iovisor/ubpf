@@ -10,6 +10,7 @@ __pycache__/
 .Python
 build/
 build_*/
+build-*/
 build_fuzzer/
 develop-eggs/
 dist/

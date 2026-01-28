@@ -97,6 +97,43 @@ cmake -S . -B build -DUBPF_ENABLE_TESTS=true
 cmake --build build --config Debug
 ```
 
+### Using CMake Presets
+
+uBPF provides CMake presets for common build configurations. These presets simplify the configuration process and ensure consistent builds:
+
+#### Available Presets
+
+- **tests**: Build configuration for unit and custom tests
+  ```bash
+  cmake --preset tests
+  cmake --build build
+  ctest --test-dir build
+  ```
+
+- **fuzzing**: Build configuration for libFuzzer-based fuzzing (Linux/macOS only, requires Clang)
+  ```bash
+  cmake --preset fuzzing
+  cmake --build build
+  ./build/bin/ubpf_fuzzer corpus/
+  ```
+
+- **fuzzing-windows**: Build configuration for libFuzzer-based fuzzing on Windows
+  ```bash
+  cmake --preset fuzzing-windows
+  cmake --build build --config RelWithDebInfo
+  ```
+
+- **all-testing**: Build configuration for both tests and fuzzing (Linux/macOS only)
+  ```bash
+  cmake --preset all-testing
+  cmake --build build
+  ```
+
+To list all available presets:
+```bash
+cmake --list-presets
+```
+
 ## Running the tests
 
 ### Linux and MacOS

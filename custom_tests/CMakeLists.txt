@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+include("${CMAKE_SOURCE_DIR}/cmake/test_support.cmake")
+
 set(CMAKE_CXX_STANDARD 20)
 
 file(GLOB test_descr_files ${CMAKE_SOURCE_DIR}/custom_tests/descrs/*.md)
@@ -9,17 +11,11 @@ add_library(ubpf_custom_test_support srcs/ubpf_custom_test_support.cc)
 
 target_link_libraries(
     ubpf_custom_test_support
-    ubpf
-    ubpf_settings
+    ${UBPF_TEST_LIBS}
 )
 
 target_include_directories(ubpf_custom_test_support PUBLIC ".srcs/")
-target_include_directories(ubpf_custom_test_support PRIVATE
-    "${CMAKE_SOURCE_DIR}/vm"
-    "${CMAKE_BINARY_DIR}/vm"
-    "${CMAKE_SOURCE_DIR}/vm/inc"
-    "${CMAKE_BINARY_DIR}/vm/inc"
-)
+target_include_directories(ubpf_custom_test_support PRIVATE ${UBPF_TEST_INCLUDES})
 
 set(QEMU_RUNNER "")
 # Only use QEMU when cross-compiling for ARM64 (building on x86_64 for ARM64)
@@ -36,17 +32,11 @@ foreach(test_file ${test_descr_files})
         ${test_name}
         ${test_source_path}
     )
-    target_include_directories(${test_name} PRIVATE
-        "${CMAKE_SOURCE_DIR}/vm"
-        "${CMAKE_BINARY_DIR}/vm"
-        "${CMAKE_SOURCE_DIR}/vm/inc"
-        "${CMAKE_BINARY_DIR}/vm/inc"
-    )
+    target_include_directories(${test_name} PRIVATE ${UBPF_TEST_INCLUDES})
     target_link_libraries(
         ${test_name}
-        ubpf
+        ${UBPF_TEST_LIBS}
         ubpf_custom_test_support
-        ubpf_settings
     )
     set(potential_input_file ${CMAKE_SOURCE_DIR}/custom_tests/data/${test_name}.input)
     if (EXISTS ${potential_input_file})
