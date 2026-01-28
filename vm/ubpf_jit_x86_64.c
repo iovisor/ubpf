@@ -705,15 +705,6 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
     } while (0)
 
 
-/* LEA [src + offset] into dst */
-static inline void
-emit_lea_imm(struct jit_state* state, int dst, int src, int32_t offset)
-{
-    emit_basic_rex(state, 1, dst, src);
-    emit1(state, 0x8d);
-    emit_modrm_and_displacement(state, dst, src, offset);
-}
-
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
 {
