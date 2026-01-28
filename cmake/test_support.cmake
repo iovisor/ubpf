@@ -21,10 +21,3 @@ set(UBPF_TEST_LIBS
     ubpf
     ubpf_settings
 )
-
-# Helper function to add a test executable with common configuration
-function(ubpf_add_test_executable name)
-    add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ${UBPF_TEST_INCLUDES})
-    target_link_libraries(${name} PRIVATE ${UBPF_TEST_LIBS})
-endfunction()
