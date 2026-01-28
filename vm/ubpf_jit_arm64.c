@@ -746,16 +746,17 @@ emit_atomic_operation(
         (status_reg == temp_div_register) ? offset_register : temp_div_register;
     
     if (offset != 0) {
-        int16_t abs_offset = offset;
+        // Use int32_t to avoid undefined behavior when negating INT16_MIN
+        int32_t abs_offset = offset;
         enum AddSubOpcode op = AS_ADD;
 
         if (offset < 0) {
             op = AS_SUB;
-            abs_offset = (int16_t)-offset;
+            abs_offset = -(int32_t)offset;
         }
 
         if (abs_offset < 256) {
-            emit_addsub_immediate(state, true, op, addr_temp, addr_reg, abs_offset);
+            emit_addsub_immediate(state, true, op, addr_temp, addr_reg, (int16_t)abs_offset);
         } else {
             // Choose a scratch register for the offset that is distinct from addr_temp.
             enum Registers offset_temp =
@@ -836,8 +837,19 @@ emit_atomic_operation(
         
     } else {
         // Arithmetic/logical operation based on alu_op
-        // Use a different temp register for the operation result to avoid conflicts
-        enum Registers op_result_reg = (temp_reg == R24) ? R25 : R24;
+        // For non-FETCH: Use temp register for result (original behavior)
+        // For FETCH: Need to preserve load_reg, use a different register
+        enum Registers op_result_reg;
+        if (fetch) {
+            // Need to preserve load_reg for returning old value.
+            // Can't use R25 (status_reg) or R26 (addr_temp), so use R8.
+            op_result_reg = R8;
+        } else {
+            // Original behavior: use a temp register different from load_reg
+            // Note: This will be clobbered by STXR status, but that's OK for non-FETCH
+            // since the store happens before the clobber.
+            op_result_reg = (temp_reg == R24) ? R25 : R24;
+        }
         
         switch (alu_op) {
         case EBPF_ALU_OP_ADD:
