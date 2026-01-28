@@ -9,5 +9,5 @@ ja begin # Intentionally jump from the sub-program back to the main program.
 exit
 -- result
 0x12345678
--- errror
+-- error
 Failed to load code: jump out of bounds at PC 4

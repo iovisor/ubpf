@@ -39,7 +39,7 @@ endif()
 
 
 file(GLOB external_files ${CMAKE_SOURCE_DIR}/external/bpf_conformance/tests/*.data)
-file(GLOB local_files ${CMAKE_SOURCE_DIR}/tests/*.data)
+file(GLOB_RECURSE local_files ${CMAKE_SOURCE_DIR}/tests/*.data)
 
 set(files ${external_files} ${local_files})
 
