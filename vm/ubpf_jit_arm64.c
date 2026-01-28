@@ -556,41 +556,20 @@ emit_movewide_immediate_blinded(struct jit_state* state, bool sixty_four, enum R
     /* Generate random blinding constant */
     uint64_t random = ubpf_generate_blinding_constant();
     uint64_t blinded = imm ^ random;
-    
-    /* Choose two temporary registers that are different from rd and from each other.
-     * Available temp registers: temp_register (R24), temp_div_register (R25), offset_register (R26)
+
+    /* Use a single scratch register to avoid clobbering live values (notably temp_register in
+     * load/store large-offset sequences).
      */
-    enum Registers temp_blinded, temp_random;
-    
-    if (rd == temp_register) {
-        /* rd is R24, use R25 and R26 */
-        temp_blinded = temp_div_register;
-        temp_random = offset_register;
-    } else if (rd == temp_div_register) {
-        /* rd is R25, use R24 and R26 */
-        temp_blinded = temp_register;
-        temp_random = offset_register;
-    } else if (rd == offset_register) {
-        /* rd is R26, use R24 and R25 */
-        temp_blinded = temp_register;
-        temp_random = temp_div_register;
-    } else {
-        /* rd is not a temp register, use R24 and R25 */
-        temp_blinded = temp_register;
-        temp_random = temp_div_register;
-    }
-    
-    /* Load blinded constant into temporary register */
-    emit_movewide_immediate(state, sixty_four, temp_blinded, blinded);
-    
-    /* Load random into another temporary register */
-    emit_movewide_immediate(state, sixty_four, temp_random, random);
-    
-    /* XOR to recover original: EOR temp_blinded, temp_blinded, temp_random */
-    emit_logical_register(state, sixty_four, LOG_EOR, temp_blinded, temp_blinded, temp_random);
-    
-    /* Move result to destination register: ORR rd, RZ, temp_blinded */
-    emit_logical_register(state, sixty_four, LOG_ORR, rd, RZ, temp_blinded);
+    enum Registers scratch = (rd == temp_div_register) ? temp_register : temp_div_register;
+
+    /* Load blinded constant into rd */
+    emit_movewide_immediate(state, sixty_four, rd, blinded);
+
+    /* Load random into scratch */
+    emit_movewide_immediate(state, sixty_four, scratch, random);
+
+    /* XOR to recover original: EOR rd, rd, scratch */
+    emit_logical_register(state, sixty_four, LOG_EOR, rd, rd, scratch);
 }
 
 /* Macro to conditionally emit movewide immediate with or without blinding */
