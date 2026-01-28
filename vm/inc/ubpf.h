@@ -65,6 +65,13 @@ extern "C"
 #define UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE 256
 #endif
 
+/**
+ * @brief Default maximum number of external helper functions that can be registered.
+ */
+#if !defined(UBPF_MAX_EXT_FUNCS)
+#define UBPF_MAX_EXT_FUNCS 64
+#endif
+
 #define UBPF_EBPF_NONVOLATILE_SIZE (sizeof(uint64_t) * 5)
 
 
