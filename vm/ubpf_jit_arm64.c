@@ -1305,7 +1305,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // If this is an operation with an immediate operand (and that immediate
         // operand is _not_ simple), then we convert the operation to the equivalent
         // register version after moving the immediate into a temporary register.
-        if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
+        // When constant blinding is enabled, we also convert simple immediates to ensure
+        // all attacker-controlled immediates are blinded.
+        if (is_imm_op(&inst) && (!is_simple_imm(&inst) || vm->constant_blinding_enabled)) {
             EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
             opcode = to_reg_op(opcode);
