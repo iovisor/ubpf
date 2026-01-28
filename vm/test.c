@@ -287,6 +287,12 @@ main(int argc, char** argv)
         return 1;
     }
 
+    // Enable constant blinding if environment variable is set
+    const char* enable_blinding_env = getenv("UBPF_ENABLE_CONSTANT_BLINDING");
+    if (enable_blinding_env != NULL && (strcmp(enable_blinding_env, "1") == 0 || strcmp(enable_blinding_env, "true") == 0)) {
+        ubpf_toggle_constant_blinding(vm, true);
+    }
+
     if (data_relocation) {
         ubpf_register_data_relocation(vm, NULL, do_data_relocation);
         ubpf_register_data_bounds_check(vm, NULL, data_relocation_bounds_check_function);
