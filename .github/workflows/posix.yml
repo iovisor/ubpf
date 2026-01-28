@@ -117,8 +117,28 @@ jobs:
             qemu-user
         fi
 
+    - name: Install system dependencies (Linux ARM64)
+      if: inputs.platform == 'ubuntu-24.04-arm'
+      run: |
+        sudo apt-get update
+
+        sudo apt-get install -y \
+          ccache \
+          ninja-build \
+          cmake \
+          lcov \
+          libboost-dev \
+          libboost-program-options-dev \
+          libboost-filesystem-dev \
+          libelf-dev
+
+        if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
+          sudo apt-get install -y \
+            clang-tools
+        fi
+
     - name: Build/install libbpf From Source
-      if: inputs.platform == 'ubuntu-latest'
+      if: inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm'
       run: ./.github/scripts/build-libbpf.sh
       shell: bash
 
@@ -140,7 +160,8 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
-        if [[ "${{ inputs.arch }}" == "arm64" ]] ; then
+        if [[ "${{ inputs.arch }}" == "arm64" && "${{ inputs.platform }}" == "ubuntu-latest" ]] ; then
+          # Cross-compiling for ARM64 on x86_64
           arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake"
         else
           arch_flags=""
@@ -191,7 +212,7 @@ jobs:
           --target test
 
     - name: Rerun failed tests with more verbose output
-      if: inputs.platform == 'ubuntu-latest' && failure()
+      if: (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm') && failure()
       working-directory: ${{github.workspace}}/build
       run: |
         ctest --rerun-failed --output-on-failure
@@ -226,7 +247,7 @@ jobs:
           --target install
 
     - name: Generate the DEB package
-      if: inputs.platform == 'ubuntu-latest'
+      if: inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm'
       run: |
         cmake \
           -S . \
@@ -239,7 +260,7 @@ jobs:
           --target package
 
     - name: Generate the RPM package
-      if: inputs.platform == 'ubuntu-latest'
+      if: inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm'
       run: |
         cmake \
           -S . \
@@ -272,7 +293,7 @@ jobs:
         echo "REL_TGZ_PACKAGE_PATH=$(ls build/*.tar.gz)" >> $GITHUB_OUTPUT
 
     - name: Upload the DEB package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: linux_deb_package
@@ -280,7 +301,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the RPM package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: linux_rpm_package
@@ -288,7 +309,7 @@ jobs:
         retention-days: 5
 
     - name: Upload the Linux TGZ package
-      if: inputs.upload_packages == true && inputs.platform == 'ubuntu-latest'
+      if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: linux_tgz_package
