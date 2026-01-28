@@ -1297,7 +1297,12 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // register version after moving the immediate into a temporary register.
         // When constant blinding is enabled, we also convert simple immediates to ensure
         // all attacker-controlled immediates are blinded.
-        if (is_imm_op(&inst) && (!is_simple_imm(&inst) || vm->constant_blinding_enabled)) {
+        // Exception: MOV_IMM/MOV64_IMM are handled directly in their switch case to avoid
+        // an extra ORR instruction when blinding is enabled.
+        if (is_imm_op(&inst) &&
+            opcode != EBPF_OP_MOV_IMM &&
+            opcode != EBPF_OP_MOV64_IMM &&
+            (!is_simple_imm(&inst) || vm->constant_blinding_enabled)) {
             EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
             opcode = to_reg_op(opcode);
