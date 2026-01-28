@@ -61,7 +61,8 @@ struct ubpf_stack_usage
     uint16_t stack_usage;
 };
 
-#define MAX_EXT_FUNCS 64
+// Use public definition for consistency
+#define MAX_EXT_FUNCS UBPF_MAX_EXT_FUNCS
 
 struct ubpf_vm
 {
