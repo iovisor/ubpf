@@ -32,8 +32,8 @@ ctest --test-dir build
 # Run specific CTest by name pattern
 ctest --test-dir build -R <test-name-pattern>
 
-# Run Python tests directly (requires build first)
-cd test_framework && python -m pytest test_vm.py::test_datafiles -k "add"
+# Run Python tests directly with nose (requires build first)
+cd test_framework && nosetests test_vm.py -m "add"
 ```
 
 ### Format Code
@@ -67,7 +67,7 @@ cd test_framework && python -m pytest test_vm.py::test_datafiles -k "add"
 ```c
 struct ubpf_vm* ubpf_create(void);
 int ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg);
-int ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* result);
+int ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_return_value);
 ubpf_jit_fn ubpf_compile(struct ubpf_vm* vm, char** errmsg);
 ```
 
@@ -77,6 +77,7 @@ ubpf_jit_fn ubpf_compile(struct ubpf_vm* vm, char** errmsg);
 - LLVM-based style with Mozilla brace rules (see `.clang-format`)
 - 120 column width
 - `clang-format` version 11+ required
+- Note: `docs/Contributing.md` mentions Allman braces, but `.clang-format` is authoritative (Mozilla braces).
 
 ### Naming
 - `lower_snake_case` for variables, functions, file names
