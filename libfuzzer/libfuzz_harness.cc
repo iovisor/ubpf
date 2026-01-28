@@ -862,7 +862,11 @@ call_external_vm(
     std::string command = plugin_path + " \"" + memory_hex + "\" --program \"" + program_hex + "\"";
 
     // Execute the command and capture output
+#if defined(_WIN32)
+    FILE* pipe = _popen(command.c_str(), "r");
+#else
     FILE* pipe = popen(command.c_str(), "r");
+#endif
     if (!pipe) {
         // Failed to execute external VM
         return false;
@@ -875,7 +879,11 @@ call_external_vm(
         result_str += buffer.data();
     }
 
+#if defined(_WIN32)
+    int exit_code = _pclose(pipe);
+#else
     int exit_code = pclose(pipe);
+#endif
     if (exit_code != 0) {
         // External VM failed to execute
         return false;
