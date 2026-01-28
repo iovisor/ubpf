@@ -49,7 +49,7 @@
 #endif
 
 #ifndef R_BPF_64_32
-#define R_BPF_64_32 2
+#define R_BPF_64_32 10
 #endif
 
 #if defined(UBPF_HAS_ELF_H)
