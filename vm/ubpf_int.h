@@ -87,6 +87,7 @@ struct ubpf_vm
 
     bool bounds_check_enabled;
     bool undefined_behavior_check_enabled;
+    bool constant_blinding_enabled;
     int (*error_printf)(FILE* stream, const char* format, ...);
     struct ubpf_jit_result (*jit_translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode);
     bool (*jit_update_dispatcher)(

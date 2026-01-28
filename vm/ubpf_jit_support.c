@@ -22,6 +22,44 @@
 #include "ubpf.h"
 #include "ubpf_int.h"
 #include <memory.h>
+#include <time.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+#elif defined(__linux__)
+#include <sys/random.h>
+#endif
+
+// Thread-safe initialization for fallback random seeding
+#if defined(_WIN32)
+static INIT_ONCE g_seed_init_once = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK init_seed_once(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
+{
+    (void)InitOnce;
+    (void)Parameter;
+    (void)lpContext;
+    srand((unsigned int)time(NULL));
+    return TRUE;
+}
+#elif defined(__GNUC__) || defined(__clang__)
+static void init_seed(void) __attribute__((constructor));
+static void init_seed(void)
+{
+    srand((unsigned int)time(NULL));
+}
+#else
+// For other platforms, accept potential race condition on first use
+static volatile int seed_initialized = 0;
+static void ensure_seed_initialized(void)
+{
+    if (!seed_initialized) {
+        srand((unsigned int)time(NULL));
+        seed_initialized = 1;
+    }
+}
+#endif
 
 int
 initialize_jit_state_result(
@@ -116,4 +154,51 @@ emit_jump_target(struct jit_state* state, uint32_t jump_src)
     pt.target.regular.jit_target_pc = state->offset;
 
     modify_patchable_relatives_target(state->jumps, state->num_jumps, jump_src, pt);
+}
+
+/**
+ * @brief Generate a cryptographically secure random 64-bit value for constant blinding.
+ *
+ * This function uses platform-specific secure random number generators:
+ * - Windows: BCryptGenRandom with BCRYPT_USE_SYSTEM_PREFERRED_RNG
+ * - Linux: getrandom() system call
+ * - macOS: arc4random()
+ *
+ * Thread safety: This function is thread-safe. Platform RNGs are thread-safe,
+ * and fallback rand() uses thread-safe initialization where available.
+ *
+ * @return A 64-bit random value.
+ */
+uint64_t
+ubpf_generate_blinding_constant(void)
+{
+    uint64_t random_value = 0;
+
+#if defined(_WIN32)
+    // Windows: Use BCryptGenRandom for cryptographically secure random
+    NTSTATUS status = BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (!BCRYPT_SUCCESS(status)) {
+        // Fallback on error - use thread-safe initialization
+        InitOnceExecuteOnce(&g_seed_init_once, init_seed_once, NULL, NULL);
+        random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
+    }
+#elif defined(__linux__)
+    // Linux: Use getrandom() system call (available since kernel 3.17)
+    // This doesn't require opening /dev/urandom and is more efficient
+    ssize_t result = getrandom(&random_value, sizeof(random_value), 0);
+    if (result != sizeof(random_value)) {
+        // Fallback: use time-based random if getrandom fails
+        // Seed is initialized at program start via constructor
+        random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
+    }
+#elif defined(__APPLE__)
+    // macOS: Use arc4random_buf which is available and doesn't need seeding
+    arc4random_buf(&random_value, sizeof(random_value));
+#else
+    // Generic fallback: use standard rand (not cryptographically secure)
+    ensure_seed_initialized();
+    random_value = ((uint64_t)rand() << 32) | (uint64_t)rand();
+#endif
+
+    return random_value;
 }

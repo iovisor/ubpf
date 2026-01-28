@@ -198,4 +198,16 @@ modify_patchable_relatives_target(
     size_t table_size,
     uint32_t src_offset,
     struct PatchableTarget target);
+
+/**
+ * @brief Generate a cryptographically secure random 64-bit value for constant blinding.
+ *
+ * This function uses platform-specific secure random number generators to generate
+ * a random value that will be used to blind immediate constants in JIT compiled code.
+ *
+ * @return A 64-bit random value.
+ */
+uint64_t
+ubpf_generate_blinding_constant(void);
+
 #endif

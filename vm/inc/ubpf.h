@@ -134,6 +134,29 @@ extern "C"
     ubpf_toggle_bounds_check(struct ubpf_vm* vm, bool enable);
 
     /**
+     * @brief Enable / disable constant blinding in the JIT compiler.
+     * Constant blinding is a security hardening technique that prevents JIT spray attacks by
+     * XORing immediate values with random values before emitting them. This ensures that
+     * attacker-controlled immediate values cannot be used to embed malicious instruction sequences
+     * in the JIT-compiled code. Constant blinding is disabled by default for backward compatibility
+     * and performance reasons.
+     *
+     * **Platform Support:**
+     * - x86-64: Fully supported - blinds all immediate values in ALU operations, comparisons,
+     *   jumps, stores, loads, and MUL/DIV/MOD operations
+     * - ARM64: Not yet implemented - enabling on ARM64 will have no effect
+     *
+     * **Thread Safety:** This function is thread-safe. The blinding itself uses thread-safe
+     * random number generation on all supported platforms.
+     *
+     * @param[in] vm The VM to enable / disable constant blinding on.
+     * @param[in] enable Enable constant blinding if true, disable if false.
+     * @retval true Constant blinding was previously enabled.
+     */
+    bool
+    ubpf_toggle_constant_blinding(struct ubpf_vm* vm, bool enable);
+
+    /**
      * @brief Set the function to be invoked if the program hits a fatal error.
      *
      * @param[in] vm The VM to set the error function on.
