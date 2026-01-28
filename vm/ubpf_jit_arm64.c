@@ -263,15 +263,6 @@ emit_loadstore_immediate(
     emit_instruction(state, imm_op_base | op | (imm9 << 12) | (rn << 5) | rt);
 }
 
-/* [ArmARM-A H.a]: C4.1.66: Load/store register (register offset).  */
-static void
-emit_loadstore_register(
-    struct jit_state* state, enum LoadStoreOpcode op, enum Registers rt, enum Registers rn, enum Registers rm)
-{
-    const uint32_t reg_op_base = 0x38206800U;
-    emit_instruction(state, op | reg_op_base | (rm << 16) | (rn << 5) | rt);
-}
-
 /* Load-Exclusive/Store-Exclusive for atomics */
 static void
 emit_loadstore_exclusive(
