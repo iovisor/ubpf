@@ -739,19 +739,34 @@ emit_atomic_operation(
     bool is_xchg,
     bool fetch)
 {
-    // Save the target address (addr_reg + offset) into temp_reg
-    // We'll use temp_div_register (R25) as an additional temp if needed
-    enum Registers addr_temp = temp_div_register;
+    // Save the target address (addr_reg + offset) into a temporary register.
+    // Ensure that the base address register used for LDXR/STXR never aliases
+    // the status register used by STXR.
+    enum Registers addr_temp =
+        (status_reg == temp_div_register) ? offset_register : temp_div_register;
     
     if (offset != 0) {
-        if (offset >= -256 && offset < 256) {
-            emit_addsub_immediate(state, true, AS_ADD, addr_temp, addr_reg, offset);
+        int16_t abs_offset = offset;
+        enum AddSubOpcode op = AS_ADD;
+
+        if (offset < 0) {
+            op = AS_SUB;
+            abs_offset = (int16_t)-offset;
+        }
+
+        if (abs_offset < 256) {
+            emit_addsub_immediate(state, true, op, addr_temp, addr_reg, abs_offset);
         } else {
-            emit_movewide_immediate(state, true, offset_register, offset);
-            emit_addsub_register(state, true, AS_ADD, addr_temp, addr_reg, offset_register);
+            // Choose a scratch register for the offset that is distinct from addr_temp.
+            enum Registers offset_temp =
+                (addr_temp == offset_register) ? temp_div_register : offset_register;
+            emit_movewide_immediate(state, true, offset_temp, offset);
+            emit_addsub_register(state, true, AS_ADD, addr_temp, addr_reg, offset_temp);
         }
     } else {
-        addr_temp = addr_reg;
+        // Copy addr_reg into addr_temp so that the base register used by LDXR/STXR
+        // is guaranteed not to alias status_reg.
+        emit_logical_register(state, true, LOG_ORR, addr_temp, RZ, addr_reg);
     }
 
     // Mark retry label location
