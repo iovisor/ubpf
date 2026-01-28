@@ -91,3 +91,71 @@ Or you can repro it using ubpf_test:
 build/bin/ubpf-test --mem artifacts/memory-7036cbef2b568fa0b6e458a9c8062571a65144e1 artifacts/program-7036cbef2b568fa0b6e458a9c8062571a65144e1 --jit
 ```
 
+## External VM Comparison
+
+The fuzzer can compare uBPF execution results against an external BPF VM to find semantic differences between implementations.
+
+### Usage
+
+Set the `UBPF_FUZZER_EXTERNAL_VM` environment variable to the path of an external VM plugin:
+
+```bash
+export UBPF_FUZZER_EXTERNAL_VM=/path/to/vm_plugin
+build/bin/ubpf_fuzzer corpus -artifact_prefix=artifacts/
+```
+
+The external VM plugin must follow the bpf_conformance plugin interface:
+- Accept memory as space-separated hex string (e.g., "00 01 ff") as first argument
+- Accept program as space-separated hex string via `--program` argument
+- Output result as hex to stdout (single hex value without spaces)
+- Return exit code 0 on success, non-zero on error
+
+Example using the ubpf_plugin as external VM:
+```bash
+export UBPF_FUZZER_EXTERNAL_VM=build/bin/ubpf_plugin
+build/bin/ubpf_fuzzer corpus -artifact_prefix=artifacts/
+```
+
+When enabled, the fuzzer will:
+1. Execute the program using uBPF interpreter (if enabled)
+2. Execute the program using uBPF JIT (if enabled)
+3. Execute the program using the external VM
+4. Compare all results and report discrepancies as fuzzer findings
+
+If the external VM fails to execute or is not available, the fuzzer will continue normally without external comparison.
+
+### Configuration Options
+
+You can combine external VM comparison with other fuzzer options:
+
+```bash
+# Enable external VM with constraint checking
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_CONSTRAINT_CHECK=1 \
+./build/bin/ubpf_fuzzer corpus
+
+# Compare only JIT vs external VM (disable interpreter)
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_INTERPRETER=0 \
+./build/bin/ubpf_fuzzer corpus
+
+# Run with verbose output
+UBPF_FUZZER_EXTERNAL_VM=./build/bin/ubpf_plugin \
+UBPF_FUZZER_PRINT_EXECUTION_TRACE=1 \
+./build/bin/ubpf_fuzzer corpus
+```
+
+### Security Considerations
+
+The external VM is executed as a subprocess with the following protections:
+- Plugin paths are validated to prevent common command injection patterns
+- Plugin paths must not contain shell metacharacters (`;`, `&`, `|`, `<`, `>`, `` ` ``, `$`, `(`, `)`)
+- Plugin failures are handled gracefully without affecting fuzzer stability
+
+**Important**: Only use trusted plugin paths. For maximum security:
+- Use absolute paths to known executables
+- Avoid paths with spaces or special characters
+- Do not allow untrusted users to specify plugin paths
+- Consider using access controls to restrict which plugins can be executed
+
+
