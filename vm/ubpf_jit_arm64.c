@@ -546,6 +546,49 @@ emit_movewide_immediate(struct jit_state* state, bool sixty_four, enum Registers
     }
 }
 
+/* [ArmARM-A H.a]: C4.1.64: Move wide (Immediate) with constant blinding.
+ * This variant loads a blinded immediate value and XORs it with a random value
+ * to recover the original constant, preventing JIT spray attacks.
+ */
+static void
+emit_movewide_immediate_blinded(struct jit_state* state, bool sixty_four, enum Registers rd, uint64_t imm)
+{
+    /* Generate random blinding constant */
+    uint64_t random = ubpf_generate_blinding_constant();
+    uint64_t blinded = imm ^ random;
+    
+    /* Use a second temp register for the random value.
+     * We need to be careful not to clobber rd if it's one of our temp registers.
+     * temp_register (R24) is used for the blinded value first.
+     * temp_div_register (R25) is used for the random value.
+     */
+    enum Registers temp_random = (rd == temp_register) ? temp_div_register : 
+                                  (rd == temp_div_register) ? offset_register : temp_register;
+    enum Registers temp_blinded = (temp_random == temp_register) ? temp_div_register : temp_register;
+    
+    /* Load blinded constant into temporary register */
+    emit_movewide_immediate(state, sixty_four, temp_blinded, blinded);
+    
+    /* Load random into another temporary register */
+    emit_movewide_immediate(state, sixty_four, temp_random, random);
+    
+    /* XOR to recover original: EOR temp_blinded, temp_blinded, temp_random */
+    emit_logical_register(state, sixty_four, LOG_EOR, temp_blinded, temp_blinded, temp_random);
+    
+    /* Move result to destination register: ORR rd, RZ, temp_blinded */
+    emit_logical_register(state, sixty_four, LOG_ORR, rd, RZ, temp_blinded);
+}
+
+/* Macro to conditionally emit movewide immediate with or without blinding */
+#define EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, rd, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_movewide_immediate_blinded(state, sixty_four, rd, imm); \
+        } else { \
+            emit_movewide_immediate(state, sixty_four, rd, imm); \
+        } \
+    } while (0)
+
 /* Generate the function prologue.
  *
  * We set the stack to look like:
@@ -1270,7 +1313,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         // operand is _not_ simple), then we convert the operation to the equivalent
         // register version after moving the immediate into a temporary register.
         if (is_imm_op(&inst) && !is_simple_imm(&inst)) {
-            emit_movewide_immediate(state, sixty_four, temp_register, (int64_t)inst.imm);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, temp_register, (int64_t)inst.imm);
             src = temp_register;
             opcode = to_reg_op(opcode);
         }
@@ -1321,7 +1364,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_MOV_IMM:
         case EBPF_OP_MOV64_IMM:
-            emit_movewide_immediate(state, sixty_four, dst, (int64_t)inst.imm);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, sixty_four, dst, (int64_t)inst.imm);
             break;
         case EBPF_OP_MOV_REG:
         case EBPF_OP_MOV64_REG:
@@ -1461,7 +1504,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             if (inst.offset >= -256 && inst.offset < 256) {
                 emit_loadstore_immediate(state, to_loadstore_opcode(opcode), dst, src, inst.offset);
             } else {
-                emit_movewide_immediate(state, true, offset_register, inst.offset);
+                EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, offset_register, inst.offset);
                 emit_loadstore_register(state, to_loadstore_opcode(opcode), dst, src, offset_register);
             }
             break;
@@ -1541,7 +1584,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_LDDW: {
             struct ebpf_inst inst2 = ubpf_fetch_instruction(vm, ++i);
             uint64_t imm = (uint32_t)inst.imm | ((uint64_t)inst2.imm << 32);
-            emit_movewide_immediate(state, true, dst, imm);
+            EMIT_MOVEWIDE_IMMEDIATE(vm, state, true, dst, imm);
             break;
         }
 
