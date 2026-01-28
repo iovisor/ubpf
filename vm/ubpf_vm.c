@@ -1606,7 +1606,7 @@ ubpf_exec_ex(
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
-            volatile uint64_t* destination = (volatile uint64_t*)(reg[inst.dst] + inst.offset);
+            volatile uint64_t* destination = (volatile uint64_t*)_eff_addr;
             uint64_t value = reg[inst.src];
             uint64_t result;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
@@ -1646,7 +1646,7 @@ ubpf_exec_ex(
                          (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
             int fetch_index = inst.src;
-            volatile uint32_t* destination = (volatile uint32_t*)(reg[inst.dst] + inst.offset);
+            volatile uint32_t* destination = (volatile uint32_t*)_eff_addr;
             uint32_t value = u32(reg[inst.src]);
             uint32_t result;
             switch (inst.imm & EBPF_ALU_OP_MASK) {
