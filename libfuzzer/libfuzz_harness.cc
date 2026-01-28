@@ -13,6 +13,7 @@
 #include <sstream>
 #include <cstdio>
 #include <array>
+#include <cinttypes>
 
 #include "libfuzzer_config.h"
 
@@ -844,11 +845,20 @@ call_external_vm(
         return false;
     }
 
+    // Validate that the plugin path doesn't contain shell metacharacters
+    // to prevent command injection
+    const std::string dangerous_chars = ";&|<>`$()";
+    if (plugin_path.find_first_of(dangerous_chars) != std::string::npos) {
+        std::cerr << "External VM plugin path contains dangerous characters: " << plugin_path << std::endl;
+        return false;
+    }
+
     // Convert program and memory to hex strings
     std::string program_hex = bytes_to_hex_string(program_code);
     std::string memory_hex = bytes_to_hex_string(memory);
 
     // Build command: plugin_path memory_hex --program program_hex
+    // Note: We rely on the validation above to prevent injection
     std::string command = plugin_path + " \"" + memory_hex + "\" --program \"" + program_hex + "\"";
 
     // Execute the command and capture output
@@ -875,8 +885,9 @@ call_external_vm(
     try {
         external_result = std::stoull(result_str, nullptr, 16);
         return true;
-    } catch (...) {
-        // Failed to parse result
+    } catch (const std::exception& e) {
+        // Failed to parse result - provide diagnostic information
+        std::cerr << "Failed to parse external VM result: '" << result_str << "', error: " << e.what() << std::endl;
         return false;
     }
 }
@@ -1022,15 +1033,15 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
     if (external_success) {
         if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
             if (interpreter_result != external_result) {
-                printf("interpreter_result: %lx\n", interpreter_result);
-                printf("external_result: %lx\n", external_result);
+                printf("interpreter_result: %" PRIx64 "\n", interpreter_result);
+                printf("external_result: %" PRIx64 "\n", external_result);
                 throw std::runtime_error("interpreter_result != external_result");
             }
         }
         if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_JIT")) {
             if (jit_result != external_result) {
-                printf("jit_result: %lx\n", jit_result);
-                printf("external_result: %lx\n", external_result);
+                printf("jit_result: %" PRIx64 "\n", jit_result);
+                printf("external_result: %" PRIx64 "\n", external_result);
                 throw std::runtime_error("jit_result != external_result");
             }
         }

@@ -105,9 +105,9 @@ build/bin/ubpf_fuzzer corpus -artifact_prefix=artifacts/
 ```
 
 The external VM plugin must follow the bpf_conformance plugin interface:
-- Accept memory as hex string as first argument
-- Accept program as hex string via `--program` argument
-- Output result as hex to stdout
+- Accept memory as space-separated hex string (e.g., "00 01 ff") as first argument
+- Accept program as space-separated hex string via `--program` argument
+- Output result as hex to stdout (single hex value without spaces)
 - Return exit code 0 on success, non-zero on error
 
 Example using the ubpf_plugin as external VM:
