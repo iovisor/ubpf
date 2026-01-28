@@ -227,6 +227,9 @@ int main(int, char**)
     all_passed &= test_imm_operation("AND_IMM", EBPF_OP_AND_IMM, 0x0F0F0F0F, 0xFFFFFFFF, 0x0F0F0F0FULL);
     all_passed &= test_imm_operation("XOR_IMM", EBPF_OP_XOR_IMM, 0xFFFFFFFF, 0x12345678, 0xEDCBA987ULL);
     all_passed &= test_imm_operation("MOV_IMM", EBPF_OP_MOV_IMM, 0xDEADBEEF, 0x00000000, 0xDEADBEEFULL);
+    all_passed &= test_imm_operation("MUL_IMM", EBPF_OP_MUL_IMM, 0x00000003, 0x00000005, 0x0000000FULL);
+    all_passed &= test_imm_operation("DIV_IMM", EBPF_OP_DIV_IMM, 0x00000003, 0x0000000F, 0x00000005ULL);
+    all_passed &= test_imm_operation("MOD_IMM", EBPF_OP_MOD_IMM, 0x00000003, 0x0000000A, 0x00000001ULL);
     
     // Test 4: 64-bit ALU immediate operations
     std::cout << "\nTest 4: 64-bit ALU immediate operations..." << std::endl;
@@ -237,6 +240,9 @@ int main(int, char**)
     all_passed &= test_imm_operation("AND64_IMM", EBPF_OP_AND64_IMM, 0x0F0F0F0F, 0x7FFFFFFF, 0x0F0F0F0FULL);
     all_passed &= test_imm_operation("XOR64_IMM", EBPF_OP_XOR64_IMM, 0xFFFFFFFF, 0x12345678, 0xFFFFFFFFEDCBA987ULL);
     all_passed &= test_imm_operation("MOV64_IMM", EBPF_OP_MOV64_IMM, 0x7EADBEEF, 0x00000000, 0x7EADBEEFULL);
+    all_passed &= test_imm_operation("MUL64_IMM", EBPF_OP_MUL64_IMM, 0x00000003, 0x00000005, 0x0000000FULL);
+    all_passed &= test_imm_operation("DIV64_IMM", EBPF_OP_DIV64_IMM, 0x00000003, 0x0000000F, 0x00000005ULL);
+    all_passed &= test_imm_operation("MOD64_IMM", EBPF_OP_MOD64_IMM, 0x00000003, 0x0000000A, 0x00000001ULL);
     
     // Test 5: Edge case - large immediates
     std::cout << "\nTest 5: Edge case - large immediates..." << std::endl;

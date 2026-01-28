@@ -142,7 +142,7 @@ extern "C"
      * and performance reasons.
      *
      * **Platform Support:**
-     * - x86-64: Fully supported
+     * - x86-64: Supported for ALU, MUL/DIV/MOD, comparison, JSET, store, and LDDW immediate operations
      * - ARM64: Not yet implemented - enabling on ARM64 will have no effect
      *
      * **Thread Safety:** This function is thread-safe. The blinding itself uses thread-safe

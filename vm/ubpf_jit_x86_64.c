@@ -1257,7 +1257,7 @@ emit_atomic_fetch_xor32(struct jit_state* state, int src, int dst, int offset)
 }
 
 static void
-emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm, int16_t offset)
+emit_muldivmod(struct ubpf_vm* vm, struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm, int16_t offset)
 {
     bool mul = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MUL_IMM & EBPF_ALU_OP_MASK);
     bool div = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_DIV_IMM & EBPF_ALU_OP_MASK);
@@ -1288,7 +1288,11 @@ emit_muldivmod(struct jit_state* state, uint8_t opcode, int src, int dst, int32_
 
     // Load the divisor into RCX.
     if (!reg) {
-        emit_load_imm(state, RCX, imm);
+        if (vm->constant_blinding_enabled) {
+            emit_load_imm_blinded(state, RCX, imm);
+        } else {
+            emit_load_imm(state, RCX, imm);
+        }
     } else {
         emit_mov(state, src, RCX);
     }
@@ -1867,7 +1871,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV_REG:
         case EBPF_OP_MOD_IMM:
         case EBPF_OP_MOD_REG:
-            emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
+            emit_muldivmod(vm, state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR_IMM:
             EMIT_ALU32_IMM32(vm, state, 0x81, 1, dst, inst.imm);
@@ -1983,7 +1987,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         case EBPF_OP_DIV64_REG:
         case EBPF_OP_MOD64_IMM:
         case EBPF_OP_MOD64_REG:
-            emit_muldivmod(state, inst.opcode, src, dst, inst.imm, inst.offset);
+            emit_muldivmod(vm, state, inst.opcode, src, dst, inst.imm, inst.offset);
             break;
         case EBPF_OP_OR64_IMM:
             EMIT_ALU64_IMM32(vm, state, 0x81, 1, dst, inst.imm);
