@@ -439,7 +439,8 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                 applies_to_inst2->imm = (uint32_t)(imm >> 32);
                 break;
             }
-            case R_BPF_64_32_LEGACY: // Support legacy type 2 from older clang versions
+            // Support legacy type 2 from older clang versions (pre-17)
+            case R_BPF_64_32_LEGACY:
             case R_BPF_64_32: {
                 if (applies_to_inst->src == 1) {
                     // Perform local function call relocation.
