@@ -255,7 +255,11 @@ def assemble(source):
         label = None
         inst = None
         
-        if isinstance(item, tuple) and len(item) > 0:
+        # Check for Label first, before checking for tuple (Label is a namedtuple subclass)
+        if isinstance(item, Label):
+            # Standalone label
+            label = item
+        elif isinstance(item, tuple) and len(item) > 0:
             # Check if first element is a Label
             if isinstance(item[0], Label):
                 label = item[0]
@@ -265,9 +269,6 @@ def assemble(source):
             else:
                 # It's just an instruction tuple
                 inst = item
-        elif isinstance(item, Label):
-            # Standalone label
-            label = item
         else:
             # Shouldn't happen, but just in case
             inst = item
