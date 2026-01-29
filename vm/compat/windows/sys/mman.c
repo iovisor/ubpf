@@ -78,7 +78,7 @@ mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 int
 munmap(void* addr, size_t length)
 {
-    (void)addr;
+    (void)length;
     if (!VirtualFree(addr, 0, MEM_RELEASE)) {
         fprintf(stderr, "VirtualFree failed with error %d\n", GetLastError());
         return -1;
