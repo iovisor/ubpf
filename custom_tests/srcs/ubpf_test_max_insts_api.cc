@@ -43,9 +43,9 @@ main(int argc, char** argv)
     (void)argc;
     (void)argv;
 
-    // Test 1: Exactly 65,536 instructions should work with default settings (just under the limit)
+    // Test 1: 65,535 instructions (just under default limit) should work
     {
-        std::cout << "Test 1: Loading 65,535 instructions with default limit..." << std::endl;
+        std::cout << "Test 1: Loading 65,535 instructions (just under default limit)..." << std::endl;
         std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
         auto program = generate_program(65535);
         
@@ -60,9 +60,9 @@ main(int argc, char** argv)
         std::cout << "Test 1 PASSED" << std::endl;
     }
 
-    // Test 2: 65,536 or more instructions should fail with default settings
+    // Test 2: 65,536 instructions (at default limit) should fail
     {
-        std::cout << "Test 2: Loading 65,536 instructions with default limit (should fail)..." << std::endl;
+        std::cout << "Test 2: Loading 65,536 instructions (at default limit - should fail)..." << std::endl;
         std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
         auto program = generate_program(65536);
         

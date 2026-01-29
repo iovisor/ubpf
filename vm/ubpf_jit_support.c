@@ -87,7 +87,18 @@ initialize_jit_state_result(
     // - Dispatcher loads
     // - Other JIT-generated relocations
     // Conservative estimate: 2x the instruction count + some fixed overhead
+    // Check for overflow: ensure vm->num_insts <= (UINT32_MAX - 64) / 2
+    if (vm->num_insts > (UINT32_MAX - 64) / 2) {
+        *errmsg = ubpf_error("Program too large for JIT compilation");
+        return -1;
+    }
     uint32_t array_size = vm->num_insts * 2 + 64;
+    
+    // Check for overflow in pc_locs allocation (vm->num_insts + 1)
+    if (vm->num_insts == UINT32_MAX) {
+        *errmsg = ubpf_error("Program too large for JIT compilation");
+        return -1;
+    }
     
     state->max_insts = array_size;
     state->pc_locs = calloc(vm->num_insts + 1, sizeof(state->pc_locs[0]));
