@@ -1,9 +1,0 @@
--- asm
-mov %r1, 42
-stxdw [%r10-8], %r1
-ldxdw %r0, [%r10-8]
-exit
--- result
-0x2a
--- test_jit
-Test that JIT allows valid stack access

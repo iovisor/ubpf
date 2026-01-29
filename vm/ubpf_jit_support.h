@@ -58,7 +58,6 @@ enum SpecialTarget
     Retpoline,
     ExternalDispatcher,
     LoadHelperTable,
-    LoadVMPtr,
 };
 
 struct RegularTarget
@@ -145,11 +144,6 @@ struct jit_state
      * registered handler. See commentary in ubpf_jit_x86_64.c.
      */
     uint32_t helper_table_loc;
-    /* The offset (from the start of the JIT'd code) to the location
-     * of the VM pointer. This pointer is used by JIT code to call
-     * bounds check function.
-     */
-    uint32_t vm_ptr_loc;
     enum JitProgress jit_status;
     enum JitMode jit_mode;
     struct patchable_relative* jumps;
