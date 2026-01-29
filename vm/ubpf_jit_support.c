@@ -63,6 +63,7 @@ static void ensure_seed_initialized(void)
 
 int
 initialize_jit_state_result(
+    struct ubpf_vm* vm,
     struct jit_state* state,
     struct ubpf_jit_result* compile_result,
     uint8_t* buffer,
@@ -78,11 +79,12 @@ initialize_jit_state_result(
     state->offset = 0;
     state->size = size;
     state->buf = buffer;
-    state->pc_locs = calloc(UBPF_MAX_INSTS + 1, sizeof(state->pc_locs[0]));
-    state->jumps = calloc(UBPF_MAX_INSTS, sizeof(state->jumps[0]));
-    state->loads = calloc(UBPF_MAX_INSTS, sizeof(state->loads[0]));
-    state->leas = calloc(UBPF_MAX_INSTS, sizeof(state->leas[0]));
-    state->local_calls = calloc(UBPF_MAX_INSTS, sizeof(state->local_calls[0]));
+    state->max_insts = vm->num_insts;
+    state->pc_locs = calloc(vm->num_insts + 1, sizeof(state->pc_locs[0]));
+    state->jumps = calloc(vm->num_insts, sizeof(state->jumps[0]));
+    state->loads = calloc(vm->num_insts, sizeof(state->loads[0]));
+    state->leas = calloc(vm->num_insts, sizeof(state->leas[0]));
+    state->local_calls = calloc(vm->num_insts, sizeof(state->local_calls[0]));
     state->num_jumps = 0;
     state->num_loads = 0;
     state->num_leas = 0;

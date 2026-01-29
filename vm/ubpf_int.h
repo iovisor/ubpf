@@ -67,7 +67,8 @@ struct ubpf_stack_usage
 struct ubpf_vm
 {
     struct ebpf_inst* insts;
-    uint16_t num_insts;
+    uint32_t num_insts;
+    uint32_t max_insts;                // Maximum number of instructions allowed (runtime configurable)
     size_t insts_alloc_size;           // Actual allocation size (page-aligned) for mmap'd bytecode
     bool readonly_bytecode_enabled;     // Whether bytecode is stored in read-only memory
     ubpf_jit_ex_fn jitted;
@@ -199,7 +200,7 @@ ubpf_dispatch_to_external_helper(
  * @return The instruction.
  */
 struct ebpf_inst
-ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc);
+ubpf_fetch_instruction(const struct ubpf_vm* vm, uint32_t pc);
 
 /**
  * @brief Store the given instruction at the given index.
@@ -209,13 +210,13 @@ ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc);
  * @param[in] inst The instruction to store.
  */
 void
-ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst inst);
+ubpf_store_instruction(const struct ubpf_vm* vm, uint32_t pc, struct ebpf_inst inst);
 
 uint16_t
-ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc);
+ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint32_t pc);
 
 bool
-ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg);
+ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint32_t pc, char** errmsg);
 
 /**
  * @brief Determine whether an eBPF instruction has a fallthrough

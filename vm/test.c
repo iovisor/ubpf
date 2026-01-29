@@ -198,7 +198,7 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
  * @return The amount of stack used by the local function starting at pc.
  */
 int
-stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
+stack_usage_calculator(const struct ubpf_vm* vm, uint32_t pc, void* cookie)
 {
     (void)(pc);
     (void)(cookie);
