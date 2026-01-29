@@ -51,7 +51,7 @@ add_library("ubpf"
 
 target_link_libraries("ubpf"
   PRIVATE
-    "ubpf_settings"
+    "ubpf_warnings_as_errors"
 )
 
 target_include_directories("ubpf" PUBLIC
@@ -84,7 +84,7 @@ if(UBPF_ENABLE_TESTS)
 
   target_link_libraries("ubpf_test"
     PRIVATE
-      "ubpf_settings"
+      "ubpf_warnings_as_errors"
       "ubpf"
   )
 endif()

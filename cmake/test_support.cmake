@@ -19,5 +19,5 @@ set(UBPF_TEST_INCLUDES
 # Common libraries for all test-related targets
 set(UBPF_TEST_LIBS
     ubpf
-    ubpf_settings
+    ubpf_warnings_as_errors
 )
