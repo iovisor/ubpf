@@ -339,6 +339,14 @@ jobs:
       build_codeql: true
       disable_retpolines: true
 
+  linux_debug_valgrind:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: x86_64
+      platform: ubuntu-latest
+      build_type: Debug
+      enable_valgrind: true
+
   fuzzing:
     uses: ./.github/workflows/fuzzing.yml
     with:
