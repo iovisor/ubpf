@@ -192,22 +192,6 @@ ubpf_dispatch_to_external_helper(
     uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, const struct ubpf_vm* vm, unsigned int idx);
 
 /**
- * @brief JIT-callable wrapper for bounds checking.
- * @return 0 on success, -1 on failure
- */
-int
-ubpf_jit_bounds_check(
-    const struct ubpf_vm* vm,
-    uintptr_t addr,
-    size_t size,
-    const char* type,
-    uint16_t cur_pc,
-    void* mem,
-    size_t mem_len,
-    void* stack,
-    size_t stack_len);
-
-/**
  * @brief Fetch the instruction at the given index.
  *
  * @param[in] vm The VM to fetch the instruction from.
