@@ -55,6 +55,10 @@ on:
         required: false
         type: boolean
 
+      enable_valgrind:
+        required: false
+        type: boolean
+
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
@@ -77,7 +81,7 @@ jobs:
 
     - name: Generate the cache key
       id: cache_key
-      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}" >> $GITHUB_OUTPUT
+      run: echo "VALUE=platform-${{ inputs.platform }}_arch=${{ inputs.arch }}_type-${{ inputs.build_type }}_sanitizers-${{ inputs.enable_sanitizers }}_coverage-${{ inputs.enable_coverage }}_scan_build-${{ inputs.scan_build }}_retpolines-${{ inputs.disable_retpolines }}_valgrind-${{ inputs.enable_valgrind }}" >> $GITHUB_OUTPUT
 
     - name: Update the cache (ccache)
       uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
@@ -117,6 +121,11 @@ jobs:
             qemu-user
         fi
 
+        if [[ "${{ inputs.enable_valgrind }}" == "true" ]] ; then
+          sudo apt-get install -y \
+            valgrind
+        fi
+
     - name: Install system dependencies (Linux ARM64)
       if: inputs.platform == 'ubuntu-24.04-arm'
       run: |
@@ -135,6 +144,11 @@ jobs:
         if [[ "${{ inputs.scan_build }}" == "true" ]] ; then
           sudo apt-get install -y \
             clang-tools
+        fi
+
+        if [[ "${{ inputs.enable_valgrind }}" == "true" ]] ; then
+          sudo apt-get install -y \
+            valgrind
         fi
 
     - name: Build/install libbpf From Source
@@ -207,6 +221,12 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
+        # Enable leak detection only on Linux when sanitizers are enabled
+        # macOS does not support leak detection in AddressSanitizer
+        if [[ "${{ inputs.enable_sanitizers }}" == "true" && ( "${{ inputs.platform }}" == "ubuntu-latest" || "${{ inputs.platform }}" == "ubuntu-24.04-arm" ) ]] ; then
+          export ASAN_OPTIONS=detect_leaks=1
+        fi
+
         ${command_prefix} cmake \
           --build build \
           --target test
@@ -216,6 +236,12 @@ jobs:
       env:
         UBPF_ENABLE_CONSTANT_BLINDING: 1
       run: |
+        # Enable leak detection only on Linux when sanitizers are enabled
+        # macOS does not support leak detection in AddressSanitizer
+        if [[ "${{ inputs.enable_sanitizers }}" == "true" && ( "${{ inputs.platform }}" == "ubuntu-latest" || "${{ inputs.platform }}" == "ubuntu-24.04-arm" ) ]] ; then
+          export ASAN_OPTIONS=detect_leaks=1
+        fi
+
         # Run JIT tests with constant blinding enabled to verify compatibility
         # Tests end with "-JIT" (e.g., "add.data-JIT", "mov64-imm.data-JIT")
         ctest -R "\-JIT$" --output-on-failure
@@ -225,6 +251,18 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: |
         ctest --rerun-failed --output-on-failure
+
+    - name: Run tests under Valgrind
+      if: inputs.enable_valgrind == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
+      working-directory: ${{github.workspace}}/build
+      run: |
+        # Run tests under Valgrind for memory leak detection
+        # Use --error-exitcode=1 to fail the CI if leaks are detected
+        # Use --leak-check=full for detailed leak information
+        # Use --show-leak-kinds=all to show all types of leaks
+        # Note: We run ctest with valgrind as the test executor
+        export CTEST_MEMORYCHECK_COMMAND_OPTIONS="--leak-check=full --show-leak-kinds=all --error-exitcode=1 --errors-for-leak-kinds=definite,possible --track-origins=yes"
+        ctest --output-on-failure -T memcheck
 
     - name: Generate code coverage report
       if: inputs.enable_coverage == true && inputs.platform == 'macos-latest'
