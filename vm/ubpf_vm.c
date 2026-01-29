@@ -392,6 +392,8 @@ ubpf_unload_code(struct ubpf_vm* vm)
         vm->num_insts = 0;
         vm->insts_alloc_size = 0;
     }
+    free(vm->int_funcs);
+    vm->int_funcs = NULL;
 }
 
 static uint32_t
