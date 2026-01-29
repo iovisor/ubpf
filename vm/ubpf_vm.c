@@ -115,6 +115,12 @@ ubpf_create(void)
     // Initialize max_insts to compile-time default
     vm->max_insts = UBPF_MAX_INSTS;
 
+    // Check for overflow on 32-bit systems where size_t might be 32-bit
+    if (vm->max_insts > SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+        ubpf_destroy(vm);
+        return NULL;
+    }
+
     vm->local_func_stack_usage = calloc(vm->max_insts, sizeof(struct ubpf_stack_usage));
     if (vm->local_func_stack_usage == NULL) {
         ubpf_destroy(vm);
@@ -375,7 +381,12 @@ ubpf_unload_code(struct ubpf_vm* vm)
 
     // Reset the stack usage amounts when code is unloaded.
     free(vm->local_func_stack_usage);
-    vm->local_func_stack_usage = calloc(vm->max_insts, sizeof(struct ubpf_stack_usage));
+    vm->local_func_stack_usage = NULL;
+    
+    // Check for overflow on 32-bit systems where size_t might be 32-bit
+    if (vm->max_insts > 0 && vm->max_insts <= SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+        vm->local_func_stack_usage = calloc(vm->max_insts, sizeof(struct ubpf_stack_usage));
+    }
 
     if (vm->jitted) {
         munmap(vm->jitted, vm->jitted_size);

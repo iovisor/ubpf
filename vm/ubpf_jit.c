@@ -115,6 +115,11 @@ ubpf_set_max_instructions(struct ubpf_vm* vm, uint32_t max_insts)
 
     // Reallocate local_func_stack_usage if needed
     if (max_insts != vm->max_insts) {
+        // Check for overflow on 32-bit systems where size_t might be 32-bit
+        if (max_insts > SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+            return -1;
+        }
+        
         struct ubpf_stack_usage* new_stack_usage = calloc(max_insts, sizeof(struct ubpf_stack_usage));
         if (new_stack_usage == NULL) {
             return -1;
