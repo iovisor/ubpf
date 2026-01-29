@@ -221,8 +221,9 @@ jobs:
           command_prefix="scan-build -o scan_build_report"
         fi
 
-        # Enable leak detection when sanitizers are enabled
-        if [[ "${{ inputs.enable_sanitizers }}" == "true" ]] ; then
+        # Enable leak detection only on Linux when sanitizers are enabled
+        # macOS does not support leak detection in AddressSanitizer
+        if [[ "${{ inputs.enable_sanitizers }}" == "true" && ( "${{ inputs.platform }}" == "ubuntu-latest" || "${{ inputs.platform }}" == "ubuntu-24.04-arm" ) ]] ; then
           export ASAN_OPTIONS=detect_leaks=1
         fi
 
@@ -235,8 +236,9 @@ jobs:
       env:
         UBPF_ENABLE_CONSTANT_BLINDING: 1
       run: |
-        # Enable leak detection when sanitizers are enabled
-        if [[ "${{ inputs.enable_sanitizers }}" == "true" ]] ; then
+        # Enable leak detection only on Linux when sanitizers are enabled
+        # macOS does not support leak detection in AddressSanitizer
+        if [[ "${{ inputs.enable_sanitizers }}" == "true" && ( "${{ inputs.platform }}" == "ubuntu-latest" || "${{ inputs.platform }}" == "ubuntu-24.04-arm" ) ]] ; then
           export ASAN_OPTIONS=detect_leaks=1
         fi
 
