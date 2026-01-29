@@ -261,9 +261,8 @@ jobs:
         # Use --leak-check=full for detailed leak information
         # Use --show-leak-kinds=all to show all types of leaks
         # Note: We run ctest with valgrind as the test executor
-        ctest --output-on-failure \
-          --overwrite MemoryCheckCommandOptions="--leak-check=full --show-leak-kinds=all --error-exitcode=1 --errors-for-leak-kinds=definite,possible --track-origins=yes" \
-          -T memcheck
+        export CTEST_MEMORYCHECK_COMMAND_OPTIONS="--leak-check=full --show-leak-kinds=all --error-exitcode=1 --errors-for-leak-kinds=definite,possible --track-origins=yes"
+        ctest --output-on-failure -T memcheck
 
     - name: Generate code coverage report
       if: inputs.enable_coverage == true && inputs.platform == 'macos-latest'
