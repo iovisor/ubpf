@@ -79,12 +79,22 @@ initialize_jit_state_result(
     state->offset = 0;
     state->size = size;
     state->buf = buffer;
-    state->max_insts = vm->num_insts;
+    
+    // Allocate JIT arrays with extra space beyond num_insts to account for:
+    // - Initial exit jump
+    // - Fallthrough jumps between local functions  
+    // - Helper table loads
+    // - Dispatcher loads
+    // - Other JIT-generated relocations
+    // Conservative estimate: 2x the instruction count + some fixed overhead
+    uint32_t array_size = vm->num_insts * 2 + 64;
+    
+    state->max_insts = array_size;
     state->pc_locs = calloc(vm->num_insts + 1, sizeof(state->pc_locs[0]));
-    state->jumps = calloc(vm->num_insts, sizeof(state->jumps[0]));
-    state->loads = calloc(vm->num_insts, sizeof(state->loads[0]));
-    state->leas = calloc(vm->num_insts, sizeof(state->leas[0]));
-    state->local_calls = calloc(vm->num_insts, sizeof(state->local_calls[0]));
+    state->jumps = calloc(array_size, sizeof(state->jumps[0]));
+    state->loads = calloc(array_size, sizeof(state->loads[0]));
+    state->leas = calloc(array_size, sizeof(state->leas[0]));
+    state->local_calls = calloc(array_size, sizeof(state->local_calls[0]));
     state->num_jumps = 0;
     state->num_loads = 0;
     state->num_leas = 0;
@@ -93,7 +103,7 @@ initialize_jit_state_result(
     state->jit_mode = jit_mode;
     state->bpf_function_prolog_size = 0;
 
-    if (!state->pc_locs || !state->jumps || !state->loads || !state->leas) {
+    if (!state->pc_locs || !state->jumps || !state->loads || !state->leas || !state->local_calls) {
         *errmsg = ubpf_error("Could not allocate space needed to JIT compile eBPF program");
         return -1;
     }
