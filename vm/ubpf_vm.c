@@ -767,7 +767,7 @@ ubpf_exec_ex(
     uint16_t pc = 0;
     const struct ebpf_inst* insts = vm->insts;
     uint64_t* reg;
-    uint64_t _reg[11]; // R0-R10 per RFC 9669
+    uint64_t _reg[16]; // 16 for API compatibility with ubpf_debug_fn
     uint64_t stack_frame_index = 0;
     int return_value = -1;
     void* external_dispatcher_cookie = mem;
