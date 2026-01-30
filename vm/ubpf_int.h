@@ -122,7 +122,7 @@ struct ubpf_stack_frame
 {
     uint16_t stack_usage;
     uint16_t return_address;
-    uint64_t saved_registers[5];
+    uint64_t saved_registers[4]; // R6-R9 callee-saved per RFC 9669
 };
 
 /**

@@ -767,11 +767,33 @@ ubpf_exec_ex(
     uint16_t pc = 0;
     const struct ebpf_inst* insts = vm->insts;
     uint64_t* reg;
-    uint64_t _reg[16];
+    uint64_t _reg[16]; // 16 for API compatibility with ubpf_debug_fn
     uint64_t stack_frame_index = 0;
     int return_value = -1;
     void* external_dispatcher_cookie = mem;
     void* shadow_stack = NULL;
+
+    // Hoisted to function scope to reduce stack usage in switch cases.
+    int64_t dividend64 = 0;
+    int64_t divisor64 = 0;
+    int32_t dividend32 = 0;
+    int32_t divisor32 = 0;
+
+    // Hoisted from BOUNDS_CHECK macros to reduce stack usage.
+    uint64_t _base_addr = 0;
+    int64_t _offset = 0;
+    uint64_t _eff_addr = 0;
+    void* _ptr = NULL;
+
+    // Hoisted from atomic operations to reduce stack usage.
+    bool atomic_fetch = false;
+    int atomic_fetch_index = 0;
+    volatile uint64_t* atomic_dest64 = NULL;
+    volatile uint32_t* atomic_dest32 = NULL;
+    uint64_t atomic_val64 = 0;
+    uint32_t atomic_val32 = 0;
+    uint64_t atomic_res64 = 0;
+    uint32_t atomic_res32 = 0;
 
     if (!insts) {
         /* Code must be loaded before we can execute */
@@ -875,14 +897,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) / u32(inst.imm) : 0;
             } else if (inst.offset == 1) {
-                int32_t dividend = (int32_t)reg[inst.dst];
-                int32_t divisor = (int32_t)inst.imm;
-                if (divisor == 0) {
+                dividend32 = (int32_t)reg[inst.dst];
+                divisor32 = (int32_t)inst.imm;
+                if (divisor32 == 0) {
                     reg[inst.dst] = 0;
-                } else if (dividend == INT32_MIN && divisor == -1) {
+                } else if (dividend32 == INT32_MIN && divisor32 == -1) {
                     reg[inst.dst] = (uint32_t)INT32_MIN;
                 } else {
-                    reg[inst.dst] = (uint32_t)(dividend / divisor);
+                    reg[inst.dst] = (uint32_t)(dividend32 / divisor32);
                 }
             }
             reg[inst.dst] &= UINT32_MAX;
@@ -891,14 +913,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) / u32(reg[inst.src]) : 0;
             } else if (inst.offset == 1) {
-                int32_t dividend = (int32_t)reg[inst.dst];
-                int32_t divisor = (int32_t)reg[inst.src];
-                if (divisor == 0) {
+                dividend32 = (int32_t)reg[inst.dst];
+                divisor32 = (int32_t)reg[inst.src];
+                if (divisor32 == 0) {
                     reg[inst.dst] = 0;
-                } else if (dividend == INT32_MIN && divisor == -1) {
+                } else if (dividend32 == INT32_MIN && divisor32 == -1) {
                     reg[inst.dst] = (uint32_t)INT32_MIN;
                 } else {
-                    reg[inst.dst] = (uint32_t)(dividend / divisor);
+                    reg[inst.dst] = (uint32_t)(dividend32 / divisor32);
                 }
             }
             reg[inst.dst] &= UINT32_MAX;
@@ -941,14 +963,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(inst.imm) ? u32(reg[inst.dst]) % u32(inst.imm) : u32(reg[inst.dst]);
             } else if (inst.offset == 1) {
-                int32_t dividend = (int32_t)reg[inst.dst];
-                int32_t divisor = (int32_t)inst.imm;
-                if (divisor == 0) {
+                dividend32 = (int32_t)reg[inst.dst];
+                divisor32 = (int32_t)inst.imm;
+                if (divisor32 == 0) {
                     // Leave unchanged on mod by zero
-                } else if (dividend == INT32_MIN && divisor == -1) {
+                } else if (dividend32 == INT32_MIN && divisor32 == -1) {
                     reg[inst.dst] = 0;
                 } else {
-                    reg[inst.dst] = (uint32_t)(dividend % divisor);
+                    reg[inst.dst] = (uint32_t)(dividend32 % divisor32);
                 }
             }
             reg[inst.dst] &= UINT32_MAX;
@@ -957,14 +979,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = u32(reg[inst.src]) ? u32(reg[inst.dst]) % u32(reg[inst.src]) : u32(reg[inst.dst]);
             } else if (inst.offset == 1) {
-                int32_t dividend = (int32_t)reg[inst.dst];
-                int32_t divisor = (int32_t)reg[inst.src];
-                if (divisor == 0) {
+                dividend32 = (int32_t)reg[inst.dst];
+                divisor32 = (int32_t)reg[inst.src];
+                if (divisor32 == 0) {
                     // Leave unchanged on mod by zero
-                } else if (dividend == INT32_MIN && divisor == -1) {
+                } else if (dividend32 == INT32_MIN && divisor32 == -1) {
                     reg[inst.dst] = 0;
                 } else {
-                    reg[inst.dst] = (uint32_t)(dividend % divisor);
+                    reg[inst.dst] = (uint32_t)(dividend32 % divisor32);
                 }
             }
             reg[inst.dst] &= UINT32_MAX;
@@ -1064,14 +1086,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = inst.imm ? reg[inst.dst] / inst.imm : 0;
             } else if (inst.offset == 1) {
-                int64_t dividend = (int64_t)reg[inst.dst];
-                int64_t divisor = (int64_t)inst.imm;
-                if (divisor == 0) {
+                dividend64 = (int64_t)reg[inst.dst];
+                divisor64 = (int64_t)inst.imm;
+                if (divisor64 == 0) {
                     reg[inst.dst] = 0;
-                } else if (dividend == INT64_MIN && divisor == -1) {
+                } else if (dividend64 == INT64_MIN && divisor64 == -1) {
                     reg[inst.dst] = (uint64_t)INT64_MIN;
                 } else {
-                    reg[inst.dst] = (uint64_t)(dividend / divisor);
+                    reg[inst.dst] = (uint64_t)(dividend64 / divisor64);
                 }
             }
             break;
@@ -1079,14 +1101,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = reg[inst.src] ? reg[inst.dst] / reg[inst.src] : 0;
             } else if (inst.offset == 1) {
-                int64_t dividend = (int64_t)reg[inst.dst];
-                int64_t divisor = (int64_t)reg[inst.src];
-                if (divisor == 0) {
+                dividend64 = (int64_t)reg[inst.dst];
+                divisor64 = (int64_t)reg[inst.src];
+                if (divisor64 == 0) {
                     reg[inst.dst] = 0;
-                } else if (dividend == INT64_MIN && divisor == -1) {
+                } else if (dividend64 == INT64_MIN && divisor64 == -1) {
                     reg[inst.dst] = (uint64_t)INT64_MIN;
                 } else {
-                    reg[inst.dst] = (uint64_t)(dividend / divisor);
+                    reg[inst.dst] = (uint64_t)(dividend64 / divisor64);
                 }
             }
             break;
@@ -1121,14 +1143,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = inst.imm ? reg[inst.dst] % inst.imm : reg[inst.dst];
             } else if (inst.offset == 1) {
-                int64_t dividend = (int64_t)reg[inst.dst];
-                int64_t divisor = (int64_t)inst.imm;
-                if (divisor == 0) {
+                dividend64 = (int64_t)reg[inst.dst];
+                divisor64 = (int64_t)inst.imm;
+                if (divisor64 == 0) {
                     // Leave unchanged on mod by zero
-                } else if (dividend == INT64_MIN && divisor == -1) {
+                } else if (dividend64 == INT64_MIN && divisor64 == -1) {
                     reg[inst.dst] = 0;
                 } else {
-                    reg[inst.dst] = (uint64_t)(dividend % divisor);
+                    reg[inst.dst] = (uint64_t)(dividend64 % divisor64);
                 }
             }
             break;
@@ -1136,14 +1158,14 @@ ubpf_exec_ex(
             if (inst.offset == 0) {
                 reg[inst.dst] = reg[inst.src] ? reg[inst.dst] % reg[inst.src] : reg[inst.dst];
             } else if (inst.offset == 1) {
-                int64_t dividend = (int64_t)reg[inst.dst];
-                int64_t divisor = (int64_t)reg[inst.src];
-                if (divisor == 0) {
+                dividend64 = (int64_t)reg[inst.dst];
+                divisor64 = (int64_t)reg[inst.src];
+                if (divisor64 == 0) {
                     // Leave unchanged on mod by zero
-                } else if (dividend == INT64_MIN && divisor == -1) {
+                } else if (dividend64 == INT64_MIN && divisor64 == -1) {
                     reg[inst.dst] = 0;
                 } else {
-                    reg[inst.dst] = (uint64_t)(dividend % divisor);
+                    reg[inst.dst] = (uint64_t)(dividend64 % divisor64);
                 }
             }
             break;
@@ -1173,9 +1195,8 @@ ubpf_exec_ex(
              * On overflow/underflow, prints error and jumps to cleanup.
              */
 #define COMPUTE_EFFECTIVE_ADDR(base_reg, is_load)                                                        \
-    uint64_t _base_addr = reg[base_reg];                                                                  \
-    int64_t _offset = inst.offset;                                                                        \
-    uint64_t _eff_addr;                                                                                   \
+    _base_addr = reg[base_reg];                                                                           \
+    _offset = inst.offset;                                                                                \
     if (_offset >= 0) {                                                                                   \
         if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                               \
             vm->error_printf(stderr, "uBPF error: address overflow in %s at PC %u\n",                    \
@@ -1202,7 +1223,7 @@ ubpf_exec_ex(
 #define BOUNDS_CHECK_LOAD(size)                                                                           \
     COMPUTE_EFFECTIVE_ADDR(inst.src, true)                                                                \
     do {                                                                                                  \
-        void* _ptr = (void*)_eff_addr;                                                                    \
+        _ptr = (void*)_eff_addr;                                                                          \
         if (!ubpf_check_shadow_stack(                                                                     \
                 vm, stack_start, stack_length, shadow_stack, _ptr, size)) {                               \
                 shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
@@ -1225,7 +1246,7 @@ ubpf_exec_ex(
 #define BOUNDS_CHECK_STORE(size)                                                                          \
     COMPUTE_EFFECTIVE_ADDR(inst.dst, false)                                                               \
     do {                                                                                                  \
-        void* _ptr = (void*)_eff_addr;                                                                    \
+        _ptr = (void*)_eff_addr;                                                                          \
         if (!bounds_check(                                                                                \
                 vm,                                                                                       \
                 _ptr,                                                                                     \
@@ -1614,80 +1635,78 @@ ubpf_exec_ex(
             break;
         case EBPF_OP_ATOMIC_STORE: {
             BOUNDS_CHECK_STORE(8);
-            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            atomic_fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             // If this is a fetch instruction, the destination register is used to store the result.
-            int fetch_index = inst.src;
-            volatile uint64_t* destination = (volatile uint64_t*)_eff_addr;
-            uint64_t value = reg[inst.src];
-            uint64_t result;
+            atomic_fetch_index = inst.src;
+            atomic_dest64 = (volatile uint64_t*)_eff_addr;
+            atomic_val64 = reg[inst.src];
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                result = UBPF_ATOMIC_ADD_FETCH(destination, value);
+                atomic_res64 = UBPF_ATOMIC_ADD_FETCH(atomic_dest64, atomic_val64);
                 break;
             case EBPF_ALU_OP_OR:
-                result = UBPF_ATOMIC_OR_FETCH(destination, value);
+                atomic_res64 = UBPF_ATOMIC_OR_FETCH(atomic_dest64, atomic_val64);
                 break;
             case EBPF_ALU_OP_AND:
-                result = UBPF_ATOMIC_AND_FETCH(destination, value);
+                atomic_res64 = UBPF_ATOMIC_AND_FETCH(atomic_dest64, atomic_val64);
                 break;
             case EBPF_ALU_OP_XOR:
-                result = UBPF_ATOMIC_XOR_FETCH(destination, value);
+                atomic_res64 = UBPF_ATOMIC_XOR_FETCH(atomic_dest64, atomic_val64);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_EXCHANGE(destination, value);
+                atomic_res64 = UBPF_ATOMIC_EXCHANGE(atomic_dest64, atomic_val64);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_COMPARE_EXCHANGE(destination, reg[0], value);
+                atomic_res64 = UBPF_ATOMIC_COMPARE_EXCHANGE(atomic_dest64, reg[0], atomic_val64);
                 // Atomic compare exchange returns the original value in register 0.
-                fetch_index = 0;
+                atomic_fetch_index = 0;
                 break;
             default:
                 vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
                 return_value = -1;
                 goto cleanup;
             }
-            if (fetch) {
-                reg[fetch_index] = result;
+            if (atomic_fetch) {
+                reg[atomic_fetch_index] = atomic_res64;
             }
         } break;
 
         case EBPF_OP_ATOMIC32_STORE: {
             BOUNDS_CHECK_STORE(4);
-            bool fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) || (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) ||
+            atomic_fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) || (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) ||
                          (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
-            int fetch_index = inst.src;
-            volatile uint32_t* destination = (volatile uint32_t*)_eff_addr;
-            uint32_t value = u32(reg[inst.src]);
-            uint32_t result;
+            atomic_fetch_index = inst.src;
+            atomic_dest32 = (volatile uint32_t*)_eff_addr;
+            atomic_val32 = u32(reg[inst.src]);
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
-                result = UBPF_ATOMIC_ADD_FETCH32(destination, value);
+                atomic_res32 = UBPF_ATOMIC_ADD_FETCH32(atomic_dest32, atomic_val32);
                 break;
             case EBPF_ALU_OP_OR:
-                result = UBPF_ATOMIC_OR_FETCH32(destination, value);
+                atomic_res32 = UBPF_ATOMIC_OR_FETCH32(atomic_dest32, atomic_val32);
                 break;
             case EBPF_ALU_OP_AND:
-                result = UBPF_ATOMIC_AND_FETCH32(destination, value);
+                atomic_res32 = UBPF_ATOMIC_AND_FETCH32(atomic_dest32, atomic_val32);
                 break;
             case EBPF_ALU_OP_XOR:
-                result = UBPF_ATOMIC_XOR_FETCH32(destination, value);
+                atomic_res32 = UBPF_ATOMIC_XOR_FETCH32(atomic_dest32, atomic_val32);
                 break;
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_EXCHANGE32(destination, value);
+                atomic_res32 = UBPF_ATOMIC_EXCHANGE32(atomic_dest32, atomic_val32);
                 break;
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH):
-                result = UBPF_ATOMIC_COMPARE_EXCHANGE32(destination, u32(reg[0]), value);
+                atomic_res32 = UBPF_ATOMIC_COMPARE_EXCHANGE32(atomic_dest32, u32(reg[0]), atomic_val32);
                 // Atomic compare exchange returns the original value in register 0.
-                fetch_index = 0;
+                atomic_fetch_index = 0;
                 break;
             default:
                 vm->error_printf(stderr, "Error: unknown atomic opcode %d at PC %d\n", inst.imm, cur_pc);
                 return_value = -1;
                 goto cleanup;
             }
-            if (fetch) {
-                reg[fetch_index] = result;
+            if (atomic_fetch) {
+                reg[atomic_fetch_index] = atomic_res32;
             }
         } break;
 
