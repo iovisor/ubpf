@@ -774,26 +774,26 @@ ubpf_exec_ex(
     void* shadow_stack = NULL;
 
     // Hoisted to function scope to reduce stack usage in switch cases.
-    int64_t dividend64;
-    int64_t divisor64;
-    int32_t dividend32;
-    int32_t divisor32;
+    int64_t dividend64 = 0;
+    int64_t divisor64 = 0;
+    int32_t dividend32 = 0;
+    int32_t divisor32 = 0;
 
     // Hoisted from BOUNDS_CHECK macros to reduce stack usage.
-    uint64_t _base_addr;
-    int64_t _offset;
-    uint64_t _eff_addr;
-    void* _ptr;
+    uint64_t _base_addr = 0;
+    int64_t _offset = 0;
+    uint64_t _eff_addr = 0;
+    void* _ptr = NULL;
 
     // Hoisted from atomic operations to reduce stack usage.
-    bool atomic_fetch;
-    int atomic_fetch_index;
-    volatile uint64_t* atomic_dest64;
-    volatile uint32_t* atomic_dest32;
-    uint64_t atomic_val64;
-    uint32_t atomic_val32;
-    uint64_t atomic_res64;
-    uint32_t atomic_res32;
+    bool atomic_fetch = false;
+    int atomic_fetch_index = 0;
+    volatile uint64_t* atomic_dest64 = NULL;
+    volatile uint32_t* atomic_dest32 = NULL;
+    uint64_t atomic_val64 = 0;
+    uint32_t atomic_val32 = 0;
+    uint64_t atomic_res64 = 0;
+    uint32_t atomic_res32 = 0;
 
     if (!insts) {
         /* Code must be loaded before we can execute */
