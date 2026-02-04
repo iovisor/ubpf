@@ -56,4 +56,11 @@ if (UBPF_ENABLE_LIBFUZZER)
   endif()
   add_subdirectory("libfuzzer")
   add_subdirectory("external/ebpf-verifier")
+
+  # Prevail enables IPO/LTO by default on Clang/GCC, which produces archives containing
+  # LTO objects. Our libfuzzer build does not link with -flto, so ld fails to consume
+  # those archives on Linux.
+  if(TARGET prevail)
+    set_property(TARGET prevail PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+  endif()
 endif()
