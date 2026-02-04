@@ -45,8 +45,10 @@ endif()
 if (UBPF_ENABLE_LIBFUZZER)
   if (PLATFORM_WINDOWS)
     # Set compiler flags for libfuzzer
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address /fsanitize-coverage=inline-bool-flag /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address /fsanitize-coverage=inline-bool-flag /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
+    # Note: /fsanitize-coverage=inline-bool-flag causes link failures on Windows (missing _SancovBoolFlagUsed)
+    # when building non-fuzzer executables like prevail's check.exe.
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
 
     # Prevail adds a custom "FuzzerDebug" multi-config configuration on MSVC.
     # Ensure the corresponding CMake cache variables exist so generation succeeds.
