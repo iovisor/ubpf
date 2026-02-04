@@ -615,11 +615,11 @@ ubpf_debug_function(
         }
 
         prevail::StringInvariant inv{constraints};
-        auto abstract_constraints = stored_invariants->invariant_at(label);
+        auto abstract_constraints = stored_invariants->invariants.at(label).pre.to_set();
 
-        if (!stored_invariants->is_consistent_after(label, inv)) {
+        if (!stored_invariants->is_consistent_before(label, inv)) {
             std::cerr << "Label: " << label << std::endl;
-            std::cerr << "Verifier state: " << std::endl;
+            std::cerr << "Verifier state (pre): " << std::endl;
             std::cerr << abstract_constraints << std::endl;
             std::cerr << std::endl;
 
