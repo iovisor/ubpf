@@ -59,10 +59,15 @@ if (UBPF_ENABLE_LIBFUZZER)
   add_subdirectory("libfuzzer")
   add_subdirectory("external/ebpf-verifier")
 
-  # Prevail enables IPO/LTO by default on Clang/GCC, which produces archives containing
-  # LTO objects. Our libfuzzer build does not link with -flto, so ld fails to consume
-  # those archives on Linux.
-  if(TARGET prevail)
-    set_property(TARGET prevail PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+  # Prevail (and its bundled libbtf) enables LTO by default on Clang/GCC. In CI this can
+  # fail due to LLVM toolchain version mismatches in the binutils LTO plugin, and our
+  # fuzzing build does not need LTO.
+  if(PLATFORM_LINUX OR PLATFORM_MACOS)
+    foreach(_tgt IN ITEMS prevail libbtf)
+      if(TARGET ${_tgt})
+        set_property(TARGET ${_tgt} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+        target_compile_options(${_tgt} PRIVATE -fno-lto)
+      endif()
+    endforeach()
   endif()
 endif()
