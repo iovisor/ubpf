@@ -548,10 +548,86 @@ ubpf_debug_function(
         UNREFERENCED_PARAMETER(stack_length);
         UNREFERENCED_PARAMETER(stack_mask);
 
-        // Constraint checking was implemented against the legacy verifier invariants API.
-        // Upstream prevail no longer exposes the same invariant/label types, so skip this path.
-        return;
+        // Build the prevail Label.
+        std::string stack_frame_prefix;
+        for (size_t i = 0; i < g_pc_stack.size(); i++) {
+            stack_frame_prefix += std::to_string(g_pc_stack[i]);
+            if (i > 1) {
+                stack_frame_prefix += prevail::STACK_FRAME_DELIMITER;
+            }
+        }
+        const prevail::Label label{program_counter, -1, stack_frame_prefix};
 
+        // Track call/exit for stack frame prefix.
+        const ebpf_inst* inst = reinterpret_cast<const ebpf_inst*>(ubpf_context->program_start);
+        inst += program_counter;
+        if (inst->opcode == EBPF_OP_CALL && inst->src == 1) {
+            g_pc_stack.push_back(program_counter);
+        }
+        if (inst->opcode == EBPF_OP_EXIT) {
+            if (!g_pc_stack.empty()) {
+                g_pc_stack.pop_back();
+            }
+        }
+
+        if (program_counter == 0) {
+            return;
+        }
+
+        // Build set of string constraints from the register values.
+        std::set<std::string> constraints;
+        constraints.insert(
+            "packet_size=" + std::to_string(ubpf_context->original_data_end - ubpf_context->original_data));
+        for (int i = 0; i < 10; i++) {
+            if ((register_mask & (1ULL << i)) == 0) {
+                continue;
+            }
+            uint64_t reg = registers[i];
+            std::string register_name = "r" + std::to_string(i);
+
+            address_type_t type = ubpf_classify_address(ubpf_context, reg);
+            switch (type) {
+            case address_type_t::Packet:
+                constraints.insert(register_name + ".type=packet");
+                constraints.insert(register_name + ".packet_offset=" + std::to_string(reg - ubpf_context->data));
+                constraints.insert(
+                    register_name + ".packet_size=" + std::to_string(ubpf_context->data_end - ubpf_context->data));
+                break;
+            case address_type_t::Context:
+                constraints.insert(register_name + ".type=ctx");
+                constraints.insert(
+                    register_name + ".ctx_offset=" +
+                    std::to_string(reg - reinterpret_cast<uint64_t>(ubpf_context)));
+                break;
+            case address_type_t::Stack:
+                constraints.insert(register_name + ".type=stack");
+                constraints.insert(register_name + ".stack_offset=" + std::to_string(reg - ubpf_context->stack_start));
+                break;
+            case address_type_t::Unknown:
+                constraints.insert(register_name + ".uvalue=" + std::to_string(registers[i]));
+                constraints.insert(
+                    register_name + ".svalue=" + std::to_string(static_cast<int64_t>(registers[i])));
+                break;
+            case address_type_t::Map:
+                constraints.insert(register_name + ".type=shared");
+                break;
+            }
+        }
+
+        prevail::StringInvariant inv{constraints};
+        auto abstract_constraints = stored_invariants->invariant_at(label);
+
+        if (!stored_invariants->is_consistent_after(label, inv)) {
+            std::cerr << "Label: " << label << std::endl;
+            std::cerr << "Verifier state: " << std::endl;
+            std::cerr << abstract_constraints << std::endl;
+            std::cerr << std::endl;
+
+            std::cerr << "Actual state: " << std::endl;
+            std::cerr << inv << std::endl;
+
+            throw std::runtime_error("ebpf_check_constraints_at_label failed");
+        }
     }
 }
 
