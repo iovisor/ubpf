@@ -365,15 +365,6 @@ try {
     std::string file;
     prevail::RawProgram raw_prog{file, section, 0, {}, instructions, info};
 
-    // Unpack the program into a sequence of instructions that the verifier can understand.
-    std::variant<prevail::InstructionSeq, std::string> prog_or_error = prevail::unmarshal(raw_prog, prevail::thread_local_options);
-    if (!std::holds_alternative<prevail::InstructionSeq>(prog_or_error)) {
-        return false;
-    }
-
-    // Extract the program instructions.
-    prevail::InstructionSeq& prog = std::get<prevail::InstructionSeq>(prog_or_error);
-
     // Start with the default verifier options.
     prevail::ebpf_verifier_options_t options{};
 
@@ -382,6 +373,15 @@ try {
     options.verbosity_opts.simplify = false;
     options.verbosity_opts.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.verbosity_opts.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
+
+    // Unpack the program into a sequence of instructions that the verifier can understand.
+    std::variant<prevail::InstructionSeq, std::string> prog_or_error = prevail::unmarshal(raw_prog, options);
+    if (!std::holds_alternative<prevail::InstructionSeq>(prog_or_error)) {
+        return false;
+    }
+
+    // Extract the program instructions.
+    prevail::InstructionSeq& prog = std::get<prevail::InstructionSeq>(prog_or_error);
 
     // Convert the instruction sequence to a control-flow graph.
     const prevail::Program program = prevail::Program::from_sequence(prog, info, options);
