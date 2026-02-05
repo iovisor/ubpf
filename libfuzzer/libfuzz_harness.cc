@@ -551,10 +551,10 @@ ubpf_debug_function(
         // Build the prevail Label.
         std::string stack_frame_prefix;
         for (size_t i = 0; i < g_pc_stack.size(); i++) {
-            stack_frame_prefix += std::to_string(g_pc_stack[i]);
-            if (i > 1) {
+            if (i != 0) {
                 stack_frame_prefix += prevail::STACK_FRAME_DELIMITER;
             }
+            stack_frame_prefix += std::to_string(g_pc_stack[i]);
         }
         const prevail::Label label{program_counter, -1, stack_frame_prefix};
 
