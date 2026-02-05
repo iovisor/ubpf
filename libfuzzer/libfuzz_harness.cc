@@ -617,8 +617,8 @@ ubpf_debug_function(
         prevail::StringInvariant inv{constraints};
         const auto constraints_it = stored_invariants->invariants.find(label);
         if (constraints_it == stored_invariants->invariants.end()) {
-            // The verifier may omit invariants for unreachable or otherwise elided labels.
-            return;
+            std::cerr << "Missing verifier invariants for executed label: " << label << std::endl;
+            throw std::runtime_error("missing verifier invariants for executed label");
         }
         auto abstract_constraints = constraints_it->second.pre.to_set();
 
