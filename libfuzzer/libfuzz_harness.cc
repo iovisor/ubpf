@@ -534,7 +534,7 @@ ubpf_debug_function(
         std::cout << "Program Counter: " << program_counter << std::endl;
         std::cout << "Registers: ";
         for (int i = 0; i < 10; i++) {
-            if ((register_mask & (1 << i)) == 0) {
+            if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
                 continue;
             }
             std::cout << "r" << i << "=" << std::hex << registers[i] << " ";
@@ -579,7 +579,7 @@ ubpf_debug_function(
         constraints.insert(
             "packet_size=" + std::to_string(ubpf_context->original_data_end - ubpf_context->original_data));
         for (int i = 0; i < 10; i++) {
-            if ((register_mask & (1ULL << i)) == 0) {
+            if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
                 continue;
             }
             uint64_t reg = registers[i];
