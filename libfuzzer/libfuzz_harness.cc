@@ -14,19 +14,18 @@
 #include <cstdio>
 #include <array>
 #include <cinttypes>
+#include <regex>
 
 #include "libfuzzer_config.h"
 
-#include "asm_unmarshal.hpp"
-#include "crab_verifier.hpp"
+#include "ir/unmarshal.hpp"
+#include "ebpf_verifier.hpp"
 #include "platform.hpp"
 
 extern "C"
 {
-#define ebpf_inst ebpf_inst_ubpf
 #include "ebpf.h"
 #include "ubpf.h"
-#undef ebpf_inst
 }
 
 #include "test_helpers.h"
@@ -122,7 +121,7 @@ ebpf_context_descriptor_t g_ebpf_context_descriptor_ubpf = {
  * @brief Description of the program type. This is used by the verifier to determine what context structure to use as
  * well as the helper functions that are available.
  */
-EbpfProgramType g_ubpf_program_type = {
+prevail::EbpfProgramType g_ubpf_program_type = {
     .name = "ubpf",
     .context_descriptor = &g_ebpf_context_descriptor_ubpf,
     .platform_specific_data = 0,
@@ -130,7 +129,7 @@ EbpfProgramType g_ubpf_program_type = {
     .is_privileged = false,
 };
 
-std::optional<Invariants> stored_invariants;
+std::optional<prevail::AnalysisResult> stored_invariants;
 
 /**
  * @brief This function is called by the verifier when parsing an ELF file to determine the type of the program being
@@ -140,7 +139,7 @@ std::optional<Invariants> stored_invariants;
  * @param[in] path The path to the ELF file.
  * @return The type of the program.
  */
-EbpfProgramType
+prevail::EbpfProgramType
 ubpf_get_program_type(const std::string& section, const std::string& path)
 {
     UNREFERENCED_PARAMETER(section);
@@ -154,7 +153,7 @@ ubpf_get_program_type(const std::string& section, const std::string& path)
  * @param[in] platform_specific_type The platform specific type of the map.
  * @return The type of the map.
  */
-EbpfMapType
+prevail::EbpfMapType
 ubpf_get_map_type(uint32_t platform_specific_type)
 {
     // Once the fuzzer supports maps, this function should be implemented to return metadata about the map, primarily
@@ -170,7 +169,7 @@ ubpf_get_map_type(uint32_t platform_specific_type)
  * @param[in] n The helper function number.
  * @return The prototype of the helper function.
  */
-EbpfHelperPrototype
+prevail::EbpfHelperPrototype
 ubpf_get_helper_prototype(int32_t n)
 {
     // Once the fuzzer supports helper functions, this function should be implemented to return metadata about the
@@ -208,12 +207,12 @@ ubpf_is_helper_usable(int32_t n)
  */
 void
 ubpf_parse_maps_section(
-    std::vector<EbpfMapDescriptor>& map_descriptors,
+    std::vector<prevail::EbpfMapDescriptor>& map_descriptors,
     const char* data,
     size_t map_record_size,
     int map_count,
-    const struct ebpf_platform_t* platform,
-    ebpf_verifier_options_t options)
+    const struct prevail::ebpf_platform_t* platform,
+    prevail::ebpf_verifier_options_t options)
 {
     // Once the fuzzer supports maps, this function should be implemented to parse the maps section of the ELF file (if
     // any).
@@ -232,7 +231,7 @@ ubpf_parse_maps_section(
  * @param[in,out] map_descriptors The map descriptors to resolve.
  */
 void
-ubpf_resolve_inner_map_references(std::vector<EbpfMapDescriptor>& map_descriptors)
+ubpf_resolve_inner_map_references(std::vector<prevail::EbpfMapDescriptor>& map_descriptors)
 {
     // Once the fuzzer supports maps, this function should be implemented to resolve inner map references.
     UNREFERENCED_PARAMETER(map_descriptors);
@@ -245,7 +244,7 @@ ubpf_resolve_inner_map_references(std::vector<EbpfMapDescriptor>& map_descriptor
  * @param[in] map_fd The map file descriptor.
  * @return The map descriptor.
  */
-EbpfMapDescriptor&
+prevail::EbpfMapDescriptor&
 ubpf_get_map_descriptor(int map_fd)
 {
     // Once the fuzzer supports maps, this function should be implemented to return the map descriptor for the given map
@@ -257,7 +256,7 @@ ubpf_get_map_descriptor(int map_fd)
 /**
  * @brief The platform abstraction for the verifier to call into the uBPF fuzzer platform.
  */
-ebpf_platform_t g_ebpf_platform_ubpf_fuzzer = {
+prevail::ebpf_platform_t g_ebpf_platform_ubpf_fuzzer = {
     .get_program_type = ubpf_get_program_type,
     .get_helper_prototype = ubpf_get_helper_prototype,
     .is_helper_usable = ubpf_is_helper_usable,
@@ -351,27 +350,23 @@ try {
     std::ostringstream error;
     auto instruction_array = reinterpret_cast<const ebpf_inst*>(program_code.data());
     size_t instruction_count = program_code.size() / sizeof(ebpf_inst);
-    const ebpf_platform_t* platform = &g_ebpf_platform_ubpf_fuzzer;
-    std::vector<ebpf_inst> instructions{instruction_array, instruction_array + instruction_count};
-    program_info info{
+    const prevail::ebpf_platform_t* platform = &g_ebpf_platform_ubpf_fuzzer;
+    std::vector<prevail::EbpfInst> instructions;
+    instructions.reserve(instruction_count);
+    for (size_t i = 0; i < instruction_count; i++) {
+        const ebpf_inst& inst = instruction_array[i];
+        instructions.push_back(prevail::EbpfInst{inst.opcode, inst.dst, inst.src, inst.offset, inst.imm});
+    }
+    prevail::ProgramInfo info{
         .platform = platform,
         .type = g_ubpf_program_type,
     };
     std::string section;
     std::string file;
-    raw_program raw_prog{file, section, 0, {}, instructions, info};
-
-    // Unpack the program into a sequence of instructions that the verifier can understand.
-    std::variant<InstructionSeq, std::string> prog_or_error = unmarshal(raw_prog);
-    if (!std::holds_alternative<InstructionSeq>(prog_or_error)) {
-        return false;
-    }
-
-    // Extract the program instructions.
-    InstructionSeq& prog = std::get<InstructionSeq>(prog_or_error);
+    prevail::RawProgram raw_prog{file, section, 0, {}, instructions, info};
 
     // Start with the default verifier options.
-    ebpf_verifier_options_t options{};
+    prevail::ebpf_verifier_options_t options{};
 
     // Enable termination checking and pre-invariant storage.
     options.cfg_opts.check_for_termination = true;
@@ -379,32 +374,29 @@ try {
     options.verbosity_opts.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.verbosity_opts.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
 
-    ebpf_verifier_stats_t stats;
+    // Unpack the program into a sequence of instructions that the verifier can understand.
+    std::variant<prevail::InstructionSeq, std::string> prog_or_error = prevail::unmarshal(raw_prog, options);
+    if (!std::holds_alternative<prevail::InstructionSeq>(prog_or_error)) {
+        return false;
+    }
 
-    std::ostringstream error_stream;
+    // Extract the program instructions.
+    prevail::InstructionSeq& prog = std::get<prevail::InstructionSeq>(prog_or_error);
 
     // Convert the instruction sequence to a control-flow graph.
-    auto program = Program::from_sequence(prog, info, options.cfg_opts);
+    const prevail::Program program = prevail::Program::from_sequence(prog, info, options);
 
-    // Verify the program. This will return false or throw an exception if the program is invalid.
-    stored_invariants.emplace(analyze(program));
-
-    bool result = stored_invariants->verified(program);
+    // Verify the program.
+    const prevail::AnalysisResult result = prevail::analyze(program);
+    stored_invariants = result;
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
-        auto report = stored_invariants->check_assertions(program);
-        print_warnings(error_stream, report);
-
-        print_invariants(error_stream, program, false, *stored_invariants);
-
-        std::cout << "verifier stats:" << std::endl;
-        std::cout << "total_warnings: " << stats.total_warnings << std::endl;
-        std::cout << "max_loop_count: " << stats.max_loop_count << std::endl;
-        std::cout << "result: " << result << std::endl;
+        std::ostringstream error_stream;
+        prevail::print_invariants(error_stream, program, false, result);
         std::cout << error_stream.str() << std::endl;
     }
 
-    return result;
+    return !result.failed;
 } catch (const std::exception& ex) {
     return false;
 }
@@ -542,7 +534,7 @@ ubpf_debug_function(
         std::cout << "Program Counter: " << program_counter << std::endl;
         std::cout << "Registers: ";
         for (int i = 0; i < 10; i++) {
-            if ((register_mask & (1 << i)) == 0) {
+            if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
                 continue;
             }
             std::cout << "r" << i << "=" << std::hex << registers[i] << " ";
@@ -556,33 +548,27 @@ ubpf_debug_function(
         UNREFERENCED_PARAMETER(stack_length);
         UNREFERENCED_PARAMETER(stack_mask);
 
-        // Check if this is an local call or exit instruction.
+        // Build the prevail Label.
+        std::string stack_frame_prefix;
+        for (size_t i = 0; i < g_pc_stack.size(); i++) {
+            if (i != 0) {
+                stack_frame_prefix += prevail::STACK_FRAME_DELIMITER;
+            }
+            stack_frame_prefix += std::to_string(g_pc_stack[i]);
+        }
+        const prevail::Label label{program_counter, -1, stack_frame_prefix};
+
+        // Track call/exit for stack frame prefix.
         const ebpf_inst* inst = reinterpret_cast<const ebpf_inst*>(ubpf_context->program_start);
         inst += program_counter;
-
-        std::string stack_frame_prefix;
-
-        for (size_t i = 0; i < g_pc_stack.size(); i++) {
-            stack_frame_prefix += std::to_string(g_pc_stack[i]);
-            if (i > 1) {
-                stack_frame_prefix += "/";
-            }
-        }
-
-        crab::label_t label{program_counter, -1, stack_frame_prefix};
-
-        // Local call.
         if (inst->opcode == EBPF_OP_CALL && inst->src == 1) {
             g_pc_stack.push_back(program_counter);
         }
-
-        // Exit.
         if (inst->opcode == EBPF_OP_EXIT) {
             if (!g_pc_stack.empty()) {
                 g_pc_stack.pop_back();
             }
         }
-
 
         if (program_counter == 0) {
             return;
@@ -590,16 +576,15 @@ ubpf_debug_function(
 
         // Build set of string constraints from the register values.
         std::set<std::string> constraints;
-        constraints.insert("packet_size=" + std::to_string(ubpf_context->original_data_end - ubpf_context->original_data));
+        constraints.insert(
+            "packet_size=" + std::to_string(ubpf_context->original_data_end - ubpf_context->original_data));
         for (int i = 0; i < 10; i++) {
-            if ((register_mask & (1 << i)) == 0) {
+            if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
                 continue;
             }
             uint64_t reg = registers[i];
             std::string register_name = "r" + std::to_string(i);
 
-            // Given the register value, classify it as packet, context, stack, or unknown and add the appropriate
-            // constraint.
             address_type_t type = ubpf_classify_address(ubpf_context, reg);
             switch (type) {
             case address_type_t::Packet:
@@ -608,22 +593,20 @@ ubpf_debug_function(
                 constraints.insert(
                     register_name + ".packet_size=" + std::to_string(ubpf_context->data_end - ubpf_context->data));
                 break;
-
             case address_type_t::Context:
                 constraints.insert(register_name + ".type=ctx");
                 constraints.insert(
-                    register_name + ".ctx_offset=" + std::to_string(reg - reinterpret_cast<uint64_t>(ubpf_context)));
+                    register_name + ".ctx_offset=" +
+                    std::to_string(reg - reinterpret_cast<uint64_t>(ubpf_context)));
                 break;
-
             case address_type_t::Stack:
                 constraints.insert(register_name + ".type=stack");
                 constraints.insert(register_name + ".stack_offset=" + std::to_string(reg - ubpf_context->stack_start));
                 break;
-
             case address_type_t::Unknown:
-                constraints.insert("r" + std::to_string(i) + ".uvalue=" + std::to_string(registers[i]));
+                constraints.insert(register_name + ".uvalue=" + std::to_string(registers[i]));
                 constraints.insert(
-                    "r" + std::to_string(i) + ".svalue=" + std::to_string(static_cast<int64_t>(registers[i])));
+                    register_name + ".svalue=" + std::to_string(static_cast<int64_t>(registers[i])));
                 break;
             case address_type_t::Map:
                 constraints.insert(register_name + ".type=shared");
@@ -631,13 +614,17 @@ ubpf_debug_function(
             }
         }
 
-        std::ostringstream os;
-        string_invariant inv{constraints};
-        auto abstract_constraints = stored_invariants->invariant_at(label);
+        prevail::StringInvariant inv{constraints};
+        const auto constraints_it = stored_invariants->invariants.find(label);
+        if (constraints_it == stored_invariants->invariants.end()) {
+            std::cerr << "Missing verifier invariants for executed label: " << label << std::endl;
+            throw std::runtime_error("missing verifier invariants for executed label");
+        }
+        auto abstract_constraints = constraints_it->second.pre.to_set();
 
-        if (!stored_invariants->is_valid_before(label, inv)) {
+        if (!stored_invariants->is_consistent_before(label, inv)) {
             std::cerr << "Label: " << label << std::endl;
-            std::cerr << "Verifier state: " << std::endl;
+            std::cerr << "Verifier state (pre): " << std::endl;
             std::cerr << abstract_constraints << std::endl;
             std::cerr << std::endl;
 
@@ -646,7 +633,6 @@ ubpf_debug_function(
 
             throw std::runtime_error("ebpf_check_constraints_at_label failed");
         }
-
     }
 }
 

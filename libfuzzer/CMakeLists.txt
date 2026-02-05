@@ -21,13 +21,16 @@ set(UBPF_FUZZER_INCLUDES
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/crab"
     "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/crab_utils"
+    "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/src/ir"
+    "${CMAKE_BINARY_DIR}/external/ebpf-verifier/shim"
+    "${CMAKE_SOURCE_DIR}/external/ebpf-verifier/external/bpf_conformance/include"
     "${CMAKE_CURRENT_BINARY_DIR}"
     "${Boost_INCLUDE_DIRS}")
 
 # Extend base test libs with fuzzer-specific libs
 set(UBPF_FUZZER_LIBS
     ${UBPF_TEST_LIBS}
-    ebpfverifier)
+    prevail)
 
 set(CMAKE_REQUIRED_INCLUDES ${UBPF_FUZZER_INCLUDES})
 
