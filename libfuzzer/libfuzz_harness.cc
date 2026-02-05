@@ -615,7 +615,12 @@ ubpf_debug_function(
         }
 
         prevail::StringInvariant inv{constraints};
-        auto abstract_constraints = stored_invariants->invariants.at(label).pre.to_set();
+        const auto constraints_it = stored_invariants->invariants.find(label);
+        if (constraints_it == stored_invariants->invariants.end()) {
+            // The verifier may omit invariants for unreachable or otherwise elided labels.
+            return;
+        }
+        auto abstract_constraints = constraints_it->second.pre.to_set();
 
         if (!stored_invariants->is_consistent_before(label, inv)) {
             std::cerr << "Label: " << label << std::endl;
