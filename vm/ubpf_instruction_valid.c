@@ -1025,8 +1025,7 @@ static ubpf_inst_filter_t* _ubpf_filter_instruction_lookup_table[256];
 /**
  * @brief Initialize the lookup table for the instruction filter.
  */
-static void
-_initialize_lookup_table()
+static void _initialize_lookup_table()
 {
     static bool _initialized = false;
 
@@ -1041,14 +1040,14 @@ _initialize_lookup_table()
     _initialized = true;
 }
 
-static bool
-_in_range(int32_t value, int32_t lower_bound, int32_t upper_bound)
+
+static bool _in_range(int32_t value, int32_t lower_bound, int32_t upper_bound)
 {
     return value >= lower_bound && value <= upper_bound;
 }
 
 bool
-ubpf_is_valid_instruction(const struct ebpf_inst insts, char** errmsg)
+ubpf_is_valid_instruction(const struct ebpf_inst insts, char ** errmsg)
 {
     _initialize_lookup_table();
 

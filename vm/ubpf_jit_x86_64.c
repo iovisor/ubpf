@@ -465,7 +465,7 @@ emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
     /* Generate random blinding constant */
     uint64_t random = ubpf_generate_blinding_constant();
     uint64_t blinded_imm = (uint64_t)imm ^ random;
-
+    
     /* Load blinded constant: mov dst, (imm ^ random) */
     if ((int64_t)blinded_imm >= INT32_MIN && (int64_t)blinded_imm <= INT32_MAX) {
         emit_alu64_imm32(state, 0xc7, 0, dst, blinded_imm);
@@ -475,7 +475,7 @@ emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
         emit1(state, 0xb8 | (dst & 7));
         emit8(state, blinded_imm);
     }
-
+    
     /* XOR with random to recover original: xor dst, random */
     if ((int64_t)random >= INT32_MIN && (int64_t)random <= INT32_MAX) {
         emit_alu64_imm32(state, 0x81, 6, dst, random);
@@ -491,7 +491,7 @@ emit_load_imm_blinded(struct jit_state* state, int dst, int64_t imm)
     }
 }
 
-/* Blinded version of emit_alu64_imm32
+/* Blinded version of emit_alu64_imm32 
  * Note: The 'src' parameter is kept to match the signature of emit_alu64_imm32,
  * but is unused because blinding loads the immediate into a temp register first.
  */
@@ -503,56 +503,42 @@ emit_alu64_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     /* Cast imm to unsigned to avoid sign extension issues during XOR */
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register */
     /* Note: Direct call to emit_alu64_imm32 bypasses the EMIT_ALU64_IMM32 macro,
      * so these internal immediates are NOT recursively blinded */
     emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
     emit_alu64_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
-
+    
     /* Now apply the operation using the recovered value in temp_reg as source */
     /* Convert immediate opcode+extension to register-register opcode */
     int reg_op;
     if (op == 0x81) {
         /* Immediate ALU operations - map src extension to register opcode */
         switch (src) {
-        case 0:
-            reg_op = 0x01;
-            break; /* ADD */
-        case 1:
-            reg_op = 0x09;
-            break; /* OR */
-        case 4:
-            reg_op = 0x21;
-            break; /* AND */
-        case 5:
-            reg_op = 0x29;
-            break; /* SUB */
-        case 6:
-            reg_op = 0x31;
-            break; /* XOR */
-        case 7:
-            reg_op = 0x39;
-            break; /* CMP */
-        default:
-            reg_op = 0x01;
-            break; /* Fallback to ADD */
+            case 0: reg_op = 0x01; break;  /* ADD */
+            case 1: reg_op = 0x09; break;  /* OR */
+            case 4: reg_op = 0x21; break;  /* AND */
+            case 5: reg_op = 0x29; break;  /* SUB */
+            case 6: reg_op = 0x31; break;  /* XOR */
+            case 7: reg_op = 0x39; break;  /* CMP */
+            default: reg_op = 0x01; break; /* Fallback to ADD */
         }
         emit_alu64(state, reg_op, temp_reg, dst);
     } else if (op == 0xc7) {
         /* MOV dst, imm becomes MOV dst, temp_reg */
-        emit_alu64(state, 0x89, temp_reg, dst); // MOV r/m64, r64
+        emit_alu64(state, 0x89, temp_reg, dst);  // MOV r/m64, r64
     } else {
         /* For other operations, use the opcode directly with temp_reg */
         emit_alu64(state, op, temp_reg, dst);
     }
 }
 
-/* Blinded version of emit_alu32_imm32
+/* Blinded version of emit_alu32_imm32 
  * Note: The 'src' parameter is kept to match the signature of emit_alu32_imm32,
  * but is unused because blinding loads the immediate into a temp register first.
  */
@@ -564,49 +550,35 @@ emit_alu32_imm32_blinded(struct jit_state* state, int op, int src, int dst, int3
     /* Cast imm to unsigned to avoid sign extension issues during XOR */
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register */
     /* Note: Direct call to emit_alu32_imm32 bypasses the EMIT_ALU32_IMM32 macro,
      * so these internal immediates are NOT recursively blinded */
     emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
     emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
-
+    
     /* Now apply the operation using the recovered value in temp_reg as source */
     /* Convert immediate opcode+extension to register-register opcode */
     int reg_op;
     if (op == 0x81) {
         /* Immediate ALU operations - map src extension to register opcode */
         switch (src) {
-        case 0:
-            reg_op = 0x01;
-            break; /* ADD */
-        case 1:
-            reg_op = 0x09;
-            break; /* OR */
-        case 4:
-            reg_op = 0x21;
-            break; /* AND */
-        case 5:
-            reg_op = 0x29;
-            break; /* SUB */
-        case 6:
-            reg_op = 0x31;
-            break; /* XOR */
-        case 7:
-            reg_op = 0x39;
-            break; /* CMP */
-        default:
-            reg_op = 0x01;
-            break; /* Fallback to ADD */
+            case 0: reg_op = 0x01; break;  /* ADD */
+            case 1: reg_op = 0x09; break;  /* OR */
+            case 4: reg_op = 0x21; break;  /* AND */
+            case 5: reg_op = 0x29; break;  /* SUB */
+            case 6: reg_op = 0x31; break;  /* XOR */
+            case 7: reg_op = 0x39; break;  /* CMP */
+            default: reg_op = 0x01; break; /* Fallback to ADD */
         }
         emit_alu32(state, reg_op, temp_reg, dst);
     } else if (op == 0xc7) {
         /* MOV dst, imm becomes MOV dst, temp_reg */
-        emit_alu32(state, 0x89, temp_reg, dst); // MOV r/m32, r32
+        emit_alu32(state, 0x89, temp_reg, dst);  // MOV r/m32, r32
     } else {
         /* For other operations, use the opcode directly with temp_reg */
         emit_alu32(state, op, temp_reg, dst);
@@ -625,10 +597,10 @@ emit_cmp_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register */
     emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
@@ -645,10 +617,10 @@ emit_cmp32_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register (32-bit) */
     emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
@@ -665,10 +637,10 @@ emit_test_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register */
     emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
@@ -685,10 +657,10 @@ emit_test32_imm32_blinded(struct jit_state* state, int dst, int32_t imm)
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = (dst == R11) ? R10 : R11;
-
+    
     /* Load blinded immediate into temp register (32-bit) */
     emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
     /* XOR with random to recover original value */
@@ -705,10 +677,10 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
     uint32_t random = (uint32_t)ubpf_generate_blinding_constant();
     uint32_t imm_unsigned = (uint32_t)imm;
     int32_t blinded_imm = (int32_t)(imm_unsigned ^ random);
-
+    
     /* Use R11 as temporary for blinded operations (safe - it's volatile) */
     int temp_reg = R11;
-
+    
     /* Load blinded immediate into temp register */
     if (size == S64) {
         emit_alu64_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
@@ -717,20 +689,21 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
         emit_alu32_imm32(state, 0xc7, 0, temp_reg, blinded_imm);
         emit_alu32_imm32(state, 0x81, 6, temp_reg, (int32_t)random);
     }
-
+    
     /* Store temp_reg to [dst + offset] using the register store function */
     emit_store(state, size, temp_reg, dst, offset);
 }
 
 /* Helper macro for constant blinding - defined early so emit_muldivmod can use it */
-#define EMIT_LOAD_IMM(vm, state, dst, imm)          \
-    do {                                            \
-        if ((vm)->constant_blinding_enabled) {      \
+#define EMIT_LOAD_IMM(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_load_imm_blinded(state, dst, imm); \
-        } else {                                    \
-            emit_load_imm(state, dst, imm);         \
-        }                                           \
+        } else { \
+            emit_load_imm(state, dst, imm); \
+        } \
     } while (0)
+
 
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
@@ -1294,8 +1267,7 @@ emit_atomic_fetch_xor32(struct jit_state* state, int src, int dst, int offset)
 }
 
 static void
-emit_muldivmod(
-    struct ubpf_vm* vm, struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm, int16_t offset)
+emit_muldivmod(struct ubpf_vm* vm, struct jit_state* state, uint8_t opcode, int src, int dst, int32_t imm, int16_t offset)
 {
     bool mul = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MUL_IMM & EBPF_ALU_OP_MASK);
     bool div = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_DIV_IMM & EBPF_ALU_OP_MASK);
@@ -1660,67 +1632,67 @@ ubpf_set_register_offset(int x)
 /* Note: EMIT_LOAD_IMM is defined earlier in the file (after blinded functions)
  * so that emit_muldivmod can use it */
 
-#define EMIT_ALU64_IMM32(vm, state, op, src, dst, imm)          \
-    do {                                                        \
-        if ((vm)->constant_blinding_enabled) {                  \
+#define EMIT_ALU64_IMM32(vm, state, op, src, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_alu64_imm32_blinded(state, op, src, dst, imm); \
-        } else {                                                \
-            emit_alu64_imm32(state, op, src, dst, imm);         \
-        }                                                       \
+        } else { \
+            emit_alu64_imm32(state, op, src, dst, imm); \
+        } \
     } while (0)
 
-#define EMIT_ALU32_IMM32(vm, state, op, src, dst, imm)          \
-    do {                                                        \
-        if ((vm)->constant_blinding_enabled) {                  \
+#define EMIT_ALU32_IMM32(vm, state, op, src, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_alu32_imm32_blinded(state, op, src, dst, imm); \
-        } else {                                                \
-            emit_alu32_imm32(state, op, src, dst, imm);         \
-        }                                                       \
+        } else { \
+            emit_alu32_imm32(state, op, src, dst, imm); \
+        } \
     } while (0)
 
-#define EMIT_CMP_IMM32(vm, state, dst, imm)          \
-    do {                                             \
-        if ((vm)->constant_blinding_enabled) {       \
+#define EMIT_CMP_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_cmp_imm32_blinded(state, dst, imm); \
-        } else {                                     \
-            emit_cmp_imm32(state, dst, imm);         \
-        }                                            \
+        } else { \
+            emit_cmp_imm32(state, dst, imm); \
+        } \
     } while (0)
 
-#define EMIT_CMP32_IMM32(vm, state, dst, imm)          \
-    do {                                               \
-        if ((vm)->constant_blinding_enabled) {         \
+#define EMIT_CMP32_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_cmp32_imm32_blinded(state, dst, imm); \
-        } else {                                       \
-            emit_cmp32_imm32(state, dst, imm);         \
-        }                                              \
+        } else { \
+            emit_cmp32_imm32(state, dst, imm); \
+        } \
     } while (0)
 
-#define EMIT_TEST_IMM32(vm, state, dst, imm)            \
-    do {                                                \
-        if ((vm)->constant_blinding_enabled) {          \
-            emit_test_imm32_blinded(state, dst, imm);   \
-        } else {                                        \
+#define EMIT_TEST_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
+            emit_test_imm32_blinded(state, dst, imm); \
+        } else { \
             emit_alu64_imm32(state, 0xf7, 0, dst, imm); \
-        }                                               \
+        } \
     } while (0)
 
-#define EMIT_TEST32_IMM32(vm, state, dst, imm)          \
-    do {                                                \
-        if ((vm)->constant_blinding_enabled) {          \
+#define EMIT_TEST32_IMM32(vm, state, dst, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_test32_imm32_blinded(state, dst, imm); \
-        } else {                                        \
+        } else { \
             emit_alu32_imm32(state, 0xf7, 0, dst, imm); \
-        }                                               \
+        } \
     } while (0)
 
-#define EMIT_STORE_IMM32(vm, state, size, dst, offset, imm)          \
-    do {                                                             \
-        if ((vm)->constant_blinding_enabled) {                       \
+#define EMIT_STORE_IMM32(vm, state, size, dst, offset, imm) \
+    do { \
+        if ((vm)->constant_blinding_enabled) { \
             emit_store_imm32_blinded(state, size, dst, offset, imm); \
-        } else {                                                     \
-            emit_store_imm32(state, size, dst, offset, imm);         \
-        }                                                            \
+        } else { \
+            emit_store_imm32(state, size, dst, offset, imm); \
+        } \
     } while (0)
 
 static int

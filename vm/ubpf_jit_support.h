@@ -40,6 +40,7 @@ enum JitProgress
     UnknownInstruction
 };
 
+
 /*
  * During the process of JITing, the targets of program-control
  * instructions are not always known. The functions of below
@@ -81,26 +82,27 @@ struct PatchableTarget
 };
 
 #define DECLARE_PATCHABLE_TARGET(x) \
-    struct PatchableTarget x;       \
+    struct PatchableTarget x; \
     memset(&x, 0, sizeof(struct PatchableTarget));
 
-#define DECLARE_PATCHABLE_SPECIAL_TARGET(x, tgt)   \
-    struct PatchableTarget x;                      \
+#define DECLARE_PATCHABLE_SPECIAL_TARGET(x, tgt) \
+    struct PatchableTarget x; \
     memset(&x, 0, sizeof(struct PatchableTarget)); \
-    x.is_special = true;                           \
-    x.target.special = tgt;
+    x.is_special = true; \
+    x.target.special = tgt; \
 
 #define DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(x, tgt) \
-    struct PatchableTarget x;                         \
-    memset(&x, 0, sizeof(struct PatchableTarget));    \
-    x.is_special = false;                             \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget)); \
+    x.is_special = false; \
     x.target.regular.ebpf_target_pc = tgt;
 
 #define DECLARE_PATCHABLE_REGULAR_JIT_TARGET(x, tgt) \
-    struct PatchableTarget x;                        \
-    memset(&x, 0, sizeof(struct PatchableTarget));   \
-    x.is_special = false;                            \
+    struct PatchableTarget x; \
+    memset(&x, 0, sizeof(struct PatchableTarget)); \
+    x.is_special = false; \
     x.target.regular.jit_target_pc = tgt;
+
 
 struct patchable_relative
 {
@@ -173,7 +175,7 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
  * Emitting an entry into the patchable relative table means that resolution of the target
  * address can be postponed until all the instructions are emitted. Note: This function does
  * not emit any instructions -- it simply updates metadata to guide resolution after code generation.
- *
+ * 
  * @param[in] table The relative patchable table to update.
  * @param[in] offset The offset in the JIT'd code where the to-be-resolved target begins.
  * @param[in] index A spot in the _table_ to add/update according to the given parameters.
@@ -192,7 +194,10 @@ emit_jump_target(struct jit_state* state, uint32_t jump_src);
 
 void
 modify_patchable_relatives_target(
-    struct patchable_relative* table, size_t table_size, uint32_t src_offset, struct PatchableTarget target);
+    struct patchable_relative* table,
+    size_t table_size,
+    uint32_t src_offset,
+    struct PatchableTarget target);
 
 /**
  * @brief Generate a cryptographically secure random 64-bit value for constant blinding.

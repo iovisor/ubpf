@@ -56,10 +56,18 @@ usage(const char* name)
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(
         stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
-    fprintf(stderr, "If --mem is not given, r1 will be NULL. Programs that access r1 will crash.\n");
-    fprintf(stderr, "NOTE: Programs verified with PREVAIL or similar verifiers assume r1 is non-null.\n");
-    fprintf(stderr, "      Always provide --mem when running verified programs that access the context.\n");
-    fprintf(stderr, "      See docs/VerifiedPrograms.md for more information.\n");
+    fprintf(
+        stderr,
+        "If --mem is not given, r1 will be NULL. Programs that access r1 will crash.\n");
+    fprintf(
+        stderr,
+        "NOTE: Programs verified with PREVAIL or similar verifiers assume r1 is non-null.\n");
+    fprintf(
+        stderr,
+        "      Always provide --mem when running verified programs that access the context.\n");
+    fprintf(
+        stderr,
+        "      See docs/VerifiedPrograms.md for more information.\n");
     fprintf(stderr, "If --jit is given then the JIT compiler will be used.\n");
     fprintf(stderr, "\nOther options:\n");
     fprintf(stderr, "  -r, --register-offset NUM: Change the mapping from eBPF to x86 registers\n");
@@ -173,9 +181,8 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     (void)user_context;
     for (int index = 0; index < _map_entries_count; index++) {
         if (addr >= (uint64_t)_map_entries[index].array &&
-            addr + size <=
-                (uint64_t)_map_entries[index].array + (uint64_t)_map_entries[index].map_definition.max_entries *
-                                                          _map_entries[index].map_definition.value_size) {
+            addr + size <= (uint64_t)_map_entries[index].array + (uint64_t)_map_entries[index].map_definition.max_entries *
+                                                                     _map_entries[index].map_definition.value_size) {
             return true;
         }
     }
@@ -294,8 +301,7 @@ main(int argc, char** argv)
 
     // Enable constant blinding if environment variable is set
     const char* enable_blinding_env = getenv("UBPF_ENABLE_CONSTANT_BLINDING");
-    if (enable_blinding_env != NULL &&
-        (strcmp(enable_blinding_env, "1") == 0 || strcmp(enable_blinding_env, "true") == 0)) {
+    if (enable_blinding_env != NULL && (strcmp(enable_blinding_env, "1") == 0 || strcmp(enable_blinding_env, "true") == 0)) {
         ubpf_toggle_constant_blinding(vm, true);
     }
 
@@ -537,9 +543,7 @@ bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
             return -1;
         }
         memset(
-            map_entry->array + (uint64_t)index * map_entry->map_definition.value_size,
-            0,
-            map_entry->map_definition.value_size);
+            map_entry->array + (uint64_t)index * map_entry->map_definition.value_size, 0, map_entry->map_definition.value_size);
         return 0;
     } else {
         fprintf(stderr, "bpf_map_delete_elem not implemented for this map type.\n");
