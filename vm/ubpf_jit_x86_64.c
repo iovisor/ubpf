@@ -1915,14 +1915,15 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             // MOVSX: sign-extend based on offset value (RFC 9669)
             if (inst.offset == 8) {
                 // Sign-extend 8-bit to 32-bit: movsx dst, src_byte
-                // Opcode: 0x0F 0xBE /r
-                emit_basic_rex(state, 0, dst, src);
+                // Opcode: 0x0F 0xBE /r (MOVSX r32, r/m8)
+                // Need REX prefix to access low byte registers (DIL, SIL, etc.)
+                emit_rex(state, 0, !!(dst & 8), 0, !!(src & 8));
                 emit1(state, 0x0f);
                 emit1(state, 0xbe);
                 emit_modrm_reg2reg(state, dst, src);
             } else if (inst.offset == 16) {
                 // Sign-extend 16-bit to 32-bit: movsx dst, src_word
-                // Opcode: 0x0F 0xBF /r
+                // Opcode: 0x0F 0xBF /r (MOVSX r32, r/m16)
                 emit_basic_rex(state, 0, dst, src);
                 emit1(state, 0x0f);
                 emit1(state, 0xbf);
