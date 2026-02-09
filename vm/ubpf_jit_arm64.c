@@ -1358,7 +1358,27 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
         case EBPF_OP_MOV_REG:
         case EBPF_OP_MOV64_REG:
-            emit_logical_register(state, sixty_four, LOG_ORR, dst, RZ, src);
+            // MOVSX: sign-extend based on offset value (RFC 9669)
+            if (inst.offset == 8) {
+                // Sign-extend 8-bit: SXTB
+                // 32-bit: SBFM Wd, Wn, #0, #7 (opcode: 0x13001C00)
+                // 64-bit: SBFM Xd, Xn, #0, #7 (opcode: 0x93401C00)
+                uint32_t opcode = sixty_four ? 0x93401C00U : 0x13001C00U;
+                emit_instruction(state, opcode | (src << 5) | dst);
+            } else if (inst.offset == 16) {
+                // Sign-extend 16-bit: SXTH
+                // 32-bit: SBFM Wd, Wn, #0, #15 (opcode: 0x13003C00)
+                // 64-bit: SBFM Xd, Xn, #0, #15 (opcode: 0x93403C00)
+                uint32_t opcode = sixty_four ? 0x93403C00U : 0x13003C00U;
+                emit_instruction(state, opcode | (src << 5) | dst);
+            } else if (inst.offset == 32 && sixty_four) {
+                // Sign-extend 32-bit to 64-bit: SXTW
+                // SBFM Xd, Wn, #0, #31 (opcode: 0x93407C00)
+                emit_instruction(state, 0x93407C00U | (src << 5) | dst);
+            } else {
+                // Normal mov (offset == 0): ORR dst, RZ, src
+                emit_logical_register(state, sixty_four, LOG_ORR, dst, RZ, src);
+            }
             break;
         case EBPF_OP_LE:
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
