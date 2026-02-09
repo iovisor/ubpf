@@ -1007,10 +1007,10 @@ ubpf_exec_ex(
             // MOVSX: sign-extend based on offset value (RFC 9669)
             if (inst.offset == 8) {
                 // Sign-extend 8-bit to 32-bit
-                reg[inst.dst] = (int32_t)(int8_t)reg[inst.src];
+                reg[inst.dst] = (int32_t)(int8_t)(uint8_t)reg[inst.src];
             } else if (inst.offset == 16) {
                 // Sign-extend 16-bit to 32-bit
-                reg[inst.dst] = (int32_t)(int16_t)reg[inst.src];
+                reg[inst.dst] = (int32_t)(int16_t)(uint16_t)reg[inst.src];
             } else {
                 // Normal mov (offset == 0)
                 reg[inst.dst] = reg[inst.src];
@@ -1192,13 +1192,13 @@ ubpf_exec_ex(
             // MOVSX: sign-extend based on offset value (RFC 9669)
             if (inst.offset == 8) {
                 // Sign-extend 8-bit to 64-bit
-                reg[inst.dst] = (int64_t)(int8_t)reg[inst.src];
+                reg[inst.dst] = (int64_t)(int8_t)(uint8_t)reg[inst.src];
             } else if (inst.offset == 16) {
                 // Sign-extend 16-bit to 64-bit
-                reg[inst.dst] = (int64_t)(int16_t)reg[inst.src];
+                reg[inst.dst] = (int64_t)(int16_t)(uint16_t)reg[inst.src];
             } else if (inst.offset == 32) {
                 // Sign-extend 32-bit to 64-bit
-                reg[inst.dst] = (int64_t)(int32_t)reg[inst.src];
+                reg[inst.dst] = (int64_t)(int32_t)(uint32_t)reg[inst.src];
             } else {
                 // Normal mov (offset == 0)
                 reg[inst.dst] = reg[inst.src];
