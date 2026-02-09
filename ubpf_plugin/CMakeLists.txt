@@ -99,9 +99,17 @@ foreach(file ${files})
         endif()
     endforeach()
 
+    # Determine if this test requires CPU version v4
+    # Tests that require v4: movsx* tests and rfc9669_* tests (RFC 9669 defines v4 instruction set)
+    set(CPU_VERSION_ARG "")
+    get_filename_component(test_name "${file}" NAME)
+    if(test_name MATCHES "^movsx" OR test_name MATCHES "^rfc9669_")
+        set(CPU_VERSION_ARG "--cpu_version" "v4")
+    endif()
+
     add_test(
         NAME ${file}-JIT
-        COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT}
+        COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_JIT} ${CPU_VERSION_ARG}
     )
 
     if(EXPECT_FAILURE OR EXPECT_FAILURE_JIT)
@@ -110,7 +118,7 @@ foreach(file ${files})
 
     add_test(
         NAME ${file}-Interpreter
-        COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_INTERPRET}
+        COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_INTERPRET} ${CPU_VERSION_ARG}
     )
 
     if(EXPECT_FAILURE OR EXPECT_FAILURE_INTERPRET)

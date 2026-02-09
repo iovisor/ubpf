@@ -1912,7 +1912,26 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             EMIT_ALU32_IMM32(vm, state, 0xc7, 0, dst, inst.imm);
             break;
         case EBPF_OP_MOV_REG:
-            emit_mov(state, src, dst);
+            // MOVSX: sign-extend based on offset value (RFC 9669)
+            if (inst.offset == 8) {
+                // Sign-extend 8-bit to 32-bit: movsx dst, src_byte
+                // Opcode: 0x0F 0xBE /r (MOVSX r32, r/m8)
+                // Need REX prefix to access low byte registers (DIL, SIL, etc.)
+                emit_rex(state, 0, !!(dst & 8), 0, !!(src & 8));
+                emit1(state, 0x0f);
+                emit1(state, 0xbe);
+                emit_modrm_reg2reg(state, dst, src);
+            } else if (inst.offset == 16) {
+                // Sign-extend 16-bit to 32-bit: movsx dst, src_word
+                // Opcode: 0x0F 0xBF /r (MOVSX r32, r/m16)
+                emit_basic_rex(state, 0, dst, src);
+                emit1(state, 0x0f);
+                emit1(state, 0xbf);
+                emit_modrm_reg2reg(state, dst, src);
+            } else {
+                // Normal mov (offset == 0)
+                emit_mov(state, src, dst);
+            }
             break;
         case EBPF_OP_ARSH_IMM:
             emit_alu32_imm8(state, 0xc1, 7, dst, inst.imm);
@@ -2028,7 +2047,31 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             EMIT_LOAD_IMM(vm, state, dst, inst.imm);
             break;
         case EBPF_OP_MOV64_REG:
-            emit_mov(state, src, dst);
+            // MOVSX: sign-extend based on offset value (RFC 9669)
+            if (inst.offset == 8) {
+                // Sign-extend 8-bit to 64-bit: movsx dst, src_byte
+                // Opcode: REX.W + 0x0F 0xBE /r
+                emit_basic_rex(state, 1, dst, src);
+                emit1(state, 0x0f);
+                emit1(state, 0xbe);
+                emit_modrm_reg2reg(state, dst, src);
+            } else if (inst.offset == 16) {
+                // Sign-extend 16-bit to 64-bit: movsx dst, src_word
+                // Opcode: REX.W + 0x0F 0xBF /r
+                emit_basic_rex(state, 1, dst, src);
+                emit1(state, 0x0f);
+                emit1(state, 0xbf);
+                emit_modrm_reg2reg(state, dst, src);
+            } else if (inst.offset == 32) {
+                // Sign-extend 32-bit to 64-bit: movsxd dst, src
+                // Opcode: REX.W + 0x63 /r
+                emit_basic_rex(state, 1, dst, src);
+                emit1(state, 0x63);
+                emit_modrm_reg2reg(state, dst, src);
+            } else {
+                // Normal mov (offset == 0)
+                emit_mov(state, src, dst);
+            }
             break;
         case EBPF_OP_ARSH64_IMM:
             emit_alu64_imm8(state, 0xc1, 7, dst, inst.imm);

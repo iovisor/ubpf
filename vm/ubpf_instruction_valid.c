@@ -22,6 +22,8 @@ typedef struct _ubpf_inst_filter
     int32_t immediate_upper_bound;        ///< The upper bound of the immediate value.
     int32_t* immediate_enumerated;        ///< A specific enumeration of the valid immediate values.
     uint32_t immediate_enumerated_length; ///< The number of valid enumerated immediate values.
+    int16_t* offset_enumerated;           ///< A specific enumeration of the valid offset values.
+    uint32_t offset_enumerated_length;    ///< The number of valid enumerated offset values.
 } ubpf_inst_filter_t;
 
 static int32_t ebpf_atomic_store_immediate_enumerated[] = {
@@ -35,6 +37,12 @@ static int32_t ebpf_atomic_store_immediate_enumerated[] = {
     EBPF_ALU_OP_XOR | EBPF_ATOMIC_OP_FETCH,
     EBPF_ATOMIC_OP_XCHG | EBPF_ATOMIC_OP_FETCH,
     EBPF_ATOMIC_OP_CMPXCHG | EBPF_ATOMIC_OP_FETCH};
+
+// MOVSX offset enumeration for ALU (32-bit): 0 (normal mov), 8, 16
+static int16_t ebpf_movsx_alu_offset_enumerated[] = {0, 8, 16};
+
+// MOVSX offset enumeration for ALU64 (64-bit): 0 (normal mov), 8, 16, 32
+static int16_t ebpf_movsx_alu64_offset_enumerated[] = {0, 8, 16, 32};
 
 /**
  * @brief Array of valid eBPF instructions and their fields.
@@ -207,6 +215,8 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_enumerated = ebpf_movsx_alu_offset_enumerated,
+        .offset_enumerated_length = 3,
     },
     {
         .opcode = EBPF_OP_ARSH_IMM,
@@ -408,6 +418,8 @@ static ubpf_inst_filter_t _ubpf_instruction_filter[] = {
         .destination_upper_bound = BPF_REG_9,
         .source_lower_bound = BPF_REG_0,
         .source_upper_bound = BPF_REG_10,
+        .offset_enumerated = ebpf_movsx_alu64_offset_enumerated,
+        .offset_enumerated_length = 4,
     },
     {
         .opcode = EBPF_OP_ARSH64_IMM,
@@ -1082,10 +1094,25 @@ ubpf_is_valid_instruction(const struct ebpf_inst insts, char ** errmsg)
         }
     }
 
-    // Validate offset value.
-    if (!_in_range(insts.offset, filter->offset_lower_bound, filter->offset_upper_bound)) {
-        *errmsg = ubpf_error("Invalid offset value %d for opcode %2X.", insts.offset, insts.opcode);
-        return false;
+    // Validate offset value in the presence of enumerated values.
+    if (filter->offset_enumerated != NULL) {
+        bool valid = false;
+        for (int i = 0; i < filter->offset_enumerated_length; i++) {
+            if (filter->offset_enumerated[i] == insts.offset) {
+                valid = true;
+                break;
+            }
+        }
+        if (!valid) {
+            *errmsg = ubpf_error("Invalid offset value %d for opcode %2X.", insts.offset, insts.opcode);
+            return false;
+        }
+    } else {
+        // Validate offset value.
+        if (!_in_range(insts.offset, filter->offset_lower_bound, filter->offset_upper_bound)) {
+            *errmsg = ubpf_error("Invalid offset value %d for opcode %2X.", insts.offset, insts.opcode);
+            return false;
+        }
     }
 
     return true;
