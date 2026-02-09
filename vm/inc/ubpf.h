@@ -74,7 +74,6 @@ extern "C"
 
 #define UBPF_EBPF_NONVOLATILE_SIZE (sizeof(uint64_t) * 5)
 
-
     /**
      * @brief Opaque type for a the uBPF VM.
      */

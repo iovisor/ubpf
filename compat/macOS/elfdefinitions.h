@@ -31,4 +31,4 @@
 
 #include <sys/elfdefinitions.h>
 
-#endif	/* _ELFDEFINITIONS_H_ */
+#endif /* _ELFDEFINITIONS_H_ */
