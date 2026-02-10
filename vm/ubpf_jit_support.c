@@ -35,7 +35,8 @@
 // Thread-safe initialization for fallback random seeding
 #if defined(_WIN32)
 static INIT_ONCE g_seed_init_once = INIT_ONCE_STATIC_INIT;
-static BOOL CALLBACK init_seed_once(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
+static BOOL CALLBACK
+init_seed_once(PINIT_ONCE InitOnce, PVOID Parameter, PVOID* lpContext)
 {
     (void)InitOnce;
     (void)Parameter;
@@ -44,15 +45,18 @@ static BOOL CALLBACK init_seed_once(PINIT_ONCE InitOnce, PVOID Parameter, PVOID 
     return TRUE;
 }
 #elif defined(__GNUC__) || defined(__clang__)
-static void init_seed(void) __attribute__((constructor));
-static void init_seed(void)
+static void
+init_seed(void) __attribute__((constructor));
+static void
+init_seed(void)
 {
     srand((unsigned int)time(NULL));
 }
 #else
 // For other platforms, accept potential race condition on first use
 static volatile int seed_initialized = 0;
-static void ensure_seed_initialized(void)
+static void
+ensure_seed_initialized(void)
 {
     if (!seed_initialized) {
         srand((unsigned int)time(NULL));
@@ -116,8 +120,7 @@ release_jit_state_result(struct jit_state* state, struct ubpf_jit_result* compil
 }
 
 void
-emit_patchable_relative(struct patchable_relative* table,
-    uint32_t offset, struct PatchableTarget target, size_t index)
+emit_patchable_relative(struct patchable_relative* table, uint32_t offset, struct PatchableTarget target, size_t index)
 {
     struct patchable_relative* jump = &table[index];
     jump->offset_loc = offset;
@@ -137,7 +140,8 @@ note_lea(struct jit_state* state, struct PatchableTarget target)
 }
 
 void
-modify_patchable_relatives_target(struct patchable_relative* table, size_t table_size, uint32_t patchable_relative_src, struct PatchableTarget target)
+modify_patchable_relatives_target(
+    struct patchable_relative* table, size_t table_size, uint32_t patchable_relative_src, struct PatchableTarget target)
 {
     for (size_t index = 0; index < table_size; index++) {
         if (table[index].offset_loc == patchable_relative_src) {
@@ -176,7 +180,8 @@ ubpf_generate_blinding_constant(void)
 
 #if defined(_WIN32)
     // Windows: Use BCryptGenRandom for cryptographically secure random
-    NTSTATUS status = BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    NTSTATUS status =
+        BCryptGenRandom(NULL, (PUCHAR)&random_value, sizeof(random_value), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     if (!BCRYPT_SUCCESS(status)) {
         // Fallback on error - use thread-safe initialization
         InitOnceExecuteOnce(&g_seed_init_once, init_seed_once, NULL, NULL);
