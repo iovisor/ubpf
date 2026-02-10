@@ -95,6 +95,7 @@ dispatcher_test_memfrob(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 42;
+
 }
 
 static uint64_t
@@ -117,6 +118,7 @@ dispatcher_gather_bytes(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 44;
+
 }
 
 static uint64_t
@@ -139,6 +141,7 @@ dispatcher_no_op(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 46;
+
 }
 
 static uint64_t
@@ -161,6 +164,7 @@ dispatcher_sqrti(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 48;
+
 }
 
 static uint64_t
@@ -183,6 +187,7 @@ dispatcher_strcmp_ext(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 50;
+
 }
 
 static uint64_t
@@ -205,6 +210,7 @@ dispatcher_unwind(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
     UNREFERENCED_PARAMETER(d);
     UNREFERENCED_PARAMETER(e);
     return 52;
+
 }
 
 static uint64_t
