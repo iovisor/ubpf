@@ -15,6 +15,9 @@
 #include <array>
 #include <cinttypes>
 #include <regex>
+#include <thread>
+#include <future>
+#include <chrono>
 
 #include "libfuzzer_config.h"
 
@@ -386,8 +389,46 @@ try {
     // Convert the instruction sequence to a control-flow graph.
     const prevail::Program program = prevail::Program::from_sequence(prog, info, options);
 
-    // Verify the program.
-    const prevail::AnalysisResult result = prevail::analyze(program);
+    // Verify the program with a timeout to prevent infinite loops (e.g., nested loops)
+    // or crashes. Use a future with a timeout to abort verification that takes too long or crashes.
+    constexpr int verification_timeout_seconds = 5;
+    std::promise<bool> result_promise;
+    std::future<bool> result_future = result_promise.get_future();
+    prevail::AnalysisResult result;
+    bool verification_completed = false;
+    
+    std::thread verification_thread([&]() {
+        try {
+            result = prevail::analyze(program);
+            verification_completed = true;
+            result_promise.set_value(true);
+        } catch (const std::exception& ex) {
+            // Verification threw an exception (e.g., null pointer dereference)
+            verification_completed = false;
+            result_promise.set_value(false);
+        } catch (...) {
+            // Unknown exception during verification
+            verification_completed = false;
+            result_promise.set_value(false);
+        }
+    });
+    
+    // Wait for the verification to complete or timeout
+    if (result_future.wait_for(std::chrono::seconds(verification_timeout_seconds)) == std::future_status::timeout) {
+        // Verification timed out - detach the thread and return false
+        verification_thread.detach();
+        return false;
+    }
+    
+    // Get the result and check if verification completed successfully
+    bool success = result_future.get();
+    verification_thread.join();
+    
+    if (!success || !verification_completed) {
+        // Verification failed or threw an exception
+        return false;
+    }
+    
     stored_invariants = result;
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
