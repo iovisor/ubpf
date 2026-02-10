@@ -120,7 +120,7 @@ ubpf_create(void)
 
     vm->bounds_check_enabled = true;
     vm->undefined_behavior_check_enabled = false;
-    vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
+    vm->readonly_bytecode_enabled = true; // Enable read-only bytecode by default
     vm->constant_blinding_enabled = false;
     vm->error_printf = fprintf;
 
@@ -294,14 +294,12 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
             page_size = (size_t)page_size_long;
         }
 #endif
-        
+
         // Calculate page-aligned allocation size
         vm->insts_alloc_size = (code_len + page_size - 1) & ~(page_size - 1);
-        
+
         // Allocate using mmap with read+write permissions initially
-        vm->insts = mmap(NULL, vm->insts_alloc_size, 
-                        PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        vm->insts = mmap(NULL, vm->insts_alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (vm->insts == MAP_FAILED) {
             vm->insts = NULL;
             *errmsg = ubpf_error("out of memory");
@@ -465,11 +463,11 @@ ubpf_mem_load_sx(uint64_t address, size_t size)
 
     switch (size) {
     case 1:
-        return (uint64_t)(int64_t)(int8_t)*(uint8_t*)address;
+        return (uint64_t)(int64_t)(int8_t) * (uint8_t*)address;
     case 2:
-        return (uint64_t)(int64_t)(int16_t)*(uint16_t*)address;
+        return (uint64_t)(int64_t)(int16_t) * (uint16_t*)address;
     case 4:
-        return (uint64_t)(int64_t)(int32_t)*(uint32_t*)address;
+        return (uint64_t)(int64_t)(int32_t) * (uint32_t*)address;
     default:
         abort();
     }
@@ -685,7 +683,8 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint32_t pc, uint16_t* s
         case EBPF_MODE_JA:
         case EBPF_MODE_EXIT:
             break;
-        // Conditional jumps require the destination register to be initialized and also the source register if it the EBPF_SRC_REG flag is set.
+        // Conditional jumps require the destination register to be initialized and also the source register if it the
+        // EBPF_SRC_REG flag is set.
         case EBPF_MODE_JEQ:
         case EBPF_MODE_JGT:
         case EBPF_MODE_JGE:
@@ -714,7 +713,7 @@ ubpf_validate_shadow_register(const struct ubpf_vm* vm, uint32_t pc, uint16_t* s
             vm->error_printf(stderr, "Error: %d: Unknown JMP opcode %x.\n", pc, inst.opcode);
             return false;
         }
-    break;
+        break;
     default:
         vm->error_printf(stderr, "Error: %d: Unknown opcode %x.\n", pc, inst.opcode);
         return false;
@@ -1055,8 +1054,9 @@ ubpf_exec_ex(
 #ifdef __GNUC__
                 reg[inst.dst] = __builtin_bswap32(reg[inst.dst]);
 #else
-                reg[inst.dst] = (uint32_t)((((reg[inst.dst]) & 0xff000000) >> 24) | (((reg[inst.dst]) & 0x00ff0000) >> 8) |
-                                           (((reg[inst.dst]) & 0x0000ff00) << 8) | (((reg[inst.dst]) & 0x000000ff) << 24));
+                reg[inst.dst] =
+                    (uint32_t)((((reg[inst.dst]) & 0xff000000) >> 24) | (((reg[inst.dst]) & 0x00ff0000) >> 8) |
+                               (((reg[inst.dst]) & 0x0000ff00) << 8) | (((reg[inst.dst]) & 0x000000ff) << 24));
 #endif
             } else if (inst.imm == 64) {
 #ifdef __GNUC__
@@ -1217,73 +1217,54 @@ ubpf_exec_ex(
              * Stores result in _eff_addr variable.
              * On overflow/underflow, prints error and jumps to cleanup.
              */
-#define COMPUTE_EFFECTIVE_ADDR(base_reg, is_load)                                                        \
-    _base_addr = reg[base_reg];                                                                           \
-    _offset = inst.offset;                                                                                \
-    if (_offset >= 0) {                                                                                   \
-        if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                               \
-            vm->error_printf(stderr, "uBPF error: address overflow in %s at PC %u\n",                    \
-                             is_load ? "load" : "store", cur_pc);                                        \
-            return_value = -1;                                                                            \
-            goto cleanup;                                                                                 \
-        }                                                                                                 \
-        _eff_addr = _base_addr + (uint64_t)_offset;                                                      \
-    } else {                                                                                              \
-        if (_base_addr < (uint64_t)(-_offset)) {                                                         \
-            vm->error_printf(stderr, "uBPF error: address underflow in %s at PC %u\n",                   \
-                             is_load ? "load" : "store", cur_pc);                                        \
-            return_value = -1;                                                                            \
-            goto cleanup;                                                                                 \
-        }                                                                                                 \
-        _eff_addr = _base_addr - (uint64_t)(-_offset);                                                   \
+#define COMPUTE_EFFECTIVE_ADDR(base_reg, is_load)                                                              \
+    _base_addr = reg[base_reg];                                                                                \
+    _offset = inst.offset;                                                                                     \
+    if (_offset >= 0) {                                                                                        \
+        if (_base_addr > UINT64_MAX - (uint64_t)_offset) {                                                     \
+            vm->error_printf(                                                                                  \
+                stderr, "uBPF error: address overflow in %s at PC %u\n", is_load ? "load" : "store", cur_pc);  \
+            return_value = -1;                                                                                 \
+            goto cleanup;                                                                                      \
+        }                                                                                                      \
+        _eff_addr = _base_addr + (uint64_t)_offset;                                                            \
+    } else {                                                                                                   \
+        if (_base_addr < (uint64_t)(-_offset)) {                                                               \
+            vm->error_printf(                                                                                  \
+                stderr, "uBPF error: address underflow in %s at PC %u\n", is_load ? "load" : "store", cur_pc); \
+            return_value = -1;                                                                                 \
+            goto cleanup;                                                                                      \
+        }                                                                                                      \
+        _eff_addr = _base_addr - (uint64_t)(-_offset);                                                         \
     }
 
 /*
-             * HACK runtime bounds check
-             *
-             * Needed since we don't have a verifier yet.
-             */
-#define BOUNDS_CHECK_LOAD(size)                                                                           \
-    COMPUTE_EFFECTIVE_ADDR(inst.src, true)                                                                \
-    do {                                                                                                  \
-        _ptr = (void*)_eff_addr;                                                                          \
-        if (!ubpf_check_shadow_stack(                                                                     \
-                vm, stack_start, stack_length, shadow_stack, _ptr, size)) {                               \
-                shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
-        }                                                                                                 \
-        if (!bounds_check(                                                                                \
-                vm,                                                                                       \
-                _ptr,                                                                                     \
-                size,                                                                                     \
-                "load",                                                                                   \
-                cur_pc,                                                                                   \
-                mem,                                                                                      \
-                mem_len,                                                                                  \
-                stack_start,                                                                              \
-                stack_length)) {                                                                          \
-            return_value = -1;                                                                            \
-            goto cleanup;                                                                                 \
-        }                                                                                                 \
+ * HACK runtime bounds check
+ *
+ * Needed since we don't have a verifier yet.
+ */
+#define BOUNDS_CHECK_LOAD(size)                                                                       \
+    COMPUTE_EFFECTIVE_ADDR(inst.src, true)                                                            \
+    do {                                                                                              \
+        _ptr = (void*)_eff_addr;                                                                      \
+        if (!ubpf_check_shadow_stack(vm, stack_start, stack_length, shadow_stack, _ptr, size)) {      \
+            shadow_registers &= ~REGISTER_TO_SHADOW_MASK(inst.dst);                                   \
+        }                                                                                             \
+        if (!bounds_check(vm, _ptr, size, "load", cur_pc, mem, mem_len, stack_start, stack_length)) { \
+            return_value = -1;                                                                        \
+            goto cleanup;                                                                             \
+        }                                                                                             \
     } while (0)
-    
-#define BOUNDS_CHECK_STORE(size)                                                                          \
-    COMPUTE_EFFECTIVE_ADDR(inst.dst, false)                                                               \
-    do {                                                                                                  \
-        _ptr = (void*)_eff_addr;                                                                          \
-        if (!bounds_check(                                                                                \
-                vm,                                                                                       \
-                _ptr,                                                                                     \
-                size,                                                                                     \
-                "store",                                                                                  \
-                cur_pc,                                                                                   \
-                mem,                                                                                      \
-                mem_len,                                                                                  \
-                stack_start,                                                                              \
-                stack_length)) {                                                                          \
-            return_value = -1;                                                                            \
-            goto cleanup;                                                                                 \
-        }                                                                                                 \
-        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, _ptr, size);                 \
+
+#define BOUNDS_CHECK_STORE(size)                                                                       \
+    COMPUTE_EFFECTIVE_ADDR(inst.dst, false)                                                            \
+    do {                                                                                               \
+        _ptr = (void*)_eff_addr;                                                                       \
+        if (!bounds_check(vm, _ptr, size, "store", cur_pc, mem, mem_len, stack_start, stack_length)) { \
+            return_value = -1;                                                                         \
+            goto cleanup;                                                                              \
+        }                                                                                              \
+        ubpf_mark_shadow_stack(vm, stack_start, stack_length, shadow_stack, _ptr, size);               \
     } while (0)
 
         case EBPF_OP_LDXW: {
@@ -1697,7 +1678,7 @@ ubpf_exec_ex(
         case EBPF_OP_ATOMIC32_STORE: {
             BOUNDS_CHECK_STORE(4);
             atomic_fetch = (inst.imm & EBPF_ATOMIC_OP_FETCH) || (inst.imm == EBPF_ATOMIC_OP_CMPXCHG) ||
-                         (inst.imm == EBPF_ATOMIC_OP_XCHG);
+                           (inst.imm == EBPF_ATOMIC_OP_XCHG);
             // If this is a fetch instruction, the destination register is used to store the result.
             atomic_fetch_index = inst.src;
             atomic_dest32 = (volatile uint32_t*)_eff_addr;
@@ -1772,7 +1753,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 
 /**
  * @brief Check if the BPF byte code sequence consists of self-contained sub-programs.
- * This means programs that only enter via a call and leave via the EXIT instruction (no jumps out of one program into another).
+ * This means programs that only enter via a call and leave via the EXIT instruction (no jumps out of one program into
+ * another).
  *
  * @param[in] insts Array of instructions
  * @param[in] num_insts Count of instructions
@@ -1780,7 +1762,8 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
  * @retval true if the program consists of self-contained sub-programs.
  * @return false if the program contains jumps out of one program into another.
  */
-static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
+static bool
+check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg);
 
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
@@ -2106,7 +2089,7 @@ bounds_check(
     }
 
     uintptr_t access_start = (uintptr_t)addr;
-    
+
     // Check for overflow in access_start + size
     if ((uintptr_t)size > UINTPTR_MAX - access_start) {
         vm->error_printf(
@@ -2180,15 +2163,13 @@ bounds_check(
     if (stack_overflow && access_start >= stack_start) {
         // The access would have been in the stack region if not for the overflow
         vm->error_printf(
-            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", 
-            cur_pc, stack, stack_len);
+            stderr, "uBPF error: stack region end overflow at PC %u, stack %p, len %zu\n", cur_pc, stack, stack_len);
         return false;
     }
     if (mem_overflow && mem && access_start >= mem_start) {
         // The access would have been in the mem region if not for the overflow
         vm->error_printf(
-            stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", 
-            cur_pc, mem, mem_len);
+            stderr, "uBPF error: memory region end overflow at PC %u, mem %p, len %zu\n", cur_pc, mem, mem_len);
         return false;
     }
 
@@ -2390,7 +2371,8 @@ ubpf_register_debug_fn(struct ubpf_vm* vm, void* context, ubpf_debug_fn debug_fu
  * @param[in] b Pointer to the second element.
  * @return Comparison result.
  */
-static int compare_uint32_t(const void* a, const void* b)
+static int
+compare_uint32_t(const void* a, const void* b)
 {
     uint32_t value_a = *(uint32_t*)a;
     uint32_t value_b = *(uint32_t*)b;
@@ -2409,7 +2391,8 @@ static int compare_uint32_t(const void* a, const void* b)
  * @param[in,out] array Array of uint32_t.
  * @param[in,out] count On input, the number of elements in the array. On output, the number of unique elements.
  */
-static void deduplicate_array_of_uint32(uint32_t* array, uint32_t* count)
+static void
+deduplicate_array_of_uint32(uint32_t* array, uint32_t* count)
 {
     uint32_t write_index = 0;
 
@@ -2423,15 +2406,17 @@ static void deduplicate_array_of_uint32(uint32_t* array, uint32_t* count)
     *count = write_index + 1;
 }
 
-static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
+static bool
+check_for_self_contained_sub_programs(const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
 {
     uint32_t local_call_count = 0;
     uint32_t sub_program_count = 0;
-    uint32_t * sub_program_start_indices = NULL;
+    uint32_t* sub_program_start_indices = NULL;
     bool result = false;
 
     // Count the number of calls to local functions as a proxy for the number of sub-programs.
-    // Call targets are assumed to define the start of a sub-program and sub-programs are assumed to end at the next call target or at the end of the program.
+    // Call targets are assumed to define the start of a sub-program and sub-programs are assumed to end at the next
+    // call target or at the end of the program.
     for (uint32_t i = 0; i < num_insts; i++) {
         if (insts[i].opcode == EBPF_OP_CALL && insts[i].src == 1) {
             local_call_count++;
@@ -2462,17 +2447,19 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
         }
     }
 
-    // At this point the sub_program_start_indices array contains the start indices of the sub-programs, but there may be duplicates and the array may not be sorted.
+    // At this point the sub_program_start_indices array contains the start indices of the sub-programs, but there may
+    // be duplicates and the array may not be sorted.
 
     deduplicate_array_of_uint32(sub_program_start_indices, &sub_program_count);
-
 
     // Now that we have the sub-program start indices, we can check if the program is self-contained.
     // For each sub-program, check for jumps that go outside of the sub-program.
 
     for (uint32_t i = 0; i < sub_program_count; i++) {
         uint32_t start_index = sub_program_start_indices[i]; ///< First instruction of the sub-program.
-        uint32_t end_index = (i == sub_program_count - 1) ? num_insts : sub_program_start_indices[i + 1]; ///< First instruction after the sub-program.
+        uint32_t end_index = (i == sub_program_count - 1)
+                                 ? num_insts
+                                 : sub_program_start_indices[i + 1]; ///< First instruction after the sub-program.
 
         for (uint32_t j = start_index; j < end_index; j++) {
             switch (insts[j].opcode & EBPF_CLS_MASK) {
@@ -2516,8 +2503,7 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
 
         // Only check for a preceding jump if the sub-program has at least two instructions.
         if (end_index >= start_index + 2) {
-            ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA ||
-                             insts[end_index - 2].opcode == EBPF_OP_JA32;
+            ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA || insts[end_index - 2].opcode == EBPF_OP_JA32;
         }
 
         if (!(ends_with_exit || ends_with_jump)) {

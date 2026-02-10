@@ -20,11 +20,10 @@ extern "C"
 {
 #endif
 
-int
-rand_r(unsigned int* seedp);
-int
-vasprintf(char** strp, const char* fmt, va_list ap);
-
+    int
+    rand_r(unsigned int* seedp);
+    int
+    vasprintf(char** strp, const char* fmt, va_list ap);
 
 #ifdef __cplusplus
 }

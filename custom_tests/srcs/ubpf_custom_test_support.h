@@ -23,8 +23,7 @@ extern "C"
  * @return Vector of bytes.
  */
 std::vector<uint8_t>
-base16_decode(const std::string &input);
-
+base16_decode(const std::string& input);
 
 /**
  * @brief Convert a vector of bytes to a vector of ebpf_inst.
@@ -35,10 +34,8 @@ base16_decode(const std::string &input);
 std::vector<ebpf_inst>
 bytes_to_ebpf_inst(std::vector<uint8_t> bytes);
 
-
 using ubpf_vm_up = std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)>;
-using custom_test_fixup_cb = std::function<bool(ubpf_vm_up &, std::string &error)>;
-
+using custom_test_fixup_cb = std::function<bool(ubpf_vm_up&, std::string& error)>;
 
 /**
  * @brief Do the common necessary work to setup a custom test.
@@ -50,11 +47,13 @@ using custom_test_fixup_cb = std::function<bool(ubpf_vm_up &, std::string &error
  * @param[out] error A string containing the error message (if any) generated during custom test configuration.
  * @return True or false depending on whether setting up the custom test succeeded.
  */
-bool ubpf_setup_custom_test(ubpf_vm_up &vm,
-                       const std::string program_string,
-                       std::optional<custom_test_fixup_cb> fixup_f,
-                       ubpf_jit_fn &jit_fn,
-                       std::string &error);
+bool
+ubpf_setup_custom_test(
+    ubpf_vm_up& vm,
+    const std::string program_string,
+    std::optional<custom_test_fixup_cb> fixup_f,
+    ubpf_jit_fn& jit_fn,
+    std::string& error);
 
 /**
  * @brief Get the program string object from the command line arguments or stdin.
@@ -66,4 +65,5 @@ bool ubpf_setup_custom_test(ubpf_vm_up &vm,
  * @return true If the program string was successfully obtained.
  * @return false If there was a problem obtaining the program string.
  */
-bool get_program_string(int argc, char **argv, std::string &program_string, std::string &error);
+bool
+get_program_string(int argc, char** argv, std::string& program_string, std::string& error);
