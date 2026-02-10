@@ -1868,6 +1868,10 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
                 *errmsg = ubpf_error("incomplete lddw at PC %d", i);
                 return false;
             }
+            if (insts[i + 1].dst != 0 || insts[i + 1].src != 0 || insts[i + 1].offset != 0) {
+                *errmsg = ubpf_error("invalid lddw second half at PC %d", i + 1);
+                return false;
+            }
             i++; /* Skip next instruction */
             break;
 

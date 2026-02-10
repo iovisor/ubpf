@@ -1,0 +1,6 @@
+-- raw
+0x0000000000000018
+0x0000000000000100
+0x0000000000000095
+-- error
+Failed to load code: invalid lddw second half at PC 1
