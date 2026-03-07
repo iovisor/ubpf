@@ -112,7 +112,16 @@ ubpf_create(void)
         return NULL;
     }
 
-    vm->local_func_stack_usage = calloc(UBPF_MAX_INSTS, sizeof(struct ubpf_stack_usage));
+    // Initialize max_insts to compile-time default
+    vm->max_insts = UBPF_MAX_INSTS;
+
+    // Check for overflow on 32-bit systems where size_t might be 32-bit
+    if (vm->max_insts > SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+        ubpf_destroy(vm);
+        return NULL;
+    }
+
+    vm->local_func_stack_usage = calloc(vm->max_insts, sizeof(struct ubpf_stack_usage));
     if (vm->local_func_stack_usage == NULL) {
         ubpf_destroy(vm);
         return NULL;
@@ -372,7 +381,12 @@ ubpf_unload_code(struct ubpf_vm* vm)
 
     // Reset the stack usage amounts when code is unloaded.
     free(vm->local_func_stack_usage);
-    vm->local_func_stack_usage = calloc(UBPF_MAX_INSTS, sizeof(struct ubpf_stack_usage));
+    vm->local_func_stack_usage = NULL;
+    
+    // Check for overflow on 32-bit systems where size_t might be 32-bit
+    if (vm->max_insts > 0 && vm->max_insts <= SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+        vm->local_func_stack_usage = calloc(vm->max_insts, sizeof(struct ubpf_stack_usage));
+    }
 
     if (vm->jitted) {
         munmap(vm->jitted, vm->jitted_size);
@@ -1785,8 +1799,8 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
 static bool
 validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_insts, char** errmsg)
 {
-    if (num_insts >= UBPF_MAX_INSTS) {
-        *errmsg = ubpf_error("too many instructions (max %u)", UBPF_MAX_INSTS);
+    if (num_insts >= vm->max_insts) {
+        *errmsg = ubpf_error("too many instructions (max %u)", vm->max_insts);
         return false;
     }
 
@@ -2263,7 +2277,7 @@ typedef struct _ebpf_encoded_inst
 } ebpf_encoded_inst;
 
 struct ebpf_inst
-ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc)
+ubpf_fetch_instruction(const struct ubpf_vm* vm, uint32_t pc)
 {
     // XOR instruction with base address of vm.
     // This makes ROP attack more difficult.
@@ -2275,7 +2289,7 @@ ubpf_fetch_instruction(const struct ubpf_vm* vm, uint16_t pc)
 }
 
 void
-ubpf_store_instruction(const struct ubpf_vm* vm, uint16_t pc, struct ebpf_inst inst)
+ubpf_store_instruction(const struct ubpf_vm* vm, uint32_t pc, struct ebpf_inst inst)
 {
     // XOR instruction with base address of vm.
     // This makes ROP attack more difficult.
@@ -2329,7 +2343,7 @@ ubpf_set_instruction_limit(struct ubpf_vm* vm, uint32_t limit, uint32_t* previou
 }
 
 bool
-ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg)
+ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint32_t pc, char** errmsg)
 {
     if (vm->local_func_stack_usage[pc].stack_usage_calculated == UBPF_STACK_USAGE_UNKNOWN) {
         vm->local_func_stack_usage[pc].stack_usage_calculated = UBPF_STACK_USAGE_DEFAULT;
@@ -2352,7 +2366,7 @@ ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc,
 }
 
 uint16_t
-ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc)
+ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint32_t pc)
 {
     assert((vm->local_func_stack_usage[pc].stack_usage_calculated != UBPF_STACK_USAGE_UNKNOWN));
 
