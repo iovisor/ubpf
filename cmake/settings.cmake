@@ -7,6 +7,7 @@
 #
 
 add_library("ubpf_settings" INTERFACE)
+add_library("ubpf_settings_libfuzzer" INTERFACE)
 
 # Only configure our settings target if we are being built directly.
 # If we are being used as a submodule, give a chance to the parent
@@ -65,10 +66,12 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     endif()
 
     if(UBPF_ENABLE_LIBFUZZER)
+      # Do not link in a main here -- that screws up other targets.
+      # Link in main for the ubpf_fuzzer target (see libfuzzer/CmakeLists.txt)
       set(fuzzer_flags
         -g
         -O0
-        -fsanitize=fuzzer
+        -fsanitize=fuzzer-no-link
         -fsanitize=address
         -fsanitize-coverage=edge,indirect-calls,trace-cmp,trace-div,trace-gep
         )
