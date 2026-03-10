@@ -52,4 +52,5 @@ if (PLATFORM_WINDOWS)
   set(CMAKE_EXE_LINKER_FLAGS_FUZZERDEBUG libsancov.lib clang_rt.fuzzer_MDd-x86_64.lib)
 endif()
 
+target_link_libraries(ubpf_fuzzer PRIVATE "-fsanitize=fuzzer")
 target_link_libraries(ubpf_fuzzer PRIVATE ${UBPF_FUZZER_LIBS})
