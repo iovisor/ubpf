@@ -216,7 +216,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D6_CONSTRAINT_VIOLATION
 - **Severity:** Medium
 - **Confidence:** Medium
-- **Status:** Open
+- **Status:** Resolved
 
 **Description:** Requirements REQ-EXT-001 now documents both the 5-parameter public API signature and the implicit 6th `void*` context parameter appended by the VM at the call site. This matches the design's description of the internal extended call with a cookie parameter. The discrepancy has been resolved.
 
@@ -229,11 +229,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D4_ORPHANED_TEST_CASE
 - **Severity:** Low
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
-**Description:** TC-SEC-008 (Shadow stack) and TC-SEC-009 (Shadow registers) are now correctly defined as sub-tests tracing to REQ-SEC-003 "Undefined Behavior Detection." They are not orphaned — they test distinct sub-features of a single requirement.
-
-**Status:** Resolved.
+**Description:** TC-SEC-008 (Shadow stack) and TC-SEC-009 (Shadow registers) are now correctly defined as sub-tests tracing to REQ-SEC-003 "Undefined Behavior Detection." They test distinct sub-features of a single requirement and are not orphaned.
 
 ---
 

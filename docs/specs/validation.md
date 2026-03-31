@@ -843,7 +843,7 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-EXT-007
 - **Level:** Unit
 - **Confidence:** High
-- **Evidence:** `tests/helpers/call_unwind.data`
+- **Evidence:** `tests/extensions/call_unwind.data`
 - **Pass criteria:** Unwind function is called on error; execution terminates with correct error code
 - **Existing tests:** call_unwind
 

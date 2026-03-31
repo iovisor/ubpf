@@ -253,7 +253,7 @@ During loading, `ubpf_load()` MUST identify instructions that are targets of loc
 
 `ubpf_load()` MUST validate that the stack size for each local function is a multiple of 16 bytes.
 
-- **Source:** `vm/ubpf_vm.c:258-261` (UBPF_EBPF_STACK_SIZE alignment), `vm/ubpf_int.h:214-218` (`ubpf_calculate_stack_usage_for_local_func`)
+- **Source:** `vm/ubpf_vm.c:2332-2348` (`ubpf_calculate_stack_usage_for_local_func`, 16-byte alignment check at line 2344)
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: A local function requiring a non-16-byte-aligned stack causes loading to fail.
@@ -820,7 +820,7 @@ When enabled, the JIT compiler MUST XOR all immediate values with cryptographica
 - **Acceptance Criteria:**
   - AC-1: With constant blinding enabled, no eBPF immediate values appear in the JIT output as literal constants.
   - AC-2: Program behavior is identical with and without constant blinding.
-  - AC-3: ARM64 constant blinding is partial (3 blinding sites vs. 16 on x86-64 per source analysis of `vm/ubpf_jit_arm64.c` and `vm/ubpf_jit_x86_64.c`).
+  - AC-3: ARM64 constant blinding applies to fewer instruction forms than x86-64 (per source analysis of `vm/ubpf_jit_arm64.c` vs. `vm/ubpf_jit_x86_64.c`).
 
 #### REQ-SEC-005: Read-Only Bytecode
 
