@@ -820,7 +820,7 @@ When enabled, the JIT compiler MUST XOR all immediate values with cryptographica
 - **Acceptance Criteria:**
   - AC-1: With constant blinding enabled, no eBPF immediate values appear in the JIT output as literal constants.
   - AC-2: Program behavior is identical with and without constant blinding.
-  - AC-3: ARM64 constant blinding is partial. `[ASSUMPTION: Some ARM64 instruction forms may not support blinding]`
+  - AC-3: ARM64 constant blinding is partial (3 blinding sites vs. 16 on x86-64 per source analysis of `vm/ubpf_jit_arm64.c` and `vm/ubpf_jit_x86_64.c`).
 
 #### REQ-SEC-005: Read-Only Bytecode
 
@@ -1069,7 +1069,7 @@ The JIT MUST use platform-appropriate cryptographically secure random number gen
 - macOS: `arc4random_buf`.
 - Fallback: `rand()`. `[ASSUMPTION: rand() fallback exists for platforms without CSPRNG; this is not cryptographically secure]`
 
-- **Source:** `vm/ubpf_jit_support.h:210-211` (`ubpf_generate_blinding_constant`)
+- **Source:** `vm/ubpf_jit_support.c:173-210` (`ubpf_generate_blinding_constant` implementation), declared in `vm/ubpf_jit_support.h:211`
 - **Confidence:** **Medium** — platform implementations inferred from build configuration.
 - **Acceptance Criteria:**
   - AC-1: On each supported platform, `ubpf_generate_blinding_constant()` returns non-deterministic 64-bit values.

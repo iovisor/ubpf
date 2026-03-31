@@ -143,14 +143,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** High
 - **Status:** Open
 
-**Description:** REQ-SEC-009 "Custom Bounds Check Callback" (`ubpf_register_data_bounds_check`) exists in requirements but has no design section. The design's threat model covers only REQ-SEC-001–007 (7 entries) despite claiming to implement REQ-SEC-001–009.
+**Description:** REQ-SEC-009 "Custom Bounds Check Callback" exists in requirements and now has a validation entry (TC-EXT-005) but still lacks a dedicated design section. The design's threat model covers only 7 entries despite claiming REQ-SEC-001–009.
 
-**Evidence:**
-- Requirements REQ-SEC-009 (line 865–873): Custom bounds check callback registration.
-- Design section 4.10: Threat model has 7 rows (001–007). The "Implements: REQ-SEC-001 through REQ-SEC-009" claim is unsubstantiated for 008–009.
-- The callback is mentioned in design section 4.11 (Extensibility) as `bounds_check_function` in the Callback Hooks table, but linked to no REQ-SEC-ID.
-
-**Remediation:** Add the custom bounds check callback to the design's security architecture section. Add design detail for REQ-SEC-008 (W⊕X) and REQ-SEC-009 (Custom Bounds Check) to match the claim of implementing all 9 security requirements.
+**Remaining work:** Add custom bounds check callback to design's security architecture section.
 
 ---
 
@@ -161,13 +156,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** High
 - **Status:** Open
 
-**Description:** REQ-EXT-002 "Helper Function Limit" (max 64 external helpers, indexed 0–63) has no dedicated test case. The validation plan's REQ-EXT-002 maps to "External dispatcher" — a different feature (REQ-EXT-003 in requirements).
+**Description:** REQ-EXT-002 "Helper Function Limit" now has a validation entry (TC-EXT-008) but remains a gap — no actual test fills all 64 helper slots.
 
-**Evidence:**
-- Requirements REQ-EXT-002 (line 890–897): AC-1 states "All 64 slots can be filled simultaneously."
-- Validation REQ-EXT-002 row maps to TC-EXT-002 "External Dispatcher" — tests dispatcher functionality, not the 64-function limit.
-
-**Remediation:** Add a test case that registers helpers at index 0, 63, and 64, verifying the boundary behavior.
+**Remaining work:** Implement TC-EXT-008 as an actual test registering helpers at index 0, 63, and 64.
 
 ---
 
@@ -178,14 +169,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** High
 - **Status:** Open
 
-**Description:** REQ-PLAT-005 (Cryptographic Random Generation) and REQ-PLAT-006 (Platform Atomic Operations) have no corresponding test cases. The validation plan's PLAT-005 and PLAT-006 map to "ARM64 JIT" and "Interpreter-only fallback" — different topics.
+**Description:** REQ-PLAT-005 (Cryptographic Random Generation) and REQ-PLAT-006 (Platform Atomic Operations) now have validation entries (TC-PLAT-007 and TC-PLAT-008) but remain gaps — no dedicated tests verify CSPRNG output quality or cross-platform atomic correctness.
 
-**Evidence:**
-- Requirements REQ-PLAT-005 (line 1060–1073): Platform-specific CSPRNG functions (BCryptGenRandom, getrandom, arc4random_buf) and `rand()` fallback.
-- Requirements REQ-PLAT-006 (line 1075–1086): Platform-specific atomic operations (MSVC Interlocked, GCC __sync builtins).
-- Neither topic appears in the validation plan's traceability matrix under any REQ-ID.
-
-**Remediation:** Add validation entries for CSPRNG testing (verify non-deterministic output on each platform) and atomic operation correctness testing (concurrent access scenarios).
+**Remaining work:** Implement TC-PLAT-007 and TC-PLAT-008 as actual tests.
 
 ---
 
@@ -232,14 +218,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** Medium
 - **Status:** Open
 
-**Description:** The requirements and design documents disagree on the helper function call signature. Requirements specifies a 5-parameter signature; the design shows a 6-parameter invocation with an additional context/cookie parameter.
+**Description:** Requirements REQ-EXT-001 now documents both the 5-parameter public API signature and the implicit 6th `void*` context parameter appended by the VM at the call site. This matches the design's description of the internal extended call with a cookie parameter. The discrepancy has been resolved.
 
-**Evidence:**
-- Requirements REQ-EXT-001 (line 881): "The function signature is `uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)`."
-- Design section 4.5 (line 355): `r0 = ext_funcs[index](r1, r2, r3, r4, r5, cookie)` — 6 parameters.
-- Design section 4.11 (line 598): "Signature: `uint64_t fn(uint64_t r1, r2, r3, r4, r5)` / Implicit 6th parameter: `void*` context"
-
-**Remediation:** Clarify whether the public `ubpf_register()` API takes a 5-param function pointer (classic signature) while the internal extended type adds a cookie parameter. Update requirements to reflect the actual `extended_external_helper_t` type if applicable.
+**Status:** Resolved.
 
 ---
 
@@ -250,13 +231,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** High
 - **Status:** Open
 
-**Description:** The validation plan defines TC-SEC-008 "Shadow stack" and TC-SEC-009 "Shadow registers" as separate test areas. In requirements, shadow stack and shadow registers are sub-features of a single requirement (REQ-SEC-003 "Undefined Behavior Detection"), not standalone requirements. The validation's REQ-SEC-008 and REQ-SEC-009 IDs do not exist in the requirements document.
+**Description:** TC-SEC-008 (Shadow stack) and TC-SEC-009 (Shadow registers) are now correctly defined as sub-tests tracing to REQ-SEC-003 "Undefined Behavior Detection." They are not orphaned — they test distinct sub-features of a single requirement.
 
-**Evidence:**
-- Requirements REQ-SEC-003 (line 798–812): Covers both shadow register bitmask and shadow stack as sub-features.
-- Validation REQ-SEC-008/009 (lines 216–217): Treated as separate requirements with separate TC-IDs.
-
-**Remediation:** Merge TC-SEC-008 and TC-SEC-009 under TC-SEC-003 (the corrected ID for UB Detection), or create sub-requirement IDs (REQ-SEC-003a, REQ-SEC-003b) in requirements if separate tracking is desired.
+**Status:** Resolved.
 
 ---
 
