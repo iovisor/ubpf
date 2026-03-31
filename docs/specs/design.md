@@ -282,7 +282,7 @@ ubpf_load(vm, code, code_len, errmsg)
     │
     ├── Store instructions with XOR encoding:
     │   └── ubpf_store_instruction(vm, pc, inst)
-    │       └── inst XOR'd with (pointer_secret ^ &insts[pc])
+    │       └── inst XOR'd with (uint64_t)vm->insts, then XOR'd with vm->pointer_secret
     │
     └── Mark local functions in int_funcs[] array
 ```

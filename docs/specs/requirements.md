@@ -231,7 +231,7 @@ When `readonly_bytecode_enabled` is `false`, `ubpf_load()` MUST allocate via `ma
 
 #### REQ-LOAD-006: Pointer Secret Encoding
 
-`ubpf_load()` MUST XOR-encode each stored instruction with `vm->pointer_secret` when storing. Instruction fetch MUST XOR-decode transparently.
+`ubpf_load()` MUST XOR-encode each stored instruction with both the base address of the instruction array (`(uint64_t)vm->insts`) and `vm->pointer_secret` when storing. Instruction fetch MUST XOR-decode using the same two values transparently.
 
 - **Source:** `vm/ubpf_vm.c:2266-2290` (`ubpf_fetch_instruction`, `ubpf_store_instruction`), declared in `vm/ubpf_int.h:201-212`
 - **Confidence:** **High**

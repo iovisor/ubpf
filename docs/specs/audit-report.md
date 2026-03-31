@@ -97,39 +97,29 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 ---
 
-### F-003 — Design Cross-References to Wrong REQ-SEC IDs
+### F-003 — Design Cross-References to Wrong REQ-SEC IDs (Resolved)
 
 - **Classification:** D6_CONSTRAINT_VIOLATION
 - **Severity:** High
 - **Confidence:** High
+- **Status:** Resolved
 
-**Description:** The design document's explicit `Implements:` annotations reference REQ-SEC IDs using the design's own numbering, which silently points to the wrong requirements when looked up in `requirements.md`.
+**Description:** The design document's `Implements:` annotations originally referenced REQ-SEC IDs using a different numbering scheme than requirements.md. All cross-references have been corrected to use the canonical REQ-IDs.
 
-**Evidence:**
-- Design section 4.7 (x86-64 JIT Backend): `*Implements: REQ-JIT-009, REQ-PLAT-004, REQ-SEC-003, REQ-SEC-006*`
-  - Design intent: REQ-SEC-003 = Constant Blinding, REQ-SEC-006 = Retpolines
-  - Requirements.md: REQ-SEC-003 = Undefined Behavior Detection, REQ-SEC-006 = Pointer Secret
-- Design section 4.8 (ARM64 JIT Backend): `*Implements: REQ-JIT-010, REQ-PLAT-005*`
-  - Design intent: REQ-PLAT-005 = ARM64 JIT
-  - Requirements.md: REQ-PLAT-005 = Cryptographic Random Generation
-
-**Remediation:** Correct the REQ-ID references in design.md sections 4.7 and 4.8 to use the canonical numbering from requirements.md (REQ-SEC-004 for Constant Blinding, REQ-SEC-007 for Retpolines per requirements numbering).
+**Remediation applied:** Design sections 4.7 and 4.8 updated to use canonical numbering (REQ-SEC-004 for Constant Blinding, REQ-SEC-007 for Retpolines).
 
 ---
 
-### F-004 — Acceptance Criteria Traceability Invalidated by Numbering Mismatch
+### F-004 — Acceptance Criteria Traceability Invalidated by Numbering Mismatch (Resolved)
 
 - **Classification:** D7_ACCEPTANCE_CRITERIA_MISMATCH
 - **Severity:** High
 - **Confidence:** High
+- **Status:** Resolved
 
-**Description:** Because TC-IDs in the validation plan reference different topics than the corresponding REQ-IDs in requirements, the acceptance criteria (AC-N) for each requirement cannot be reliably matched to their test cases. All 86 requirements' acceptance criteria are potentially mismatched.
+**Description:** TC-IDs in the validation plan originally referenced different topics than the corresponding REQ-IDs in requirements due to the numbering mismatch (F-001). All TC → REQ mappings have been corrected and re-validated.
 
-**Evidence:**
-- TC-LIFE-002 claims to trace to REQ-LIFE-002 and tests "VM Destruction / Memory Leaks." But REQ-LIFE-002 in requirements is "VM Default State" with AC-1: "Each field matches the specified default immediately after `ubpf_create()` returns." The TC does not test default values at all.
-- TC-SEC-002 claims to trace to REQ-SEC-002 and tests "Undefined behavior detection." But REQ-SEC-002 in requirements is "Bounds Check Toggle" with AC-1: "`ubpf_toggle_bounds_check(vm, false)` returns `true`." The TC tests shadow registers, not toggle behavior.
-
-**Remediation:** After resolving F-001, perform a complete re-mapping of TC-IDs to the corrected REQ-IDs and verify each TC covers the acceptance criteria of its linked requirement.
+**Remediation applied:** Complete re-mapping of TC-IDs to corrected REQ-IDs performed across all traceability tables.
 
 ---
 
