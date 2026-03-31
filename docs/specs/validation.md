@@ -313,6 +313,143 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** Low
 - **`[GAP]`:** No test injects allocation failures. Would require mock allocator or ulimit.
 
+### TC-LOAD — Program Loading
+
+#### TC-LOAD-001: Double-Load Prevention
+- **Traces to:** REQ-LOAD-003
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** All `.data` tests call `ubpf_load` as part of normal flow
+- **Pass criteria:** Loading code into a VM that already has code loaded returns an error
+- **Existing tests:** All data-driven tests (implicit)
+
+#### TC-LOAD-002: Code Length Validation
+- **Traces to:** REQ-LOAD-001
+- **Level:** Unit
+- **Confidence:** Medium
+- **`[GAP]`:** No test for loading code with length that is not a multiple of 8 bytes.
+
+#### TC-LOAD-003: Maximum Instruction Count
+- **Traces to:** REQ-LOAD-002
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test with 65536+ instructions to verify the maximum instruction count limit.
+
+#### TC-LOAD-004: Instruction Validation
+- **Traces to:** REQ-LOAD-004, REQ-LOAD-010, REQ-LOAD-011
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/errors/*` invalid instruction tests, `atomic_validate` custom test
+- **Pass criteria:** Invalid instructions, out-of-range jump targets, and unpaired LDDW are rejected at load time
+- **Existing tests:** tests/errors/*, atomic_validate-Custom
+
+#### TC-LOAD-005: Stack Alignment Validation
+- **Traces to:** REQ-LOAD-008
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc` and unaligned variant
+- **Pass criteria:** Unaligned stack sizes are rejected
+- **Existing tests:** custom_local_function_stack_size-Custom, custom_local_function_stack_size_unaligned-Custom
+
+#### TC-LOAD-006: Sub-Program Containment
+- **Traces to:** REQ-LOAD-009
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** Tested via local function call tests that validate sub-programs stay within bounds
+- **Pass criteria:** Sub-programs that exceed the program boundary are rejected
+- **Existing tests:** Local call tests (indirect)
+
+#### TC-LOAD-007: Read-Only Bytecode Storage (Enabled)
+- **Traces to:** REQ-LOAD-005
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_readonly_bytecode.cc`
+- **Pass criteria:** Bytecode pages are marked read-only when feature is enabled
+- **Existing tests:** readonly_bytecode-Custom
+- **`[GAP]`:** No test verifying pages are actually read-only (e.g., via write-and-trap).
+
+#### TC-LOAD-008: Read-Only Bytecode Storage (Disabled)
+- **Traces to:** REQ-LOAD-005
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_readonly_bytecode.cc` toggles mode
+- **Pass criteria:** Bytecode is writable when read-only mode is disabled
+- **Existing tests:** readonly_bytecode-Custom
+
+#### TC-LOAD-009: Pointer Secret Encoding
+- **Traces to:** REQ-LOAD-006
+- **Level:** Unit
+- **Confidence:** Medium
+- **`[GAP]`:** No direct test of pointer secret encoding correctness. Encoding is exercised implicitly via all interpreter tests.
+
+#### TC-LOAD-010: Local Function Marking
+- **Traces to:** REQ-LOAD-007
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/extensions/call_local_use_stack.data`, `tests/factorial.data`
+- **Pass criteria:** Local functions are correctly identified and callable
+- **Existing tests:** call_local_use_stack, factorial
+
+### TC-ELF — ELF Loading
+
+#### TC-ELF-001: ELF Wrapper Functions
+- **Traces to:** REQ-ELF-006
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** `test_framework/test_elf.py` runs ELF-based tests
+- **Pass criteria:** `ubpf_load_elf()` successfully loads valid ELF files and programs execute correctly
+- **Existing tests:** test_elf.py
+
+#### TC-ELF-002: ELF Header Validation
+- **Traces to:** REQ-ELF-001
+- **Level:** Unit
+- **Confidence:** Medium
+- **`[GAP]`:** No tests with malformed ELF headers (wrong magic, wrong class, wrong machine type).
+
+#### TC-ELF-003: ELF Bounds Checking
+- **Traces to:** REQ-ELF-003
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/elf/` directory contains ELF-specific test programs
+- **Pass criteria:** Out-of-bounds section references in ELF files are rejected
+- **Existing tests:** tests/elf/*
+
+#### TC-ELF-004: R_BPF_64_64 Data Relocation
+- **Traces to:** REQ-ELF-004
+- **Level:** Integration
+- **Confidence:** High
+- **Evidence:** `bpf/rel_64_32.bpf.c`, `tests/elf/` relocation tests
+- **Pass criteria:** 64-bit data relocations are resolved correctly
+- **Existing tests:** tests/elf/*, bpf/rel_64_32.bpf.c
+
+#### TC-ELF-005: R_BPF_64_32 Helper Relocation
+- **Traces to:** REQ-ELF-005
+- **Level:** Integration
+- **Confidence:** High
+- **Evidence:** Conformance suite helper tests exercise helper relocations
+- **Pass criteria:** 32-bit helper function relocations are resolved correctly
+- **Existing tests:** Conformance helper tests
+
+#### TC-ELF-006: Multi-Function ELF Linking
+- **Traces to:** REQ-ELF-007
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** Multi-function ELF programs tested via ELF loader
+- **Pass criteria:** Multiple functions within an ELF are correctly linked and callable
+- **Existing tests:** Multi-function ELF programs (indirect)
+
+#### TC-ELF-007: Main Function Selection
+- **Traces to:** REQ-ELF-007
+- **Level:** Integration
+- **Confidence:** Medium
+- **`[GAP]`:** No explicit test for named-main function selection in multi-function ELF files.
+
+#### TC-ELF-008: Section Count Limit
+- **Traces to:** REQ-ELF-002
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test with >32 sections to verify the section count limit is enforced.
+
 ### TC-EXEC — Execution
 
 #### TC-EXEC-001: Interpreter Execution (Data-Driven)
@@ -322,6 +459,28 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** `test_framework/test_vm.py` — runs every `.data` file through interpreter
 - **Pass criteria:** Return value matches `-- result` section; errors match `-- error` section
 - **Existing tests:** ~47 root .data + 313 conformance tests = ~360 test cases
+
+#### TC-EXEC-002: Extended Interpreter Entry Point
+- **Traces to:** REQ-EXEC-002
+- **Level:** Unit
+- **Confidence:** Medium
+- **`[GAP]`:** Limited direct exec_ex tests. No dedicated test exercises `ubpf_exec_ex()` API independently from standard `ubpf_exec()`.
+
+#### TC-EXEC-003: Register Initialization
+- **Traces to:** REQ-EXEC-003
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Memory and result comparison in all data-driven tests validates correct r1/r2 initialization
+- **Pass criteria:** r1 points to memory input, r2 contains memory length, r0 returns correct result
+- **Existing tests:** All ~360 data-driven tests
+
+#### TC-EXEC-004: Code-Not-Loaded Guard and XOR-Decoded Fetch
+- **Traces to:** REQ-EXEC-004, REQ-EXEC-007
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** XOR decode is implicit in all 360+ data-driven tests (instructions are encoded on load)
+- **Pass criteria:** Execution without loaded code returns error; XOR-decoded instructions execute correctly
+- **`[GAP]`:** No explicit test for executing without loading code first.
 
 #### TC-EXEC-005: ALU Operations
 - **Traces to:** REQ-ISA-003, REQ-ISA-004
@@ -369,6 +528,129 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** Debug callback invoked before each instruction with correct PC, registers, and stack info
 - **Existing tests:** debug_function-Custom
 
+### TC-ISA — Instruction Set Architecture
+
+#### TC-ISA-001: Instruction Format
+- **Traces to:** REQ-ISA-001
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Assembler/raw comparison in all `.data` tests validates instruction encoding
+- **Pass criteria:** Instructions are correctly encoded and decoded in the 8-byte format
+- **Existing tests:** All ~360 data-driven tests
+
+#### TC-ISA-002: Register Model
+- **Traces to:** REQ-ISA-002
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_frame_pointer.cc`, JIT register offset variants
+- **Pass criteria:** All 11 registers (r0-r10) function correctly; r10 is read-only frame pointer
+- **Existing tests:** frame_pointer-Custom, JIT offset tests
+
+#### TC-ISA-003: ALU64 Operations
+- **Traces to:** REQ-ISA-003
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/alu64.data`, 50+ conformance ALU64 tests
+- **Pass criteria:** All 64-bit ALU operations produce correct results
+- **Existing tests:** alu64, conformance ALU64 tests
+
+#### TC-ISA-004: ALU32 Operations
+- **Traces to:** REQ-ISA-003
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/alu.data`, 50+ conformance ALU32 tests
+- **Pass criteria:** All 32-bit ALU operations produce correct results with zero-extension
+- **Existing tests:** alu, conformance ALU32 tests
+
+#### TC-ISA-005: Memory Load/Store
+- **Traces to:** REQ-ISA-007
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/ldx.data`, `tests/st.data`, `tests/stx.data`, 80+ conformance memory tests
+- **Pass criteria:** All memory load and store operations at all widths (8/16/32/64) produce correct results
+- **Existing tests:** ldx, st, stx, conformance memory tests
+
+#### TC-ISA-006: LDDW (64-bit Immediate Load)
+- **Traces to:** REQ-ISA-007
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/lddw.data`, conformance LDDW tests
+- **Pass criteria:** 64-bit immediate values are correctly loaded via two-instruction LDDW
+- **Existing tests:** lddw, conformance LDDW tests
+
+#### TC-ISA-007: Sign-Extending Loads
+- **Traces to:** REQ-ISA-008
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/ldxsb-positive.data`, `tests/ldxsh.data`, conformance sign-extension tests
+- **Pass criteria:** Sign-extending loads correctly extend signed values to 64 bits
+- **Existing tests:** ldxsb-positive, ldxsh, conformance tests
+
+#### TC-ISA-008: MOVSX (Sign-Extending Move)
+- **Traces to:** REQ-ISA-005
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Conformance MOVSX tests
+- **Pass criteria:** MOVSX instructions correctly sign-extend source to destination register
+- **Existing tests:** Conformance MOVSX tests
+
+#### TC-ISA-009: Jump Instructions (64-bit)
+- **Traces to:** REQ-ISA-009
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/jmp.data`, 40+ conformance jump tests
+- **Pass criteria:** All conditional and unconditional jumps with 64-bit comparisons branch correctly
+- **Existing tests:** jmp, conformance jump tests
+
+#### TC-ISA-010: JMP32 (32-bit Jumps)
+- **Traces to:** REQ-ISA-009
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Conformance JMP32 tests
+- **Pass criteria:** All conditional jumps with 32-bit comparisons branch correctly
+- **Existing tests:** Conformance JMP32 tests
+
+#### TC-ISA-011: Atomic Operations
+- **Traces to:** REQ-ISA-010
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_atomic_validate.cc` (validation only)
+- **Pass criteria:** Atomic instructions are validated at load time
+- **Existing tests:** atomic_validate-Custom
+- **`[GAP]`:** No runtime execution test for atomic operations; only validation is tested.
+
+#### TC-ISA-012: CALL Instruction
+- **Traces to:** REQ-ISA-011
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/helpers/call.data`, `tests/factorial.data`
+- **Pass criteria:** CALL instruction correctly invokes helper functions and local functions
+- **Existing tests:** call, factorial
+
+#### TC-ISA-013: Signed Division and Modulo
+- **Traces to:** REQ-ISA-004
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/sdiv32.data`, `tests/sdiv64.data`, `tests/smod32.data`, `tests/smod64.data`
+- **Pass criteria:** Signed division and modulo produce correct results including negative operands
+- **Existing tests:** sdiv32, sdiv64, smod32, smod64
+
+#### TC-ISA-014: Byte Swap Operations
+- **Traces to:** REQ-ISA-006
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Conformance BE16/32/64, LE16/32/64 tests
+- **Pass criteria:** Byte swap operations correctly convert endianness at all widths
+- **Existing tests:** Conformance BE/LE tests
+
+#### TC-ISA-015: EXIT Instruction
+- **Traces to:** REQ-ISA-012
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/early-exit.data`, all tests terminate via EXIT instruction
+- **Pass criteria:** EXIT instruction terminates execution and returns r0
+- **Existing tests:** early-exit, all data-driven tests
+
 ### TC-JIT — JIT Compilation
 
 #### TC-JIT-001: JIT Execution Correctness
@@ -379,6 +661,56 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** JIT output matches interpreter output for all tests
 - **Existing tests:** ~360 × 20 = ~7200 JIT test executions
 
+#### TC-JIT-002: compile_ex API
+- **Traces to:** REQ-JIT-002
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** `ubpf_plugin` in ExtendedJitMode exercises `ubpf_compile_ex()`
+- **Pass criteria:** Extended JIT compilation API succeeds and produces executable code
+- **Existing tests:** ubpf_plugin ExtendedJitMode tests
+
+#### TC-JIT-003: BasicJitMode
+- **Traces to:** REQ-JIT-002
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** Default mode in `test_framework/test_jit.py`
+- **Pass criteria:** JIT compilation in basic mode produces correct results for all tests
+- **Existing tests:** test_jit.py (default mode)
+
+#### TC-JIT-004: ExtendedJitMode
+- **Traces to:** REQ-JIT-002
+- **Level:** System
+- **Confidence:** Medium
+- **Evidence:** `ubpf_plugin` with `--jit` flag exercises extended JIT mode
+- **Pass criteria:** JIT compilation in extended mode produces correct results
+- **Existing tests:** ubpf_plugin with --jit
+
+#### TC-JIT-005: Code Caching
+- **Traces to:** REQ-JIT-003
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No explicit caching test. No test verifies that compiled JIT code is reused across invocations.
+
+#### TC-JIT-006: W⊕X Memory
+- **Traces to:** REQ-JIT-004
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** Implicit; ASan would catch memory protection violations
+- **Pass criteria:** JIT-compiled code memory is not simultaneously writable and executable
+- **Existing tests:** All JIT tests with ASan (implicit)
+
+#### TC-JIT-007: translate API
+- **Traces to:** REQ-JIT-007
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No direct test of the `ubpf_translate()` API for outputting JIT code to an external buffer.
+
+#### TC-JIT-008: copy_jit API
+- **Traces to:** REQ-JIT-006
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No direct test of the `ubpf_copy_jit()` API for copying JIT-compiled code.
+
 #### TC-JIT-009: x86-64 Dual ABI
 - **Traces to:** REQ-JIT-009
 - **Level:** System
@@ -386,6 +718,14 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** CI runs JIT tests on both Windows (Win64 ABI) and Linux (System V ABI)
 - **Pass criteria:** Same tests pass on both platforms
 - **Existing tests:** CI matrix covers both ABIs
+
+#### TC-JIT-010: ARM64 ABI
+- **Traces to:** REQ-JIT-010
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI on ARM64 (native + QEMU emulation)
+- **Pass criteria:** JIT compilation and execution succeeds on ARM64 architecture
+- **Existing tests:** CI matrix (ARM64 native and QEMU)
 
 #### TC-JIT-011: JIT Buffer Too Small
 - **Traces to:** REQ-JIT-005, REQ-CFG-002
@@ -483,6 +823,14 @@ uBPF uses a multi-layered testing strategy:
 
 ### TC-EXT — Extensibility
 
+#### TC-EXT-001: Helper Registration
+- **Traces to:** REQ-EXT-001
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/helpers/call.data`, `tests/helpers/call-memfrob.data`, `custom_tests/srcs/ubpf_test_update_helpers.cc`
+- **Pass criteria:** Helper functions are registered and callable by BPF programs via CALL instruction
+- **Existing tests:** call, call-memfrob, update_helpers-Custom
+
 #### TC-EXT-002: External Dispatcher
 - **Traces to:** REQ-EXT-003
 - **Level:** Integration
@@ -490,6 +838,22 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** `custom_tests/srcs/ubpf_test_external_dispatcher_simple_context.cc`, `ubpf_test_external_dispatcher_context_overwrite.cc`, `ubpf_test_default_dispatcher_helper_context.cc`, `ubpf_test_update_dispatcher.cc`
 - **Pass criteria:** Dispatcher receives correct parameters; context handling correct; updates work
 - **Existing tests:** 4 custom tests
+
+#### TC-EXT-003: Unwind Function
+- **Traces to:** REQ-EXT-007
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `tests/helpers/call_unwind.data`
+- **Pass criteria:** Unwind function is called on error; execution terminates with correct error code
+- **Existing tests:** call_unwind
+
+#### TC-EXT-004: Data Relocation Callback
+- **Traces to:** REQ-EXT-004
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** Tested via ELF loading pipeline
+- **Pass criteria:** Data relocation callback is invoked for map references during ELF loading
+- **Existing tests:** ELF loading tests (indirect)
 
 #### TC-EXT-005: Custom Bounds Check Callback
 - **Traces to:** REQ-SEC-009
@@ -504,6 +868,134 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** `custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc`, `*_unaligned.cc`, `*_zero.cc`, `*_default.cc`
 - **Pass criteria:** Custom stack sizes applied; unaligned rejected; zero accepted; default works
 - **Existing tests:** 4 custom tests
+
+#### TC-EXT-007: Debug Function
+- **Traces to:** REQ-EXT-006
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_debug_function.cc`
+- **Pass criteria:** Debug function callback is invoked before each instruction with correct state
+- **Existing tests:** debug_function-Custom
+
+#### TC-EXT-008: Helper Function Limit
+- **Traces to:** REQ-EXT-002
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test filling all 64 helper slots to verify the helper function registration limit.
+
+### TC-CFG — Configuration
+
+#### TC-CFG-001: Error Print Redirection
+- **Traces to:** REQ-CFG-001
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** Used in custom tests but not directly tested for correctness
+- **Pass criteria:** Error output is redirected to the configured print function
+- **Existing tests:** Custom tests (indirect)
+
+#### TC-CFG-002: JIT Buffer Sizing
+- **Traces to:** REQ-CFG-002
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_jit_buffer_too_small.cc`
+- **Pass criteria:** JIT buffer size can be configured; undersized buffer causes compilation failure
+- **Existing tests:** jit_buffer_too_small-Custom
+
+#### TC-CFG-003: Instruction Limit
+- **Traces to:** REQ-CFG-003
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test exercises `ubpf_set_instruction_limit()` to verify instruction count limiting.
+
+#### TC-CFG-004: Register Access
+- **Traces to:** REQ-CFG-004
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test exercises get/set register APIs to verify register access functionality.
+
+### TC-PLAT — Platform Support
+
+#### TC-PLAT-001: Windows Support
+- **Traces to:** REQ-PLAT-001
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI: windows-2022, Debug + Release configurations
+- **Pass criteria:** All tests pass on Windows with MSVC
+- **Existing tests:** CI matrix (windows-2022)
+
+#### TC-PLAT-002: Linux Support
+- **Traces to:** REQ-PLAT-002
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI: ubuntu-latest, coverage + sanitizers (ASan, UBSan)
+- **Pass criteria:** All tests pass on Linux with GCC/Clang; no sanitizer violations
+- **Existing tests:** CI matrix (ubuntu-latest)
+
+#### TC-PLAT-003: macOS Support
+- **Traces to:** REQ-PLAT-003
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI: macos-latest
+- **Pass criteria:** All tests pass on macOS
+- **Existing tests:** CI matrix (macos-latest)
+
+#### TC-PLAT-004: x86-64 JIT
+- **Traces to:** REQ-PLAT-004
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI runs JIT tests on all x86-64 platforms (Windows, Linux, macOS)
+- **Pass criteria:** JIT compilation and execution succeeds on x86-64
+- **Existing tests:** CI matrix (all x86-64 platforms)
+
+#### TC-PLAT-007: Crypto RNG
+- **Traces to:** REQ-PLAT-005
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** CI covers all 3 platforms (Windows, Linux, macOS)
+- **Pass criteria:** Platform-specific cryptographic RNG produces non-deterministic values
+- **Existing tests:** CI matrix (all platforms)
+
+#### TC-PLAT-008: Platform Atomics
+- **Traces to:** REQ-PLAT-006
+- **Level:** System
+- **Confidence:** Medium
+- **`[GAP]`:** No cross-platform atomic correctness test. Atomics are compiled but not tested for cross-platform behavior.
+
+### TC-ERR — Error Handling
+
+#### TC-ERR-001: Error Message Allocation
+- **Traces to:** REQ-ERR-001
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** Error tests check stderr output for correct error messages
+- **Pass criteria:** Error messages are allocated and returned correctly via the error string parameter
+- **Existing tests:** tests/errors/* (error message verification)
+
+#### TC-ERR-002: Error Output Function
+- **Traces to:** REQ-ERR-002
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** Error output function is used but not directly validated for correct invocation
+- **Pass criteria:** Custom error output function receives formatted error messages
+- **Existing tests:** Custom tests (indirect)
+
+#### TC-ERR-003: Toggle Return Values
+- **Traces to:** REQ-ERR-003
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** Toggle functions return values are used in custom tests
+- **Pass criteria:** Toggle functions return previous state value
+- **Existing tests:** Custom tests (indirect)
+
+### TC-CONST — Constants
+
+#### TC-CONST-001: System Constants
+- **Traces to:** REQ-CONST-001
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** Constants (MAX_INSTS, STACK_SIZE, etc.) are used throughout tests but not boundary-tested
+- **Pass criteria:** System constants are correctly defined and enforced at boundaries
+- **Existing tests:** All tests (indirect usage)
 
 ### TC-FUZZ — Fuzzing
 

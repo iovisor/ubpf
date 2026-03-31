@@ -9,9 +9,9 @@
 
 ## 1. Executive Summary
 
-This adversarial consistency audit of the uBPF specification suite initially revealed a **critical systemic defect**: the three specification documents used incompatible REQ-ID numbering schemes across 10 of 12 requirement categories. Additionally, a numeric boundary contradiction for `UBPF_MAX_INSTS` was found, along with 17 further findings including missing design sections and requirements lost in downstream mapping.
+This adversarial consistency audit of the uBPF specification suite initially revealed a **critical systemic defect**: the three specification documents used incompatible REQ-ID numbering schemes across 10 of 12 requirement categories. Additionally, a numeric boundary contradiction for `UBPF_MAX_INSTS` was found, along with 18 further findings (19 total) including missing design sections and requirements lost in downstream mapping.
 
-All critical and high-severity findings have been remediated: REQ-ID numbering has been aligned across all three documents using the requirements document as the canonical registry, the `UBPF_MAX_INSTS` boundary has been corrected to 65535 (matching the `uint16_t` storage and `>= 65536` source code check), and cross-document traceability has been re-validated. The remaining findings are medium/low severity items documented for future improvement. The verdict is **PASS**: the specification suite is now internally consistent and suitable for approval.
+All critical and high-severity findings have been remediated: REQ-ID numbering has been aligned across all three documents using the requirements document as the canonical registry, the `UBPF_MAX_INSTS` boundary has been corrected to 65535 (matching the `uint16_t` storage and `>= 65536` source code check), and cross-document traceability has been re-validated. Some medium-severity findings (e.g., F-005) are partially resolved with remaining work tracked. The remaining findings are medium/low severity items documented for future improvement. The verdict is **PASS**: the specification suite is now internally consistent and suitable for approval.
 
 ---
 
@@ -141,8 +141,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
-**Description:** REQ-SEC-009 "Custom Bounds Check Callback" (`ubpf_register_data_bounds_check`) exists in requirements but has no design section. The design's threat model covers only REQ-SEC-001–007 (7 entries) despite claiming to implement REQ-SEC-001–009. The validation plan maps REQ-SEC-009 to "Shadow registers" — a different topic.
+**Description:** REQ-SEC-009 "Custom Bounds Check Callback" (`ubpf_register_data_bounds_check`) exists in requirements but has no design section. The design's threat model covers only REQ-SEC-001–007 (7 entries) despite claiming to implement REQ-SEC-001–009.
 
 **Evidence:**
 - Requirements REQ-SEC-009 (line 865–873): Custom bounds check callback registration.
@@ -158,6 +159,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D2_UNTESTED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** REQ-EXT-002 "Helper Function Limit" (max 64 external helpers, indexed 0–63) has no dedicated test case. The validation plan's REQ-EXT-002 maps to "External dispatcher" — a different feature (REQ-EXT-003 in requirements).
 
@@ -174,6 +176,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D2_UNTESTED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** REQ-PLAT-005 (Cryptographic Random Generation) and REQ-PLAT-006 (Platform Atomic Operations) have no corresponding test cases. The validation plan's PLAT-005 and PLAT-006 map to "ARM64 JIT" and "Interpreter-only fallback" — different topics.
 
@@ -191,6 +194,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** The design document has no dedicated sections for Error Handling (REQ-ERR-001–003), Constants (REQ-CONST-001), or Configuration (REQ-CFG-001–004). These 8 requirements are only mentioned tangentially within other sections. No `*Implements:*` annotation traces to any REQ-ERR, REQ-CFG, or REQ-CONST ID.
 
@@ -208,6 +212,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** Medium
+- **Status:** Open
 
 **Description:** The design document's `*Implements:*` annotations for ISA only cover REQ-ISA-001 and REQ-ISA-002 (instruction encoding and register file). REQ-ISA-003 through REQ-ISA-012 (ALU, memory, jumps, atomics, calls, exit) are covered implicitly within the interpreter execution section (4.5) but have no explicit trace annotations.
 
@@ -225,6 +230,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D6_CONSTRAINT_VIOLATION
 - **Severity:** Medium
 - **Confidence:** Medium
+- **Status:** Open
 
 **Description:** The requirements and design documents disagree on the helper function call signature. Requirements specifies a 5-parameter signature; the design shows a 6-parameter invocation with an additional context/cookie parameter.
 
@@ -242,6 +248,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D4_ORPHANED_TEST_CASE
 - **Severity:** Low
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** The validation plan defines TC-SEC-008 "Shadow stack" and TC-SEC-009 "Shadow registers" as separate test areas. In requirements, shadow stack and shadow registers are sub-features of a single requirement (REQ-SEC-003 "Undefined Behavior Detection"), not standalone requirements. The validation's REQ-SEC-008 and REQ-SEC-009 IDs do not exist in the requirements document.
 
@@ -258,6 +265,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D4_ORPHANED_TEST_CASE
 - **Severity:** Low
 - **Confidence:** Medium
+- **Status:** Open
 
 **Description:** The validation plan introduces test areas for topics that are not standalone requirements:
 
@@ -277,6 +285,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D5_ASSUMPTION_DRIFT
 - **Severity:** Low
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** REQ-SEC-007 uses "SHOULD" (RFC 2119: recommended but optional), yet the design implements retpolines as default-enabled with an opt-out build flag. This mismatch between "SHOULD" (optional) and "enabled by default" creates ambiguity about whether retpolines are a mandatory security feature.
 
@@ -293,6 +302,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D5_ASSUMPTION_DRIFT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** The requirements document states single-threaded access as an assumption (ASM-003). The design document questions this assumption as an open question (OQ-1), noting that `ubpf_exec` takes `const struct ubpf_vm*` which suggests read-sharing may be intended. The validation plan lists "No concurrency tests" as a structural gap.
 
@@ -310,6 +320,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D5_ASSUMPTION_DRIFT
 - **Severity:** Low
 - **Confidence:** Medium
+- **Status:** Open
 
 **Description:** The design document assumes JIT produces "semantically identical results to the interpreter for all valid programs" (section 5.1). However, requirements explicitly defines an exception: REQ-JIT-008 states instruction limits do NOT apply to JIT execution. The design's unqualified equivalence claim is technically incorrect.
 
@@ -327,6 +338,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D5_ASSUMPTION_DRIFT
 - **Severity:** Low
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** All three documents are now dated 2026-03-31 and share version 1.0.0. This finding has been resolved.
 
@@ -344,6 +356,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D2_UNTESTED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** REQ-LOAD-011 "LDDW Pairing Validation" now has a matching validation entry in the traceability matrix, mapped to TC-LOAD-004 (instruction validation). The original misalignment (where validation mapped REQ-LOAD-011 to "Code replacement") has been corrected.
 
@@ -356,6 +369,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Open
 
 **Description:** The design security architecture section (4.10) claims `*Implements: REQ-SEC-001 through REQ-SEC-009*` but the threat model table only contains 7 rows covering REQ-SEC-001 through REQ-SEC-007 (in design numbering). REQ-SEC-008 and REQ-SEC-009 (in requirements numbering: W⊕X for JIT Code and Custom Bounds Check Callback) are not detailed.
 
@@ -438,7 +452,7 @@ No automated or manual consistency check exists between documents. A simple scri
    - Verifies every REQ-ID exists in the registry and maps to the same topic.
    - Flags orphaned design elements and untested requirements.
 
-3. **Per-Item Traceability:** Replace blanket `*Implements: REQ-X-001 through REQ-X-NNN*` claims with explicit per-item lists. This makes gaps immediately visible.
+3. **Per-Item Traceability:** Replace blanket `*Implements: REQ-CATEGORY-001 through REQ-CATEGORY-NNN*` claims with explicit per-item lists. This makes gaps immediately visible.
 
 4. **Cross-Document Review Gate:** Before any specification document is updated, require a diff-based review that checks whether REQ-ID references in other documents are affected.
 
@@ -479,4 +493,4 @@ The specification suite's critical systemic defect (F-001: REQ-ID numbering misa
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
 | 1.1.0 | 2026-03-31 | Post-remediation update | F-001 and F-002 resolved. REQ-ID alignment corrected. Verdict updated to PASS. |
-| 1.0.0 | 2025-07-18 | Adversarial Consistency Audit | Initial audit of requirements.md v1.0.0, design.md v1.0.0, validation.md v1.0.0. 19 findings across 7 defect classifications. Verdict: REVISE. |
+| 1.0.0 | 2026-03-31 | Adversarial Consistency Audit | Initial audit of requirements.md v1.0.0, design.md v1.0.0, validation.md v1.0.0. 19 findings across 7 defect classifications. Verdict: REVISE. |
