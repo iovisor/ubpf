@@ -244,9 +244,9 @@ uBPF uses a multi-layered testing strategy:
 | REQ-PLAT-001 | Windows support | TC-PLAT-001 | **High** — CI: windows-2022, Debug + Release |
 | REQ-PLAT-002 | Linux support | TC-PLAT-002 | **High** — CI: ubuntu-latest, coverage + sanitizers |
 | REQ-PLAT-003 | macOS support | TC-PLAT-003 | **High** — CI: macos-latest |
-| REQ-PLAT-004 | x86-64 JIT | TC-PLAT-004 | **High** — CI on all x86-64 platforms |
-| REQ-PLAT-004 | ARM64 JIT | TC-PLAT-005 | **High** — CI: ubuntu-24.04-arm + QEMU |
-| REQ-PLAT-004 | Interpreter-only fallback | TC-PLAT-006 | **Medium** — `[GAP: no test on non-JIT platform]` |
+| REQ-PLAT-004 | JIT architecture support (x86-64) | TC-PLAT-004 | **High** — CI on all x86-64 platforms |
+| REQ-PLAT-005 | Cryptographic random generation | TC-PLAT-007 | **High** — CI covers all 3 platforms (BCryptGenRandom, getrandom, arc4random_buf) |
+| REQ-PLAT-006 | Platform atomic operations | TC-PLAT-008 | **Medium** — atomic_validate custom test; `[GAP: no cross-platform atomic correctness test]` |
 
 ### 4.11 Error Handling
 
@@ -355,6 +355,20 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** Helper receives correct parameters; return value propagated to r0
 - **Existing tests:** 3 dedicated helper tests + conformance call tests
 
+#### TC-EXEC-009: Instruction Limit Enforcement
+- **Traces to:** REQ-EXEC-005
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test currently exercises `ubpf_set_instruction_limit()`. Should verify interpreter stops after N instructions.
+
+#### TC-EXEC-010: Debug Callback Invocation
+- **Traces to:** REQ-EXEC-009
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_debug_function.cc`
+- **Pass criteria:** Debug callback invoked before each instruction with correct PC, registers, and stack info
+- **Existing tests:** debug_function-Custom
+
 ### TC-JIT — JIT Compilation
 
 #### TC-JIT-001: JIT Execution Correctness
@@ -381,6 +395,20 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** JIT compilation fails gracefully with error message
 - **Existing tests:** jit_buffer_too_small-Custom
 
+#### TC-JIT-012: Instruction Limit Non-Applicability
+- **Traces to:** REQ-JIT-008
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test verifying that `ubpf_set_instruction_limit()` does not affect JIT execution.
+
+#### TC-JIT-013: Post-Compilation Helper Update
+- **Traces to:** REQ-JIT-011
+- **Level:** Integration
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_update_helpers.cc`, `ubpf_test_update_dispatcher.cc`
+- **Pass criteria:** Helpers/dispatcher can be updated after JIT compilation; updated functions are called
+- **Existing tests:** update_helpers-Custom, update_dispatcher-Custom
+
 ### TC-SEC — Security
 
 #### TC-SEC-001: Bounds Check Enforcement
@@ -406,6 +434,34 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** `custom_tests/srcs/ubpf_test_readonly_bytecode.cc`
 - **Pass criteria:** Bytecode stored in read-only pages; toggling mode works correctly
 - **Existing tests:** readonly_bytecode-Custom
+
+#### TC-SEC-005: Pointer Secret / XOR Encoding
+- **Traces to:** REQ-SEC-006
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test verifying XOR encoding effectiveness or that pointer secret changes instruction storage.
+
+#### TC-SEC-006: Retpolines
+- **Traces to:** REQ-SEC-007
+- **Level:** System
+- **Confidence:** Medium
+- **Evidence:** CI runs both with and without `UBPF_DISABLE_RETPOLINES`
+- **Pass criteria:** Tests pass in both configurations
+- **Existing tests:** CI matrix (no dedicated functional test)
+
+#### TC-SEC-007: W⊕X Enforcement
+- **Traces to:** REQ-SEC-008
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** JIT code executes successfully; ASan/Valgrind would detect violations
+- **Pass criteria:** JIT memory is executable but not writable during execution
+- **Existing tests:** Implicitly tested by all JIT tests
+
+#### TC-SEC-010: Bounds Check Toggle
+- **Traces to:** REQ-SEC-002
+- **Level:** Unit
+- **Confidence:** Medium
+- **`[GAP]`:** No explicit test toggling bounds checking off and verifying behavior change.
 
 ### TC-EXT — Extensibility
 

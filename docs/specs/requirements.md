@@ -1278,4 +1278,4 @@ The JIT compiler generates native code without formal verification of equivalenc
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
-| 1.0.0 | 2025-07-14 | Extracted from source | Initial requirements extraction from uBPF codebase. All requirements derived from source code analysis of the public API (`vm/inc/ubpf.h`), VM implementation (`vm/ubpf_vm.c`), instruction validator (`vm/ubpf_instruction_valid.c`), ELF loader (`vm/ubpf_loader.c`), JIT compilers (`vm/ubpf_jit_x86_64.c`, `vm/ubpf_jit_arm64.c`, `vm/ubpf_jit.c`), internal headers (`vm/ubpf_int.h`, `vm/ebpf.h`), and build configuration (`CMakeLists.txt`, `cmake/`). |
+| 1.0.0 | 2026-03-31 | Extracted from source | Initial requirements extraction from uBPF codebase. All requirements derived from source code analysis of the public API (`vm/inc/ubpf.h`), VM implementation (`vm/ubpf_vm.c`), instruction validator (`vm/ubpf_instruction_valid.c`), ELF loader (`vm/ubpf_loader.c`), JIT compilers (`vm/ubpf_jit_x86_64.c`, `vm/ubpf_jit_arm64.c`, `vm/ubpf_jit.c`), internal headers (`vm/ubpf_int.h`, `vm/ebpf.h`), and build configuration (`CMakeLists.txt`, `cmake/`). |

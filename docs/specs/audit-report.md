@@ -35,7 +35,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 | Document | Path | Version | Date | Size |
 |----------|------|---------|------|------|
-| Requirements Specification | `docs/specs/requirements.md` | 1.0.0 | 2025-07-14 | 55.8 KB |
+| Requirements Specification | `docs/specs/requirements.md` | 1.0.0 | 2026-03-31 | 55.8 KB |
 | Design Specification | `docs/specs/design.md` | 1.0.0 | 2026-03-31 | 32.7 KB |
 | Validation Plan | `docs/specs/validation.md` | 1.0.0 | 2026-03-31 | 27.7 KB |
 
@@ -536,11 +536,11 @@ No automated or manual consistency check exists between documents. A simple scri
 
 | ID | Question | Status |
 |----|----------|--------|
-| OQ-A1 | Which numbering scheme is canonical — the requirements doc or the design/validation pair? | **Unresolved** — must be decided to proceed with remediation. |
-| OQ-A2 | Is the `num_insts` field truly `uint16_t`? If so, how does the code handle UBPF_MAX_INSTS (65536)? | **Unresolved** — requires source code inspection of `vm/ubpf_int.h`. |
-| OQ-A3 | Does `ubpf_register()` accept the classic 5-param signature or the extended 6-param signature? | **Unresolved** — requires API header inspection. |
-| OQ-A4 | Was the numbering divergence caused by independent generation, or did the requirements document undergo a re-numbering after the downstream documents were created? | **Unresolved** — requires authoring history. |
-| OQ-A5 | Are validation's "phantom" test areas (OOM, Code Replacement, JMP32) testing real features that should become requirements? | **Unresolved** — requires product decision. |
+| OQ-A1 | Which numbering scheme is canonical — the requirements doc or the design/validation pair? | **Resolved** — requirements document chosen as canonical registry. |
+| OQ-A2 | Is the `num_insts` field truly `uint16_t`? If so, how does the code handle UBPF_MAX_INSTS (65536)? | **Resolved** — confirmed `uint16_t` with `>= 65536` check; max valid is 65535. |
+| OQ-A3 | Does `ubpf_register()` accept the classic 5-param signature or the extended 6-param signature? | **Resolved** — 5 explicit params plus implicit 6th `void*` context (mem pointer). |
+| OQ-A4 | Was the numbering divergence caused by independent generation, or did the requirements document undergo a re-numbering after the downstream documents were created? | **Resolved** — caused by independent generation; all documents now aligned. |
+| OQ-A5 | Are validation's "phantom" test areas (OOM, Code Replacement, JMP32) testing real features that should become requirements? | **Deferred** — tracked for future refinement. |
 
 ### Verdict: **PASS** (after remediation)
 
