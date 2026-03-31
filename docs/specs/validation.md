@@ -135,7 +135,7 @@ uBPF uses a multi-layered testing strategy:
 | REQ-LOAD-002 | Maximum instruction count | TC-LOAD-003 | **Low** — `[GAP: no test with 65536+ instructions]` |
 | REQ-LOAD-003 | Double-load prevention | TC-LOAD-001 | **High** — all .data tests call ubpf_load |
 | REQ-LOAD-004 | Instruction validation | TC-LOAD-004 | **High** — tests/errors/*, atomic_validate custom test |
-| REQ-LOAD-005 | Read-only bytecode storage | TC-LOAD-007, TC-LOAD-008 | **High** — readonly_bytecode custom test (toggles mode) |
+| REQ-LOAD-005 | Read-only bytecode storage | TC-LOAD-007, TC-LOAD-008 | **Medium** — readonly_bytecode custom test (toggles mode only; `[GAP: no direct test that bytecode pages are read-only when enabled]`) |
 | REQ-LOAD-006 | Pointer secret encoding | TC-LOAD-009 | **Medium** — `[GAP: no direct test of pointer secret encoding correctness]` |
 | REQ-LOAD-007 | Local function marking | TC-LOAD-010 | **High** — call_local_use_stack.data, factorial.data |
 | REQ-LOAD-008 | Stack alignment validation | TC-LOAD-005 | **High** — custom_local_function_stack_size tests |
@@ -162,28 +162,28 @@ uBPF uses a multi-layered testing strategy:
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
 | REQ-JIT-001 | compile API | TC-JIT-001 | **High** — test_jit.py runs all .data files through JIT |
-| REQ-JIT-002 | compile_ex API | TC-JIT-002 | **Medium** — tested via plugin in ExtendedJitMode |
-| REQ-JIT-002 | BasicJitMode | TC-JIT-003 | **High** — default mode in test_jit.py |
-| REQ-JIT-002 | ExtendedJitMode | TC-JIT-004 | **Medium** — ubpf_plugin with --jit flag |
+| REQ-JIT-002 | compile_ex API (BasicJitMode & ExtendedJitMode) | TC-JIT-002, TC-JIT-003, TC-JIT-004 | **High** — BasicJitMode is the default in test_jit.py; ExtendedJitMode tested via ubpf_plugin with --jit |
 | REQ-JIT-003 | Code caching | TC-JIT-005 | **Low** — `[GAP: no explicit caching test]` |
 | REQ-JIT-004 | Executable memory (W⊕X) | TC-JIT-006 | **Medium** — implicitly tested; ASan would catch violations |
-| REQ-JIT-007 | translate API | TC-JIT-007 | **Low** — `[GAP: no direct translate API test]` |
+| REQ-JIT-005 | JIT buffer sizing | TC-JIT-011 | **High** — jit_buffer_too_small custom test |
 | REQ-JIT-006 | copy_jit API | TC-JIT-008 | **Low** — `[GAP: no direct copy_jit test]` |
+| REQ-JIT-007 | translate API | TC-JIT-007 | **Low** — `[GAP: no direct translate API test]` |
+| REQ-JIT-008 | Instruction limit non-applicability | TC-JIT-012 | **Low** — `[GAP: no test verifying JIT ignores instruction limit]` |
 | REQ-JIT-009 | x86-64 calling conventions | TC-JIT-009 | **High** — CI tests on Windows + Linux (different ABIs) |
 | REQ-JIT-010 | ARM64 ABI | TC-JIT-010 | **High** — CI tests on ARM64 (native + QEMU) |
-| REQ-JIT-005 | JIT buffer sizing | TC-JIT-011 | **High** — jit_buffer_too_small custom test |
+| REQ-JIT-011 | Post-compilation helper update | TC-JIT-013 | **High** — update_helpers, update_dispatcher custom tests |
 
 ### 4.5 ELF Loading
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
-| REQ-ELF-006 | load_elf API | TC-ELF-001 | **High** — test_elf.py |
 | REQ-ELF-001 | ELF header validation | TC-ELF-002 | **Medium** — `[GAP: no tests with malformed ELF headers]` |
-| REQ-ELF-003 | Section parsing | TC-ELF-003 | **High** — tests/elf/ directory |
+| REQ-ELF-002 | Section count limit | TC-ELF-008 | **Low** — `[GAP: no test with >32 sections]` |
+| REQ-ELF-003 | ELF bounds checking | TC-ELF-003 | **High** — tests/elf/ directory |
 | REQ-ELF-004 | R_BPF_64_64 data relocation | TC-ELF-004 | **High** — bpf/rel_64_32.bpf.c, tests/elf/ |
 | REQ-ELF-005 | R_BPF_64_32 helper relocation | TC-ELF-005 | **High** — conformance suite helper tests |
-| REQ-ELF-007 | Function linking | TC-ELF-006 | **Medium** — tested via multi-function ELF programs |
-| REQ-ELF-007 | Main function selection | TC-ELF-007 | **Medium** — `[GAP: no explicit named-main test]` |
+| REQ-ELF-006 | ELF wrapper functions (load_elf) | TC-ELF-001 | **High** — test_elf.py |
+| REQ-ELF-007 | Multi-function ELF linking | TC-ELF-006, TC-ELF-007 | **Medium** — tested via multi-function ELF programs; `[GAP: no explicit named-main test]` |
 
 ### 4.6 Instruction Set
 
@@ -191,42 +191,42 @@ uBPF uses a multi-layered testing strategy:
 |--------|-------------|------------|----------|
 | REQ-ISA-001 | Instruction format (8 bytes) | TC-ISA-001 | **High** — assembler/raw comparison in all .data tests |
 | REQ-ISA-002 | Register model (r0-r10) | TC-ISA-002 | **High** — frame_pointer custom test, JIT register offset variants |
-| REQ-ISA-003 | ALU64 operations | TC-ISA-003 | **High** — alu64.data, 50+ conformance tests (add64, sub64, etc.) |
-| REQ-ISA-003 | ALU32 operations | TC-ISA-004 | **High** — alu.data, 50+ conformance tests (add32, sub32, etc.) |
-| REQ-ISA-007 | Memory load/store | TC-ISA-005 | **High** — ldx.data, st.data, stx.data, 80+ conformance tests |
-| REQ-ISA-007 | LDDW (64-bit immediate) | TC-ISA-006 | **High** — lddw.data, conformance tests |
+| REQ-ISA-003 | ALU operations (32-bit and 64-bit) | TC-ISA-003, TC-ISA-004 | **High** — alu.data, alu64.data, 100+ conformance tests |
+| REQ-ISA-004 | Signed division and modulo | TC-ISA-013 | **High** — sdiv32.data, sdiv64.data, smod32.data, smod64.data |
+| REQ-ISA-005 | MOV with sign-extension (MOVSX) | TC-ISA-008 | **High** — conformance movsx tests |
+| REQ-ISA-006 | Byte swap operations | TC-ISA-014 | **High** — conformance be16/32/64, le16/32/64 tests |
+| REQ-ISA-007 | Memory load/store and LDDW | TC-ISA-005, TC-ISA-006 | **High** — ldx.data, st.data, stx.data, lddw.data, 80+ conformance tests |
 | REQ-ISA-008 | Sign-extending loads | TC-ISA-007 | **High** — ldxsb-positive.data, ldxsh.data, conformance tests |
-| REQ-ISA-005 | MOVSX (sign-extending move) | TC-ISA-008 | **High** — conformance movsx tests |
-| REQ-ISA-009 | Jump instructions | TC-ISA-009 | **High** — jmp.data, 40+ conformance tests |
-| REQ-ISA-009 | JMP32 (32-bit jumps) | TC-ISA-010 | **High** — conformance jmp32 tests |
+| REQ-ISA-009 | Jump instructions (64-bit and 32-bit) | TC-ISA-009, TC-ISA-010 | **High** — jmp.data, 40+ conformance jmp/jmp32 tests |
 | REQ-ISA-010 | Atomic operations | TC-ISA-011 | **Medium** — atomic_validate custom test (validation only) |
-| REQ-ISA-011 | CALL and EXIT | TC-ISA-012 | **High** — call.data, factorial.data, early-exit.data |
+| REQ-ISA-011 | CALL instruction variants | TC-ISA-012 | **High** — call.data, factorial.data |
+| REQ-ISA-012 | EXIT instruction | TC-ISA-015 | **High** — early-exit.data, all tests terminate via EXIT |
 
 ### 4.7 Security
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
 | REQ-SEC-001 | Bounds checking | TC-SEC-001 | **High** — 10+ error tests (err-stack-oob, err-address-*) |
-| REQ-SEC-003 | Undefined behavior detection | TC-SEC-002 | **Low** — `[GAP: no explicit UB detection tests]` |
+| REQ-SEC-002 | Bounds check toggle | TC-SEC-010 | **Medium** — implicitly tested (bounds on by default); `[GAP: no explicit toggle test]` |
+| REQ-SEC-003 | Undefined behavior detection (shadow stack & registers) | TC-SEC-002, TC-SEC-008, TC-SEC-009 | **Low** — `[GAP: no explicit UB detection, shadow stack, or shadow register tests]` |
 | REQ-SEC-004 | Constant blinding | TC-SEC-003 | **High** — constant_blinding custom test, CI env var |
 | REQ-SEC-005 | Read-only bytecode | TC-SEC-004 | **High** — readonly_bytecode custom test |
 | REQ-SEC-006 | Pointer secret / XOR encoding | TC-SEC-005 | **Low** — `[GAP: no test verifying XOR encoding effectiveness]` |
 | REQ-SEC-007 | Retpolines | TC-SEC-006 | **Medium** — CI runs with/without retpolines; no functional test |
 | REQ-SEC-008 | W⊕X enforcement | TC-SEC-007 | **Medium** — implicitly tested by JIT execution |
-| REQ-SEC-003 | Shadow stack | TC-SEC-008 | **Low** — `[GAP: no explicit shadow stack correctness test]` |
-| REQ-SEC-003 | Shadow registers | TC-SEC-009 | **Low** — `[GAP: no explicit shadow register test]` |
+| REQ-SEC-009 | Custom bounds check callback | TC-EXT-005 | **Low** — `[GAP: no explicit custom bounds check test]` |
 
 ### 4.8 Extensibility
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
 | REQ-EXT-001 | Helper registration | TC-EXT-001 | **High** — call.data, call-memfrob.data, update_helpers |
+| REQ-EXT-002 | Helper function limit | TC-EXT-008 | **Low** — `[GAP: no test filling all 64 helper slots]` |
 | REQ-EXT-003 | External dispatcher | TC-EXT-002 | **High** — 3 dispatcher custom tests |
-| REQ-EXT-007 | Unwind function | TC-EXT-003 | **High** — call_unwind.data |
 | REQ-EXT-004 | Data relocation callback | TC-EXT-004 | **Medium** — tested via ELF loading |
-| REQ-SEC-009 | Custom bounds check callback | TC-EXT-005 | **Low** — `[GAP: no explicit custom bounds check test]` |
 | REQ-EXT-005 | Stack usage calculator | TC-EXT-006 | **High** — 3 custom_local_function_stack_size tests |
 | REQ-EXT-006 | Debug function | TC-EXT-007 | **High** — debug_function custom test |
+| REQ-EXT-007 | Unwind function | TC-EXT-003 | **High** — call_unwind.data |
 
 ### 4.9 Configuration
 

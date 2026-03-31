@@ -1,7 +1,7 @@
 # uBPF Requirements Specification
 
 **Document Version:** 1.0.0
-**Date:** 2025-07-14
+**Date:** 2026-03-31
 **Status:** Draft — Extracted from source code
 
 ---
@@ -878,7 +878,7 @@ The JIT MUST never have memory that is simultaneously writable and executable. T
 
 #### REQ-EXT-001: Helper Function Registration
 
-`ubpf_register(vm, idx, name, fn)` MUST register an external helper function at the specified index. The index MUST be less than `UBPF_MAX_EXT_FUNCS` (64). The function signature is `uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)`.
+`ubpf_register(vm, idx, name, fn)` MUST register an external helper function at the specified index. The index MUST be less than `UBPF_MAX_EXT_FUNCS` (64). The function signature is `uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)`. An implicit 6th parameter (`void*` context pointer — the `mem` pointer passed to `ubpf_exec`/`ubpf_exec_ex`) is appended by the VM at the call site and MAY be accessed by the helper.
 
 - **Source:** `vm/ubpf_vm.c:164-198`, `vm/inc/ubpf.h:217-218`
 - **Confidence:** **High**
@@ -985,13 +985,16 @@ When a dispatcher is registered, it takes precedence over individually registere
 
 #### REQ-CFG-004: Register State Access
 
-`ubpf_set_registers(vm, regs, num_regs)` MUST override the VM's internal register storage with a user-provided array. `ubpf_get_registers(vm, num_regs)` MUST return a pointer to the current register storage and set `*num_regs` to the register count.
+`int ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)` and `uint64_t* ubpf_get_registers(const struct ubpf_vm* vm)` provide access to the VM's register state for debugging.
 
-- **Source:** `vm/inc/ubpf.h:510-520`
+- In DEBUG builds, `ubpf_set_registers()` MUST override the VM's internal register storage with the user-provided array, and `ubpf_get_registers()` MUST return a pointer to the current register storage (user-provided or internal).
+- In non-DEBUG builds, both functions MUST emit a diagnostic warning indicating that register access is not available, `ubpf_get_registers()` MUST return `NULL`, and `ubpf_set_registers()` MUST NOT modify the VM's register state.
+
+- **Source:** `vm/inc/ubpf.h:510-520`, `vm/ubpf_vm.c:815-822`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
-  - AC-1: After `ubpf_set_registers()`, the interpreter uses the provided array.
-  - AC-2: `ubpf_get_registers()` returns the active register array (user-provided or internal). `[ASSUMPTION: Register access is primarily for DEBUG builds based on vm/ubpf_vm.c:815-822]`
+  - AC-1: In a DEBUG build, after `ubpf_set_registers()`, the interpreter uses the provided register array for execution, and `ubpf_get_registers()` returns the same active register array.
+  - AC-2: In a non-DEBUG build, calling `ubpf_get_registers()` returns `NULL` and a diagnostic warning is emitted, and calling `ubpf_set_registers()` leaves the VM's register state unchanged while emitting a diagnostic warning.
 
 ---
 
