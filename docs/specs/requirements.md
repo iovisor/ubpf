@@ -639,7 +639,7 @@ The VM MUST support 11 registers:
 - **Source:** `vm/ebpf.h:36-50`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
-  - AC-1: Writing to R10 via a MOV instruction is rejected or has no effect. `[ASSUMPTION: R10 immutability is enforced by instruction validation or interpreter semantics]`
+  - AC-1: Writing to R10 via a MOV or ALU instruction is rejected at load time (`destination_upper_bound = BPF_REG_9` in instruction validation filters).
   - AC-2: R6–R9 are preserved across external helper calls.
   - AC-3: R0 contains the program's return value after EXIT.
 
@@ -839,7 +839,7 @@ When enabled (default), loaded bytecode MUST reside in memory mapped as `PROT_RE
 - **Source:** `vm/ubpf_vm.c:2289-2297`, `vm/inc/ubpf.h:530-531`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
-  - AC-1: Setting the secret after loading code returns an error or has no effect. `[ASSUMPTION: Based on API documentation requiring pre-load call]`
+  - AC-1: Calling `ubpf_set_pointer_secret()` after loading code returns `-1` and does not modify the secret.
   - AC-2: With a non-zero secret, stored instruction bytes differ from the original bytecode.
 
 #### REQ-SEC-007: Retpoline (x86-64 JIT)

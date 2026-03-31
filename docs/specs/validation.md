@@ -463,6 +463,24 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** Medium
 - **`[GAP]`:** No explicit test toggling bounds checking off and verifying behavior change.
 
+#### TC-SEC-002: Undefined Behavior Detection
+- **Traces to:** REQ-SEC-003
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test enabling UB detection and verifying uninitialized register/stack reads are flagged.
+
+#### TC-SEC-008: Shadow Stack
+- **Traces to:** REQ-SEC-003
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test verifying shadow stack bit tracking (marks on write, checks on read).
+
+#### TC-SEC-009: Shadow Registers
+- **Traces to:** REQ-SEC-003
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test verifying shadow register bitmask tracking for uninitialized register detection.
+
 ### TC-EXT — Extensibility
 
 #### TC-EXT-002: External Dispatcher
@@ -472,6 +490,12 @@ uBPF uses a multi-layered testing strategy:
 - **Evidence:** `custom_tests/srcs/ubpf_test_external_dispatcher_simple_context.cc`, `ubpf_test_external_dispatcher_context_overwrite.cc`, `ubpf_test_default_dispatcher_helper_context.cc`, `ubpf_test_update_dispatcher.cc`
 - **Pass criteria:** Dispatcher receives correct parameters; context handling correct; updates work
 - **Existing tests:** 4 custom tests
+
+#### TC-EXT-005: Custom Bounds Check Callback
+- **Traces to:** REQ-SEC-009
+- **Level:** Unit
+- **Confidence:** Low
+- **`[GAP]`:** No test registering a custom bounds check callback via `ubpf_register_data_bounds_check()` and verifying it is invoked during memory access.
 
 #### TC-EXT-006: Stack Usage Calculator
 - **Traces to:** REQ-EXT-005

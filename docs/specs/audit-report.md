@@ -123,20 +123,16 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 ---
 
-### F-005 — REQ-SEC-002 (Bounds Check Toggle) Untraced in Downstream Documents
+### F-005 — REQ-SEC-002 (Bounds Check Toggle) Untraced in Downstream Documents (Partially Resolved)
 
 - **Classification:** D1_UNTRACED_REQUIREMENT + D2_UNTESTED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
+- **Status:** Partially resolved
 
-**Description:** REQ-SEC-002 "Bounds Check Toggle" (`ubpf_toggle_bounds_check`) exists in requirements but has no corresponding design section or test case. The downstream documents' REQ-SEC-002 refers to "Undefined Behavior Detection" (a different requirement, REQ-SEC-003 in requirements).
+**Description:** REQ-SEC-002 "Bounds Check Toggle" now has a validation entry (TC-SEC-010) in the traceability matrix, but remains a gap — no explicit test exercises the toggle. The design threat model still lacks a dedicated entry for the toggle API.
 
-**Evidence:**
-- Requirements REQ-SEC-002 (line 788–796): Toggle function returning previous state, default `true`.
-- Design threat model: No entry for bounds check toggle; jumps from REQ-SEC-001 (Bounds Checking) to REQ-SEC-002 (UB Detection).
-- Validation: No TC for toggle return value or state management of bounds checking.
-
-**Remediation:** Add a design note in the security section covering the bounds check toggle API. Add a test case verifying toggle behavior and return value.
+**Remaining work:** Add a design note for the toggle API. Implement TC-SEC-010 as an actual test.
 
 ---
 
