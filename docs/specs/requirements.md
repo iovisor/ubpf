@@ -233,7 +233,7 @@ When `readonly_bytecode_enabled` is `false`, `ubpf_load()` MUST allocate via `ma
 
 `ubpf_load()` MUST XOR-encode each stored instruction with `vm->pointer_secret` when storing. Instruction fetch MUST XOR-decode transparently.
 
-- **Source:** `vm/ubpf_int.h:201-212` (`ubpf_fetch_instruction`, `ubpf_store_instruction`)
+- **Source:** `vm/ubpf_vm.c:2266-2290` (`ubpf_fetch_instruction`, `ubpf_store_instruction`), declared in `vm/ubpf_int.h:201-212`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: With a non-zero pointer secret, raw memory at `vm->insts` does not contain valid eBPF opcodes.

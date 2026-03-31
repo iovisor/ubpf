@@ -69,79 +69,18 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 ## 4. Findings
 
-### F-001 — Systematic REQ-ID Numbering Misalignment
+### F-001 — Systematic REQ-ID Numbering Misalignment (Resolved)
 
 - **Classification:** D6_CONSTRAINT_VIOLATION
 - **Severity:** Critical
 - **Confidence:** High
+- **Status:** Resolved
 
-**Description:** The requirements document and the design/validation documents assign different topic meanings to the same REQ-ID numbers. This affects **10 of 12** requirement categories (all except REQ-CFG and REQ-CONST). The design and validation documents are consistent with each other, indicating they share a common but divergent numbering scheme.
+**Description:** The requirements document and the design/validation documents originally assigned different topic meanings to the same REQ-ID numbers across 10 of 12 requirement categories. This has been corrected — all three documents now use the canonical REQ-IDs defined in requirements.md.
 
-**Evidence — Category-by-category misalignment:**
+**Original evidence (pre-remediation):** The misalignment affected categories LIFE, LOAD, EXEC, JIT, ELF, ISA, SEC, EXT, ERR, and PLAT. The design and validation documents were re-numbered to match the canonical requirements document.
 
-| Category | REQ-ID | Requirements Topic | Design/Validation Topic |
-|----------|--------|-------------------|------------------------|
-| LIFE | 002 | VM Default State | VM Destruction |
-| LIFE | 003 | VM Creation — Allocations | Code Unloading |
-| LIFE | 004 | Platform JIT Selection | Default Configuration |
-| LIFE | 005 | VM Destruction | Platform JIT Selection |
-| LIFE | 006 | Code Unloading | Memory Allocation Failure |
-| LOAD | 001 | Code Length Validation | Load API Contract |
-| LOAD | 003 | Double-Load Prevention | Instruction Count Limit |
-| LOAD | 005 | Read-Only Bytecode Storage | Stack Alignment |
-| LOAD | 006 | Pointer Secret Encoding | Self-Contained Sub-Programs |
-| LOAD | 007 | Local Function Marking | Read-Only Bytecode Storage |
-| LOAD | 008 | Stack Alignment Validation | Writable Bytecode Storage |
-| LOAD | 009 | Sub-Program Containment | XOR Instruction Encoding |
-| LOAD | 010 | Jump Target Validation | Local Function Marking |
-| LOAD | 011 | LDDW Pairing Validation | Code Replacement |
-| EXEC | 004 | Code-Not-Loaded Guard | Interpreter Loop Correctness |
-| EXEC | 005 | Instruction Limit Enforcement | ALU Semantics |
-| EXEC | 006 | Call Depth Limit | Memory Bounds Enforcement |
-| EXEC | 007 | XOR-Decoded Instruction Fetch | Local Function Calls |
-| EXEC | 008 | Unwind Function Support | External Function Calls |
-| EXEC | 009 | Debug Callback Invocation | Instruction Limit |
-| JIT | 003 | JIT Result Caching | BasicJitMode |
-| JIT | 004 | W⊕X Memory Management | ExtendedJitMode |
-| JIT | 005 | JIT Buffer Size Configuration | Code Caching |
-| JIT | 006 | JIT Code Copy | Executable Memory (W⊕X) |
-| JIT | 007 | JIT Translation to Buffer | Translate API |
-| JIT | 008 | Instruction Limit Non-Applicability | Copy_JIT API |
-| JIT | 011 | Post-Compilation Helper Update | JIT Buffer Sizing |
-| ELF | 001 | ELF Header Validation | load_elf API |
-| ELF | 002 | Section Count Limit | ELF Header Validation |
-| ELF | 003 | ELF Bounds Checking | Section Parsing |
-| ELF | 006 | ELF Wrapper Functions | Function Linking |
-| ELF | 007 | Multi-Function ELF Linking | Main Function Selection |
-| ISA | 004 | Signed Division and Modulo | ALU32 Operations |
-| ISA | 005 | MOV with Sign-Extension | Memory Load/Store |
-| ISA | 006 | Byte Swap Operations | LDDW (64-bit immediate) |
-| ISA | 007 | Memory Load/Store Operations | Sign-Extending Loads |
-| ISA | 008 | Sign-Extending Loads | MOVSX |
-| ISA | 010 | Atomic Operations | JMP32 (32-bit jumps) |
-| ISA | 011 | CALL Instruction Variants | Atomic Operations |
-| SEC | 002 | Bounds Check Toggle | Undefined Behavior Detection |
-| SEC | 003 | Undefined Behavior Detection | Constant Blinding |
-| SEC | 004 | Constant Blinding (JIT) | Read-Only Bytecode |
-| SEC | 005 | Read-Only Bytecode | Pointer Secret / XOR |
-| SEC | 006 | Pointer Secret | Retpolines |
-| SEC | 007 | Retpoline (x86-64) | W⊕X Enforcement |
-| SEC | 008 | W⊕X for JIT Code | Shadow Stack |
-| SEC | 009 | Custom Bounds Check Callback | Shadow Registers |
-| EXT | 002 | Helper Function Limit | External Dispatcher |
-| EXT | 003 | External Dispatcher | Unwind Function |
-| EXT | 005 | Stack Usage Calculator | Custom Bounds Check Callback |
-| EXT | 006 | Debug Function Registration | Stack Usage Calculator |
-| EXT | 007 | Unwind Function Index | Debug Function |
-| ERR | 002 | API Return Conventions | Error Output Function |
-| ERR | 003 | Runtime Error Reporting | Toggle Return Values |
-| PLAT | 004 | JIT Architecture Support | x86-64 JIT |
-| PLAT | 005 | Cryptographic Random Generation | ARM64 JIT |
-| PLAT | 006 | Platform Atomic Operations | Interpreter-Only Fallback |
-
-**Impact:** A developer reading the design's `*Implements: REQ-SEC-003*` annotation (in the x86-64 JIT section, referring to constant blinding) and looking up REQ-SEC-003 in requirements.md will find "Undefined Behavior Detection" — a completely unrelated security feature. All cross-document references are silently wrong.
-
-**Remediation:** Establish a single canonical REQ-ID registry. Re-number either the requirements document or both downstream documents to match. Given that design and validation are mutually consistent, the most efficient fix is to re-number the requirements document to match the downstream numbering, or vice versa.
+**Remediation applied:** Design and validation documents were systematically updated to use the canonical REQ-ID assignments from requirements.md. All cross-document references have been re-validated.
 
 ---
 
@@ -403,14 +342,14 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Severity:** Low
 - **Confidence:** High
 
-**Description:** The requirements document is dated 2025-07-14 while both downstream documents are dated 2026-03-31 — over 8 months later. This suggests the downstream documents may have been generated from a different version of the requirements, potentially explaining the numbering mismatch.
+**Description:** All three documents are now dated 2026-03-31 and share version 1.0.0. This finding has been resolved.
 
-**Evidence:**
-- Requirements: "Date: 2025-07-14"
+**Evidence (current state):**
+- Requirements: "Date: 2026-03-31"
 - Design: "Date: 2026-03-31"
 - Validation: "Date: 2026-03-31"
 
-**Remediation:** Align document dates. Add cross-document version references (e.g., "This design addresses requirements.md v1.0.0 dated YYYY-MM-DD") to enable version consistency checking.
+**Status:** Resolved.
 
 ---
 
@@ -420,14 +359,9 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Severity:** Medium
 - **Confidence:** High
 
-**Description:** REQ-LOAD-011 "LDDW Pairing Validation" (requirements doc) has no matching test case. The validation plan's REQ-LOAD-011 maps to "Code replacement" — a different topic. The actual LDDW pairing topic appears implicitly under the ISA category but is not explicitly traced.
+**Description:** REQ-LOAD-011 "LDDW Pairing Validation" now has a matching validation entry in the traceability matrix, mapped to TC-LOAD-004 (instruction validation). The original misalignment (where validation mapped REQ-LOAD-011 to "Code replacement") has been corrected.
 
-**Evidence:**
-- Requirements REQ-LOAD-011 (line 281–289): LDDW instruction must be followed by second pseudo-instruction. AC-1: LDDW at last position rejected. AC-2: Valid LDDW pair loads correctly.
-- Validation REQ-LOAD-011: Maps to "Code replacement" — reload/unload tests, which test a completely different feature.
-- LDDW is tested under REQ-ISA-006 in validation ("LDDW 64-bit immediate"), but this covers execution correctness, not the load-time pairing validation.
-
-**Remediation:** Add a test case specifically for LDDW pairing validation at load time (truncated LDDW at end of program, valid LDDW pair).
+**Status:** Resolved.
 
 ---
 
