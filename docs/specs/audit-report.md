@@ -1,0 +1,568 @@
+# uBPF Specification Consistency Audit Report
+
+**Report Version:** 1.0.0
+**Date:** 2025-07-18
+**Auditor:** Adversarial Consistency Audit (Automated)
+**Verdict:** **REVISE**
+
+---
+
+## 1. Executive Summary
+
+This adversarial consistency audit of the uBPF specification suite reveals a **critical systemic defect**: the three specification documents use incompatible REQ-ID numbering schemes. The requirements document (`requirements.md`) defines 86 requirements with specific numeric IDs, but both the design specification (`design.md`) and validation plan (`validation.md`) assign different topic meanings to the same REQ-ID numbers across 10 of 12 requirement categories. The design and validation documents are internally consistent with *each other*, suggesting they were generated from a common (but different) numbering scheme than the requirements document. This renders all cross-document traceability links unreliable — a reader following a REQ-ID from one document to another will silently arrive at the wrong requirement.
+
+Beyond the numbering defect, the audit identified 18 additional findings including a numeric boundary contradiction for `UBPF_MAX_INSTS`, missing design sections for cross-cutting requirement categories (REQ-ERR, REQ-CFG, REQ-CONST), requirements lost in downstream mapping (REQ-SEC-002 Bounds Check Toggle, REQ-EXT-002 Helper Function Limit), and a helper function signature discrepancy between requirements and design. The verdict is **REVISE**: the specification content is largely sound, but the REQ-ID alignment must be corrected before the documents can be approved as a coherent specification suite.
+
+---
+
+## 2. Problem Statement
+
+The uBPF project maintains three specification documents that together form a requirements-design-validation traceability chain:
+
+1. **Requirements Specification** — 86 formal requirements derived from source code analysis.
+2. **Design Specification** — architectural and detailed design addressing those requirements.
+3. **Validation Plan** — test cases and coverage assessment mapped to requirements.
+
+For this traceability chain to function, all three documents must agree on what each REQ-ID means. If REQ-SEC-003 means "Undefined Behavior Detection" in the requirements but "Constant Blinding" in the design, then a design section claiming to implement REQ-SEC-003 is actually implementing the wrong requirement — or rather, it implements the right feature but labels it with the wrong identifier, making the traceability link silently incorrect.
+
+This audit was commissioned to adversarially test whether the three documents are internally consistent, whether traceability is complete, and whether the specifications can proceed to approval.
+
+---
+
+## 3. Investigation Scope
+
+### 3.1 Documents Examined
+
+| Document | Path | Version | Date | Size |
+|----------|------|---------|------|------|
+| Requirements Specification | `docs/specs/requirements.md` | 1.0.0 | 2025-07-14 | 55.8 KB |
+| Design Specification | `docs/specs/design.md` | 1.0.0 | 2026-03-31 | 32.7 KB |
+| Validation Plan | `docs/specs/validation.md` | 1.0.0 | 2026-03-31 | 27.7 KB |
+
+### 3.2 Audit Checks Performed
+
+- **Forward traceability**: Every REQ-ID verified for design and validation coverage.
+- **Backward traceability**: Design "Implements:" annotations and TC "Traces to:" links verified against requirements.
+- **Cross-document consistency**: Constants, terminology, assumptions, and RFC-level language (MUST/SHOULD/MAY) compared.
+- **Acceptance criteria coverage**: TC-IDs checked against AC-N items for each requirement.
+- **Adversarial falsification**: Findings initially marked consistent were re-examined for subtle mismatches.
+
+### 3.3 Requirement Categories Audited
+
+| Category | Count | REQ-ID Range |
+|----------|-------|-------------|
+| VM Lifecycle (REQ-LIFE) | 6 | 001–006 |
+| Program Loading (REQ-LOAD) | 11 | 001–011 |
+| Execution (REQ-EXEC) | 9 | 001–009 |
+| JIT Compilation (REQ-JIT) | 11 | 001–011 |
+| ELF Loading (REQ-ELF) | 7 | 001–007 |
+| Instruction Set (REQ-ISA) | 12 | 001–012 |
+| Security (REQ-SEC) | 9 | 001–009 |
+| Extensibility (REQ-EXT) | 7 | 001–007 |
+| Configuration (REQ-CFG) | 4 | 001–004 |
+| Platform (REQ-PLAT) | 6 | 001–006 |
+| Error Handling (REQ-ERR) | 3 | 001–003 |
+| Constants (REQ-CONST) | 1 | 001 |
+| **Total** | **86** | |
+
+---
+
+## 4. Findings
+
+### F-001 — Systematic REQ-ID Numbering Misalignment
+
+- **Classification:** D6_CONSTRAINT_VIOLATION
+- **Severity:** Critical
+- **Confidence:** High
+
+**Description:** The requirements document and the design/validation documents assign different topic meanings to the same REQ-ID numbers. This affects **10 of 12** requirement categories (all except REQ-CFG and REQ-CONST). The design and validation documents are consistent with each other, indicating they share a common but divergent numbering scheme.
+
+**Evidence — Category-by-category misalignment:**
+
+| Category | REQ-ID | Requirements Topic | Design/Validation Topic |
+|----------|--------|-------------------|------------------------|
+| LIFE | 002 | VM Default State | VM Destruction |
+| LIFE | 003 | VM Creation — Allocations | Code Unloading |
+| LIFE | 004 | Platform JIT Selection | Default Configuration |
+| LIFE | 005 | VM Destruction | Platform JIT Selection |
+| LIFE | 006 | Code Unloading | Memory Allocation Failure |
+| LOAD | 001 | Code Length Validation | Load API Contract |
+| LOAD | 003 | Double-Load Prevention | Instruction Count Limit |
+| LOAD | 005 | Read-Only Bytecode Storage | Stack Alignment |
+| LOAD | 006 | Pointer Secret Encoding | Self-Contained Sub-Programs |
+| LOAD | 007 | Local Function Marking | Read-Only Bytecode Storage |
+| LOAD | 008 | Stack Alignment Validation | Writable Bytecode Storage |
+| LOAD | 009 | Sub-Program Containment | XOR Instruction Encoding |
+| LOAD | 010 | Jump Target Validation | Local Function Marking |
+| LOAD | 011 | LDDW Pairing Validation | Code Replacement |
+| EXEC | 004 | Code-Not-Loaded Guard | Interpreter Loop Correctness |
+| EXEC | 005 | Instruction Limit Enforcement | ALU Semantics |
+| EXEC | 006 | Call Depth Limit | Memory Bounds Enforcement |
+| EXEC | 007 | XOR-Decoded Instruction Fetch | Local Function Calls |
+| EXEC | 008 | Unwind Function Support | External Function Calls |
+| EXEC | 009 | Debug Callback Invocation | Instruction Limit |
+| JIT | 003 | JIT Result Caching | BasicJitMode |
+| JIT | 004 | W⊕X Memory Management | ExtendedJitMode |
+| JIT | 005 | JIT Buffer Size Configuration | Code Caching |
+| JIT | 006 | JIT Code Copy | Executable Memory (W⊕X) |
+| JIT | 007 | JIT Translation to Buffer | Translate API |
+| JIT | 008 | Instruction Limit Non-Applicability | Copy_JIT API |
+| JIT | 011 | Post-Compilation Helper Update | JIT Buffer Sizing |
+| ELF | 001 | ELF Header Validation | load_elf API |
+| ELF | 002 | Section Count Limit | ELF Header Validation |
+| ELF | 003 | ELF Bounds Checking | Section Parsing |
+| ELF | 006 | ELF Wrapper Functions | Function Linking |
+| ELF | 007 | Multi-Function ELF Linking | Main Function Selection |
+| ISA | 004 | Signed Division and Modulo | ALU32 Operations |
+| ISA | 005 | MOV with Sign-Extension | Memory Load/Store |
+| ISA | 006 | Byte Swap Operations | LDDW (64-bit immediate) |
+| ISA | 007 | Memory Load/Store Operations | Sign-Extending Loads |
+| ISA | 008 | Sign-Extending Loads | MOVSX |
+| ISA | 010 | Atomic Operations | JMP32 (32-bit jumps) |
+| ISA | 011 | CALL Instruction Variants | Atomic Operations |
+| SEC | 002 | Bounds Check Toggle | Undefined Behavior Detection |
+| SEC | 003 | Undefined Behavior Detection | Constant Blinding |
+| SEC | 004 | Constant Blinding (JIT) | Read-Only Bytecode |
+| SEC | 005 | Read-Only Bytecode | Pointer Secret / XOR |
+| SEC | 006 | Pointer Secret | Retpolines |
+| SEC | 007 | Retpoline (x86-64) | W⊕X Enforcement |
+| SEC | 008 | W⊕X for JIT Code | Shadow Stack |
+| SEC | 009 | Custom Bounds Check Callback | Shadow Registers |
+| EXT | 002 | Helper Function Limit | External Dispatcher |
+| EXT | 003 | External Dispatcher | Unwind Function |
+| EXT | 005 | Stack Usage Calculator | Custom Bounds Check Callback |
+| EXT | 006 | Debug Function Registration | Stack Usage Calculator |
+| EXT | 007 | Unwind Function Index | Debug Function |
+| ERR | 002 | API Return Conventions | Error Output Function |
+| ERR | 003 | Runtime Error Reporting | Toggle Return Values |
+| PLAT | 004 | JIT Architecture Support | x86-64 JIT |
+| PLAT | 005 | Cryptographic Random Generation | ARM64 JIT |
+| PLAT | 006 | Platform Atomic Operations | Interpreter-Only Fallback |
+
+**Impact:** A developer reading the design's `*Implements: REQ-SEC-003*` annotation (in the x86-64 JIT section, referring to constant blinding) and looking up REQ-SEC-003 in requirements.md will find "Undefined Behavior Detection" — a completely unrelated security feature. All cross-document references are silently wrong.
+
+**Remediation:** Establish a single canonical REQ-ID registry. Re-number either the requirements document or both downstream documents to match. Given that design and validation are mutually consistent, the most efficient fix is to re-number the requirements document to match the downstream numbering, or vice versa.
+
+---
+
+### F-002 — UBPF_MAX_INSTS Boundary Condition Contradiction
+
+- **Classification:** D6_CONSTRAINT_VIOLATION
+- **Severity:** High
+- **Confidence:** High
+
+**Description:** The requirements and design documents contradict each other on whether a program with exactly 65536 instructions is valid.
+
+**Evidence:**
+- **Requirements** (REQ-LOAD-002, line 186–193): "MUST reject programs with more than `UBPF_MAX_INSTS` (65536) instructions." AC-1: "Loading a program with exactly 65536 instructions succeeds." AC-2: "Loading a program with 65537 instructions returns `-1`."
+- **Design** (section 4.4, line 256): "Validate: num_insts < UBPF_MAX_INSTS (65536)" — strict less-than means 65536 instructions would be **rejected**.
+
+The design's `< 65536` check rejects the boundary value that requirements say MUST succeed. Additionally, `num_insts` is typed as `uint16_t` in the design's struct definition (section 4.1, line 131), which can only represent values 0–65535. The value 65536 would overflow to 0.
+
+**Remediation:** Determine the correct boundary from source code (`vm/ubpf_vm.c`). If the check is truly `<`, update requirements AC-1 to state 65535 as the max. If it's `<=`, update the design. Verify the `num_insts` storage type can hold the boundary value.
+
+---
+
+### F-003 — Design Cross-References to Wrong REQ-SEC IDs
+
+- **Classification:** D6_CONSTRAINT_VIOLATION
+- **Severity:** High
+- **Confidence:** High
+
+**Description:** The design document's explicit `Implements:` annotations reference REQ-SEC IDs using the design's own numbering, which silently points to the wrong requirements when looked up in `requirements.md`.
+
+**Evidence:**
+- Design section 4.7 (x86-64 JIT Backend): `*Implements: REQ-JIT-009, REQ-PLAT-004, REQ-SEC-003, REQ-SEC-006*`
+  - Design intent: REQ-SEC-003 = Constant Blinding, REQ-SEC-006 = Retpolines
+  - Requirements.md: REQ-SEC-003 = Undefined Behavior Detection, REQ-SEC-006 = Pointer Secret
+- Design section 4.8 (ARM64 JIT Backend): `*Implements: REQ-JIT-010, REQ-PLAT-005*`
+  - Design intent: REQ-PLAT-005 = ARM64 JIT
+  - Requirements.md: REQ-PLAT-005 = Cryptographic Random Generation
+
+**Remediation:** Correct the REQ-ID references in design.md sections 4.7 and 4.8 to use the canonical numbering from requirements.md (REQ-SEC-004 for Constant Blinding, REQ-SEC-007 for Retpolines per requirements numbering).
+
+---
+
+### F-004 — Acceptance Criteria Traceability Invalidated by Numbering Mismatch
+
+- **Classification:** D7_ACCEPTANCE_CRITERIA_MISMATCH
+- **Severity:** High
+- **Confidence:** High
+
+**Description:** Because TC-IDs in the validation plan reference different topics than the corresponding REQ-IDs in requirements, the acceptance criteria (AC-N) for each requirement cannot be reliably matched to their test cases. All 86 requirements' acceptance criteria are potentially mismatched.
+
+**Evidence:**
+- TC-LIFE-002 claims to trace to REQ-LIFE-002 and tests "VM Destruction / Memory Leaks." But REQ-LIFE-002 in requirements is "VM Default State" with AC-1: "Each field matches the specified default immediately after `ubpf_create()` returns." The TC does not test default values at all.
+- TC-SEC-002 claims to trace to REQ-SEC-002 and tests "Undefined behavior detection." But REQ-SEC-002 in requirements is "Bounds Check Toggle" with AC-1: "`ubpf_toggle_bounds_check(vm, false)` returns `true`." The TC tests shadow registers, not toggle behavior.
+
+**Remediation:** After resolving F-001, perform a complete re-mapping of TC-IDs to the corrected REQ-IDs and verify each TC covers the acceptance criteria of its linked requirement.
+
+---
+
+### F-005 — REQ-SEC-002 (Bounds Check Toggle) Untraced in Downstream Documents
+
+- **Classification:** D1_UNTRACED_REQUIREMENT + D2_UNTESTED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** REQ-SEC-002 "Bounds Check Toggle" (`ubpf_toggle_bounds_check`) exists in requirements but has no corresponding design section or test case. The downstream documents' REQ-SEC-002 refers to "Undefined Behavior Detection" (a different requirement, REQ-SEC-003 in requirements).
+
+**Evidence:**
+- Requirements REQ-SEC-002 (line 788–796): Toggle function returning previous state, default `true`.
+- Design threat model: No entry for bounds check toggle; jumps from REQ-SEC-001 (Bounds Checking) to REQ-SEC-002 (UB Detection).
+- Validation: No TC for toggle return value or state management of bounds checking.
+
+**Remediation:** Add a design note in the security section covering the bounds check toggle API. Add a test case verifying toggle behavior and return value.
+
+---
+
+### F-006 — REQ-SEC-009 (Custom Bounds Check Callback) Untraced in Design
+
+- **Classification:** D1_UNTRACED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** REQ-SEC-009 "Custom Bounds Check Callback" (`ubpf_register_data_bounds_check`) exists in requirements but has no design section. The design's threat model covers only REQ-SEC-001–007 (7 entries) despite claiming to implement REQ-SEC-001–009. The validation plan maps REQ-SEC-009 to "Shadow registers" — a different topic.
+
+**Evidence:**
+- Requirements REQ-SEC-009 (line 865–873): Custom bounds check callback registration.
+- Design section 4.10: Threat model has 7 rows (001–007). The "Implements: REQ-SEC-001 through REQ-SEC-009" claim is unsubstantiated for 008–009.
+- The callback is mentioned in design section 4.11 (Extensibility) as `bounds_check_function` in the Callback Hooks table, but linked to no REQ-SEC-ID.
+
+**Remediation:** Add the custom bounds check callback to the design's security architecture section. Add design detail for REQ-SEC-008 (W⊕X) and REQ-SEC-009 (Custom Bounds Check) to match the claim of implementing all 9 security requirements.
+
+---
+
+### F-007 — REQ-EXT-002 (Helper Function Limit) Untested
+
+- **Classification:** D2_UNTESTED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** REQ-EXT-002 "Helper Function Limit" (max 64 external helpers, indexed 0–63) has no dedicated test case. The validation plan's REQ-EXT-002 maps to "External dispatcher" — a different feature (REQ-EXT-003 in requirements).
+
+**Evidence:**
+- Requirements REQ-EXT-002 (line 890–897): AC-1 states "All 64 slots can be filled simultaneously."
+- Validation REQ-EXT-002 row maps to TC-EXT-002 "External Dispatcher" — tests dispatcher functionality, not the 64-function limit.
+
+**Remediation:** Add a test case that registers helpers at index 0, 63, and 64, verifying the boundary behavior.
+
+---
+
+### F-008 — REQ-PLAT-005/006 (Crypto RNG, Platform Atomics) Untested
+
+- **Classification:** D2_UNTESTED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** REQ-PLAT-005 (Cryptographic Random Generation) and REQ-PLAT-006 (Platform Atomic Operations) have no corresponding test cases. The validation plan's PLAT-005 and PLAT-006 map to "ARM64 JIT" and "Interpreter-only fallback" — different topics.
+
+**Evidence:**
+- Requirements REQ-PLAT-005 (line 1060–1073): Platform-specific CSPRNG functions (BCryptGenRandom, getrandom, arc4random_buf) and `rand()` fallback.
+- Requirements REQ-PLAT-006 (line 1075–1086): Platform-specific atomic operations (MSVC Interlocked, GCC __sync builtins).
+- Neither topic appears in the validation plan's traceability matrix under any REQ-ID.
+
+**Remediation:** Add validation entries for CSPRNG testing (verify non-deterministic output on each platform) and atomic operation correctness testing (concurrent access scenarios).
+
+---
+
+### F-009 — Design Missing Explicit Sections for REQ-ERR, REQ-CONST, REQ-CFG
+
+- **Classification:** D1_UNTRACED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** The design document has no dedicated sections for Error Handling (REQ-ERR-001–003), Constants (REQ-CONST-001), or Configuration (REQ-CFG-001–004). These 8 requirements are only mentioned tangentially within other sections. No `*Implements:*` annotation traces to any REQ-ERR, REQ-CFG, or REQ-CONST ID.
+
+**Evidence:**
+- Design section 2 requirements summary table lists REQ-CFG-001–004 but no design section has an `*Implements: REQ-CFG-*` annotation.
+- REQ-ERR and REQ-CONST are not listed in the design's requirements summary table at all.
+- Error handling is mentioned in callbacks table (section 4.11), constants appear in struct definitions, but neither is treated as a dedicated design element.
+
+**Remediation:** Add design subsections for error handling strategy, configuration API design, and system constants table. Add `*Implements:*` annotations linking to the specific REQ-IDs.
+
+---
+
+### F-010 — Design Missing Explicit ISA Traces (REQ-ISA-003–012)
+
+- **Classification:** D1_UNTRACED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** Medium
+
+**Description:** The design document's `*Implements:*` annotations for ISA only cover REQ-ISA-001 and REQ-ISA-002 (instruction encoding and register file). REQ-ISA-003 through REQ-ISA-012 (ALU, memory, jumps, atomics, calls, exit) are covered implicitly within the interpreter execution section (4.5) but have no explicit trace annotations.
+
+**Evidence:**
+- Design section 4.2: `*Implements: REQ-ISA-001, REQ-ISA-002*`
+- Design section 4.5: `*Implements: REQ-EXEC-001 through REQ-EXEC-009*` — covers execution but doesn't claim ISA requirements.
+- Component inventory (section 3.3): Lists REQ-ISA-001–012 against "Instruction Defs" (ebpf.h), which defines opcodes but doesn't describe their semantic behavior.
+
+**Remediation:** Add `*Implements: REQ-ISA-003 through REQ-ISA-012*` to the interpreter execution section (4.5) where ALU, memory, jump, and call semantics are described in the execution loop switch statement.
+
+---
+
+### F-011 — Helper Function Signature Discrepancy
+
+- **Classification:** D6_CONSTRAINT_VIOLATION
+- **Severity:** Medium
+- **Confidence:** Medium
+
+**Description:** The requirements and design documents disagree on the helper function call signature. Requirements specifies a 5-parameter signature; the design shows a 6-parameter invocation with an additional context/cookie parameter.
+
+**Evidence:**
+- Requirements REQ-EXT-001 (line 881): "The function signature is `uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)`."
+- Design section 4.5 (line 355): `r0 = ext_funcs[index](r1, r2, r3, r4, r5, cookie)` — 6 parameters.
+- Design section 4.11 (line 598): "Signature: `uint64_t fn(uint64_t r1, r2, r3, r4, r5)` / Implicit 6th parameter: `void*` context"
+
+**Remediation:** Clarify whether the public `ubpf_register()` API takes a 5-param function pointer (classic signature) while the internal extended type adds a cookie parameter. Update requirements to reflect the actual `extended_external_helper_t` type if applicable.
+
+---
+
+### F-012 — TC-SEC-008/009 Orphaned Test Areas (No Matching Requirement)
+
+- **Classification:** D4_ORPHANED_TEST_CASE
+- **Severity:** Low
+- **Confidence:** High
+
+**Description:** The validation plan defines TC-SEC-008 "Shadow stack" and TC-SEC-009 "Shadow registers" as separate test areas. In requirements, shadow stack and shadow registers are sub-features of a single requirement (REQ-SEC-003 "Undefined Behavior Detection"), not standalone requirements. The validation's REQ-SEC-008 and REQ-SEC-009 IDs do not exist in the requirements document.
+
+**Evidence:**
+- Requirements REQ-SEC-003 (line 798–812): Covers both shadow register bitmask and shadow stack as sub-features.
+- Validation REQ-SEC-008/009 (lines 216–217): Treated as separate requirements with separate TC-IDs.
+
+**Remediation:** Merge TC-SEC-008 and TC-SEC-009 under TC-SEC-003 (the corrected ID for UB Detection), or create sub-requirement IDs (REQ-SEC-003a, REQ-SEC-003b) in requirements if separate tracking is desired.
+
+---
+
+### F-013 — Validation Introduces Topics Not in Requirements
+
+- **Classification:** D4_ORPHANED_TEST_CASE
+- **Severity:** Low
+- **Confidence:** Medium
+
+**Description:** The validation plan introduces test areas for topics that are not standalone requirements:
+
+| Validation Topic | Validation REQ-ID | Closest Requirement |
+|-----------------|-------------------|---------------------|
+| "Memory allocation failure" | REQ-LIFE-006 | REQ-LIFE-001 AC-2 (partial, creation failure) |
+| "Code replacement" | REQ-LOAD-011 | REQ-LIFE-006 + REQ-LOAD-003 (unload + reload) |
+| "Writable bytecode storage" | REQ-LOAD-008 | REQ-LOAD-005 (inverse case of read-only) |
+| "JMP32 (32-bit jumps)" | REQ-ISA-010 | REQ-ISA-009 (covers both 32-bit and 64-bit jumps) |
+
+**Remediation:** Either add corresponding requirements for these topics or map the TCs to the existing requirements that cover them.
+
+---
+
+### F-014 — RFC-Level Language Drift: SHOULD vs. Default-Enabled
+
+- **Classification:** D5_ASSUMPTION_DRIFT
+- **Severity:** Low
+- **Confidence:** High
+
+**Description:** REQ-SEC-007 uses "SHOULD" (RFC 2119: recommended but optional), yet the design implements retpolines as default-enabled with an opt-out build flag. This mismatch between "SHOULD" (optional) and "enabled by default" creates ambiguity about whether retpolines are a mandatory security feature.
+
+**Evidence:**
+- Requirements REQ-SEC-007 (line 845): "The x86-64 JIT **SHOULD** support retpoline."
+- Design section 4.7 (line 481): "Configurable via `UBPF_DISABLE_RETPOLINES` CMake option (default: **enabled**)."
+
+**Remediation:** If retpolines are considered essential for security, change "SHOULD" to "MUST" in requirements. If truly optional, document in the design that the default-enabled state is a hardening choice, not a requirement.
+
+---
+
+### F-015 — Thread Safety Assumption Drift
+
+- **Classification:** D5_ASSUMPTION_DRIFT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** The requirements document states single-threaded access as an assumption (ASM-003). The design document questions this assumption as an open question (OQ-1), noting that `ubpf_exec` takes `const struct ubpf_vm*` which suggests read-sharing may be intended. The validation plan lists "No concurrency tests" as a structural gap.
+
+**Evidence:**
+- Requirements ASM-003 (line 1213–1217): "The VM is assumed to be accessed by a single thread at a time."
+- Design OQ-1 (line 744–746): "What is the thread-safety model for `struct ubpf_vm`? `ubpf_exec` takes `const struct ubpf_vm*` suggesting read-sharing is intended, but mutable JIT state and helper registration complicate this."
+- Validation section 8.3 (line 536): "No concurrency tests — Unknown thread safety."
+
+**Remediation:** Resolve OQ-1 before approval. If single-threaded is the intended model, the `const` qualifier on `ubpf_exec`'s VM parameter should be documented as not implying thread safety. If read-sharing is intended, add concurrency requirements and tests.
+
+---
+
+### F-016 — JIT Semantic Equivalence Assumption vs. Instruction Limit Exception
+
+- **Classification:** D5_ASSUMPTION_DRIFT
+- **Severity:** Low
+- **Confidence:** Medium
+
+**Description:** The design document assumes JIT produces "semantically identical results to the interpreter for all valid programs" (section 5.1). However, requirements explicitly defines an exception: REQ-JIT-008 states instruction limits do NOT apply to JIT execution. The design's unqualified equivalence claim is technically incorrect.
+
+**Evidence:**
+- Design section 5.1 (line 635): "The JIT is assumed to produce semantically identical results to the interpreter for all valid programs."
+- Requirements REQ-JIT-008 (line 476–483): "`ubpf_set_instruction_limit()` MUST NOT affect JIT-compiled execution."
+- Additionally, REQ-EXEC-009 (Debug Callback) states the debug function is called per instruction in interpreter mode — implicitly not in JIT mode (confirmed by REQ-EXT-006 AC-2).
+
+**Remediation:** Qualify the design's equivalence assumption: "The JIT produces identical *computational* results for all valid programs. Observable behavioral differences exist: instruction limits and debug callbacks apply only to the interpreter."
+
+---
+
+### F-017 — Document Date Inconsistency
+
+- **Classification:** D5_ASSUMPTION_DRIFT
+- **Severity:** Low
+- **Confidence:** High
+
+**Description:** The requirements document is dated 2025-07-14 while both downstream documents are dated 2026-03-31 — over 8 months later. This suggests the downstream documents may have been generated from a different version of the requirements, potentially explaining the numbering mismatch.
+
+**Evidence:**
+- Requirements: "Date: 2025-07-14"
+- Design: "Date: 2026-03-31"
+- Validation: "Date: 2026-03-31"
+
+**Remediation:** Align document dates. Add cross-document version references (e.g., "This design addresses requirements.md v1.0.0 dated YYYY-MM-DD") to enable version consistency checking.
+
+---
+
+### F-018 — REQ-LOAD-011 (LDDW Pairing) Has No Matching Validation Entry
+
+- **Classification:** D2_UNTESTED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** REQ-LOAD-011 "LDDW Pairing Validation" (requirements doc) has no matching test case. The validation plan's REQ-LOAD-011 maps to "Code replacement" — a different topic. The actual LDDW pairing topic appears implicitly under the ISA category but is not explicitly traced.
+
+**Evidence:**
+- Requirements REQ-LOAD-011 (line 281–289): LDDW instruction must be followed by second pseudo-instruction. AC-1: LDDW at last position rejected. AC-2: Valid LDDW pair loads correctly.
+- Validation REQ-LOAD-011: Maps to "Code replacement" — reload/unload tests, which test a completely different feature.
+- LDDW is tested under REQ-ISA-006 in validation ("LDDW 64-bit immediate"), but this covers execution correctness, not the load-time pairing validation.
+
+**Remediation:** Add a test case specifically for LDDW pairing validation at load time (truncated LDDW at end of program, valid LDDW pair).
+
+---
+
+### F-019 — Design Threat Model Missing REQ-SEC-008/009
+
+- **Classification:** D1_UNTRACED_REQUIREMENT
+- **Severity:** Medium
+- **Confidence:** High
+
+**Description:** The design security architecture section (4.10) claims `*Implements: REQ-SEC-001 through REQ-SEC-009*` but the threat model table only contains 7 rows covering REQ-SEC-001 through REQ-SEC-007 (in design numbering). REQ-SEC-008 and REQ-SEC-009 (in requirements numbering: W⊕X for JIT Code and Custom Bounds Check Callback) are not detailed.
+
+**Evidence:**
+- Design section 4.10 header: `*Implements: REQ-SEC-001 through REQ-SEC-009*`
+- Threat model table: 7 entries (lines 557–566).
+- Even using the design's numbering, there is no SEC-008 or SEC-009 defined.
+
+**Remediation:** Add threat model entries for the remaining security requirements (W⊕X enforcement, custom bounds check callback) to substantiate the "through REQ-SEC-009" claim.
+
+---
+
+## 5. Root Cause Analysis
+
+### RCA-1: Independent Document Generation Without Canonical Registry
+
+The primary root cause of F-001 (and cascade findings F-003, F-004, F-005, F-007, F-008, F-018) is that the three documents were generated independently — likely by different processes or at different times — without a shared, canonical REQ-ID registry. Each document organized requirements into the same categories but assigned sub-IDs in a different order.
+
+The design and validation documents are mutually consistent (same numbering), suggesting they were generated together or from a common intermediate artifact. The requirements document uses a different ordering, possibly reflecting the order in which requirements were encountered during source code analysis.
+
+### RCA-2: Blanket Traceability Claims Without Per-Item Verification
+
+The design document uses range-based claims like `*Implements: REQ-SEC-001 through REQ-SEC-009*` rather than per-item claims. This masks gaps where specific requirements (e.g., REQ-SEC-008, REQ-SEC-009) lack actual design coverage.
+
+### RCA-3: No Cross-Document Consistency Gate
+
+No automated or manual consistency check exists between documents. A simple script comparing REQ-ID → topic mappings across all three files would have detected F-001 immediately.
+
+---
+
+## 6. Remediation Plan
+
+### Priority 1 — Critical (Must Fix Before Approval)
+
+| Action | Findings | Effort |
+|--------|----------|--------|
+| Establish canonical REQ-ID registry as a single-source-of-truth table | F-001 | Small |
+| Re-number one set of documents to match the canonical registry | F-001, F-003, F-004 | Medium |
+| Re-validate all TC → REQ traces after re-numbering | F-004 | Medium |
+
+### Priority 2 — High (Should Fix Before Approval)
+
+| Action | Findings | Effort |
+|--------|----------|--------|
+| Resolve UBPF_MAX_INSTS boundary condition by checking source code | F-002 | Small |
+| Add design sections for REQ-ERR, REQ-CFG, REQ-CONST | F-009 | Small |
+| Add ISA Implements annotations to interpreter section | F-010 | Small |
+| Add test cases for REQ-SEC-002 (toggle), REQ-EXT-002 (limit), REQ-LOAD-011 (LDDW) | F-005, F-007, F-018 | Medium |
+
+### Priority 3 — Medium (Fix Before Final Release)
+
+| Action | Findings | Effort |
+|--------|----------|--------|
+| Add design entries for REQ-SEC-008/009 in threat model | F-006, F-019 | Small |
+| Clarify helper function signature in requirements | F-011 | Small |
+| Resolve thread safety open question | F-015 | Medium |
+| Add PLAT-005/006 validation entries | F-008 | Small |
+
+### Priority 4 — Low (Track as Improvements)
+
+| Action | Findings | Effort |
+|--------|----------|--------|
+| Resolve SHOULD vs MUST for retpolines | F-014 | Small |
+| Qualify JIT equivalence assumption | F-016 | Small |
+| Align document dates and add cross-references | F-017 | Small |
+| Reconcile orphaned TC-SEC-008/009 | F-012 | Small |
+| Address phantom validation topics | F-013 | Small |
+
+---
+
+## 7. Prevention
+
+### 7.1 Process Recommendations
+
+1. **Canonical REQ-ID Registry:** Maintain a single `req-ids.csv` or YAML file that authoritatively maps each REQ-ID to its topic. All three documents should reference (or be generated from) this registry. Changes to REQ-IDs must be made in the registry first.
+
+2. **Automated Consistency Checks:** Add a CI script that:
+   - Extracts all REQ-IDs and their topics from requirements.md.
+   - Extracts all REQ-ID references from design.md and validation.md.
+   - Verifies every REQ-ID exists in the registry and maps to the same topic.
+   - Flags orphaned design elements and untested requirements.
+
+3. **Per-Item Traceability:** Replace blanket `*Implements: REQ-X-001 through REQ-X-NNN*` claims with explicit per-item lists. This makes gaps immediately visible.
+
+4. **Cross-Document Review Gate:** Before any specification document is updated, require a diff-based review that checks whether REQ-ID references in other documents are affected.
+
+5. **Version Coupling:** Each document header should reference the exact version of the other two documents it is consistent with. Version bumps in one document should trigger consistency review of the others.
+
+### 7.2 Tooling Suggestions
+
+- A Markdown linter that validates REQ-ID format and cross-references.
+- A traceability matrix generator that produces a combined view from all three documents.
+- Golden-file tests for the REQ-ID registry to prevent accidental re-numbering.
+
+---
+
+## 8. Open Questions
+
+| ID | Question | Status |
+|----|----------|--------|
+| OQ-A1 | Which numbering scheme is canonical — the requirements doc or the design/validation pair? | **Unresolved** — must be decided to proceed with remediation. |
+| OQ-A2 | Is the `num_insts` field truly `uint16_t`? If so, how does the code handle UBPF_MAX_INSTS (65536)? | **Unresolved** — requires source code inspection of `vm/ubpf_int.h`. |
+| OQ-A3 | Does `ubpf_register()` accept the classic 5-param signature or the extended 6-param signature? | **Unresolved** — requires API header inspection. |
+| OQ-A4 | Was the numbering divergence caused by independent generation, or did the requirements document undergo a re-numbering after the downstream documents were created? | **Unresolved** — requires authoring history. |
+| OQ-A5 | Are validation's "phantom" test areas (OOM, Code Replacement, JMP32) testing real features that should become requirements? | **Unresolved** — requires product decision. |
+
+### Verdict: **REVISE**
+
+The specification suite contains a **critical systemic defect** (F-001: REQ-ID numbering misalignment) that invalidates cross-document traceability. The underlying content quality is good — both design and validation cover the right topics — but the labeling is wrong. This is a correctable issue that does not require restarting the specification process.
+
+**Required before approval:**
+1. Resolve OQ-A1 (choose canonical numbering).
+2. Re-number one set of documents to align with the canonical scheme.
+3. Re-validate all cross-references after re-numbering.
+4. Resolve the UBPF_MAX_INSTS boundary contradiction (F-002).
+
+Once these four items are addressed, the specification suite should pass a re-audit.
+
+---
+
+## 9. Revision History
+
+| Version | Date | Author | Description |
+|---------|------|--------|-------------|
+| 1.0.0 | 2025-07-18 | Adversarial Consistency Audit | Initial audit of requirements.md v1.0.0, design.md v1.0.0, validation.md v1.0.0. 19 findings across 7 defect classifications. Verdict: REVISE. |
