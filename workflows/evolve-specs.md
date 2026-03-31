@@ -339,7 +339,7 @@ If your environment supports parallel or delegated execution:
 - Each work stream should produce a structured artifact that can
   be independently verified.
 
-### 7. Coverage Documentation
+### 8. Coverage Documentation
 
 Every analysis MUST include a coverage statement:
 

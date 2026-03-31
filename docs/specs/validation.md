@@ -121,41 +121,41 @@ uBPF uses a multi-layered testing strategy:
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
 | REQ-LIFE-001 | VM creation | TC-LIFE-001 | **High** — implicitly tested by all tests |
+| REQ-LIFE-002 | VM default state | TC-LIFE-004 | **Medium** — tested indirectly via default behavior |
+| REQ-LIFE-003 | VM creation — allocations | TC-LIFE-006 | **Low** — `[GAP: no explicit OOM tests]` |
+| REQ-LIFE-004 | Platform JIT selection | TC-LIFE-005 | **High** — CI runs on x86-64, ARM64, macOS |
 | REQ-LIFE-005 | VM destruction | TC-LIFE-002 | **Medium** — Valgrind checks, reload_code_memleak |
 | REQ-LIFE-006 | Code unloading | TC-LIFE-003 | **High** — unload_reload.data, reload.data |
-| REQ-LIFE-002 | Default configuration | TC-LIFE-004 | **Medium** — tested indirectly via default behavior |
-| REQ-LIFE-004 | Platform JIT selection | TC-LIFE-005 | **High** — CI runs on x86-64, ARM64, macOS |
-| REQ-LIFE-003 | Memory allocation failure | TC-LIFE-006 | **Low** — `[GAP: no explicit OOM tests]` |
 
 ### 4.2 Program Loading
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
-| REQ-LOAD-003 | Load API contract | TC-LOAD-001 | **High** — all .data tests call ubpf_load |
-| REQ-LOAD-001 | Code size validation | TC-LOAD-002 | **Medium** — `[GAP: no test for non-multiple-of-8]` |
-| REQ-LOAD-002 | Instruction count limit | TC-LOAD-003 | **Low** — `[GAP: no test with 65536+ instructions]` |
+| REQ-LOAD-001 | Code length validation | TC-LOAD-002 | **Medium** — `[GAP: no test for non-multiple-of-8]` |
+| REQ-LOAD-002 | Maximum instruction count | TC-LOAD-003 | **Low** — `[GAP: no test with 65536+ instructions]` |
+| REQ-LOAD-003 | Double-load prevention | TC-LOAD-001 | **High** — all .data tests call ubpf_load |
 | REQ-LOAD-004 | Instruction validation | TC-LOAD-004 | **High** — tests/errors/*, atomic_validate custom test |
-| REQ-LOAD-008 | Stack alignment | TC-LOAD-005 | **High** — custom_local_function_stack_size tests |
-| REQ-LOAD-009 | Self-contained sub-programs | TC-LOAD-006 | **Medium** — tested via local call tests |
-| REQ-LOAD-005 | Read-only bytecode storage | TC-LOAD-007 | **High** — readonly_bytecode custom test |
-| REQ-LOAD-005 | Writable bytecode storage | TC-LOAD-008 | **Medium** — readonly_bytecode test toggles mode |
-| REQ-LOAD-006 | XOR instruction encoding | TC-LOAD-009 | **Medium** — `[GAP: no direct test of XOR encoding correctness]` |
+| REQ-LOAD-005 | Read-only bytecode storage | TC-LOAD-007, TC-LOAD-008 | **High** — readonly_bytecode custom test (toggles mode) |
+| REQ-LOAD-006 | Pointer secret encoding | TC-LOAD-009 | **Medium** — `[GAP: no direct test of pointer secret encoding correctness]` |
 | REQ-LOAD-007 | Local function marking | TC-LOAD-010 | **High** — call_local_use_stack.data, factorial.data |
-| REQ-LOAD-003 | Code replacement | TC-LOAD-011 | **High** — reload.data, unload_reload.data, reload_code_memleak |
+| REQ-LOAD-008 | Stack alignment validation | TC-LOAD-005 | **High** — custom_local_function_stack_size tests |
+| REQ-LOAD-009 | Sub-program containment | TC-LOAD-006 | **Medium** — tested via local call tests |
+| REQ-LOAD-010 | Jump target validation | TC-LOAD-004 | **High** — tested via instruction validation |
+| REQ-LOAD-011 | LDDW pairing validation | TC-LOAD-004 | **High** — tested via instruction validation |
 
 ### 4.3 Program Execution
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
-| REQ-EXEC-001 | exec API contract | TC-EXEC-001 | **High** — test_vm.py runs all .data files |
-| REQ-EXEC-002 | exec_ex API (external stack) | TC-EXEC-002 | **Medium** — `[GAP: limited direct exec_ex tests]` |
+| REQ-EXEC-001 | Interpreter entry point | TC-EXEC-001 | **High** — test_vm.py runs all .data files |
+| REQ-EXEC-002 | Extended interpreter entry point | TC-EXEC-002 | **Medium** — `[GAP: limited direct exec_ex tests]` |
 | REQ-EXEC-003 | Register initialization | TC-EXEC-003 | **High** — mem/result comparison in all tests |
-| REQ-EXEC-007 | Interpreter loop correctness | TC-EXEC-004 | **High** — 360+ .data tests + fuzzer |
-| REQ-ISA-003 | ALU semantics | TC-EXEC-005 | **High** — alu.data, alu64.data, 100+ conformance tests |
-| REQ-SEC-001 | Memory bounds enforcement | TC-EXEC-006 | **High** — err-stack-oob, err-address-overflow, etc. |
-| REQ-EXEC-006 | Local function calls | TC-EXEC-007 | **High** — factorial.data, call_local_use_stack.data, stack tests |
-| REQ-EXEC-008 | External function calls | TC-EXEC-008 | **High** — call.data, call-memfrob.data, call-save.data |
-| REQ-EXEC-005 | Instruction limit | TC-EXEC-009 | **Low** — `[GAP: no direct instruction limit test]` |
+| REQ-EXEC-004 | Code-not-loaded guard | TC-EXEC-004 | **Medium** — `[GAP: no explicit test for exec without load]` |
+| REQ-EXEC-005 | Instruction limit enforcement | TC-EXEC-009 | **Low** — `[GAP: no direct instruction limit test]` |
+| REQ-EXEC-006 | Call depth limit | TC-EXEC-007 | **High** — factorial.data, call_local_use_stack.data, stack tests |
+| REQ-EXEC-007 | XOR-decoded instruction fetch | TC-EXEC-004 | **High** — 360+ .data tests + fuzzer (implicit) |
+| REQ-EXEC-008 | Unwind function support | TC-EXEC-008 | **Medium** — call_unwind.data |
+| REQ-EXEC-009 | Debug callback invocation | TC-EXEC-010 | **High** — debug_function custom test |
 
 ### 4.4 JIT Compilation
 

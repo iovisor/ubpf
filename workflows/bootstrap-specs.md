@@ -251,7 +251,7 @@ If your environment supports parallel or delegated execution:
 - Each work stream should produce a structured artifact that can
   be independently verified.
 
-### 7. Coverage Documentation
+### 8. Coverage Documentation
 
 Every analysis MUST include a coverage statement:
 
@@ -1188,7 +1188,11 @@ scan the repository rather than asking the user to paste content.
 
 **Project**: uBPF
 
-**Repository Root**: F:\ubpf
+**Repository Root**: `<repo-root>`
+
+The agent MUST treat `<repo-root>` as the root directory of the checked-out uBPF
+repository. In most environments, this is the current working directory (`.`) or a
+workspace root provided by the host.
 
 **Output Files**:
 - Requirements: docs/specs/requirements.md

@@ -898,7 +898,7 @@ The VM MUST support a maximum of `UBPF_MAX_EXT_FUNCS` (64) external helper funct
 
 #### REQ-EXT-003: External Dispatcher
 
-`ubpf_register_external_dispatcher(vm, dispatcher, validator)` MUST register a dynamic dispatch function that routes all external helper calls. The dispatcher signature is `uint64_t (*)(uint64_t×5, unsigned int index, void* cookie)`.
+`ubpf_register_external_dispatcher(vm, dispatcher, validator)` MUST register a dynamic dispatch function that routes all external helper calls. The dispatcher signature is `uint64_t (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, unsigned int index, void *cookie)`.
 
 When a dispatcher is registered, it takes precedence over individually registered helpers.
 

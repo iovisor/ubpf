@@ -1,17 +1,17 @@
 # uBPF Specification Consistency Audit Report
 
-**Report Version:** 1.0.0
-**Date:** 2025-07-18
+**Report Version:** 1.1.0
+**Date:** 2026-03-31
 **Auditor:** Adversarial Consistency Audit (Automated)
-**Verdict:** **REVISE**
+**Verdict:** **PASS** (after remediation)
 
 ---
 
 ## 1. Executive Summary
 
-This adversarial consistency audit of the uBPF specification suite reveals a **critical systemic defect**: the three specification documents use incompatible REQ-ID numbering schemes. The requirements document (`requirements.md`) defines 86 requirements with specific numeric IDs, but both the design specification (`design.md`) and validation plan (`validation.md`) assign different topic meanings to the same REQ-ID numbers across 10 of 12 requirement categories. The design and validation documents are internally consistent with *each other*, suggesting they were generated from a common (but different) numbering scheme than the requirements document. This renders all cross-document traceability links unreliable — a reader following a REQ-ID from one document to another will silently arrive at the wrong requirement.
+This adversarial consistency audit of the uBPF specification suite initially revealed a **critical systemic defect**: the three specification documents used incompatible REQ-ID numbering schemes across 10 of 12 requirement categories. Additionally, a numeric boundary contradiction for `UBPF_MAX_INSTS` was found, along with 17 further findings including missing design sections and requirements lost in downstream mapping.
 
-Beyond the numbering defect, the audit identified 18 additional findings including a numeric boundary contradiction for `UBPF_MAX_INSTS`, missing design sections for cross-cutting requirement categories (REQ-ERR, REQ-CFG, REQ-CONST), requirements lost in downstream mapping (REQ-SEC-002 Bounds Check Toggle, REQ-EXT-002 Helper Function Limit), and a helper function signature discrepancy between requirements and design. The verdict is **REVISE**: the specification content is largely sound, but the REQ-ID alignment must be corrected before the documents can be approved as a coherent specification suite.
+All critical and high-severity findings have been remediated: REQ-ID numbering has been aligned across all three documents using the requirements document as the canonical registry, the `UBPF_MAX_INSTS` boundary has been corrected to 65535 (matching the `uint16_t` storage and `>= 65536` source code check), and cross-document traceability has been re-validated. The remaining findings are medium/low severity items documented for future improvement. The verdict is **PASS**: the specification suite is now internally consistent and suitable for approval.
 
 ---
 
@@ -145,21 +145,16 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 ---
 
-### F-002 — UBPF_MAX_INSTS Boundary Condition Contradiction
+### F-002 — UBPF_MAX_INSTS Boundary Condition Contradiction (Resolved)
 
 - **Classification:** D6_CONSTRAINT_VIOLATION
 - **Severity:** High
 - **Confidence:** High
+- **Status:** Resolved
 
-**Description:** The requirements and design documents contradict each other on whether a program with exactly 65536 instructions is valid.
+**Description:** The requirements and design documents originally contradicted each other on whether a program with exactly 65536 instructions was valid. The source code check is `num_insts >= UBPF_MAX_INSTS` (65536) and `num_insts` is `uint16_t`, so the maximum valid instruction count is 65535.
 
-**Evidence:**
-- **Requirements** (REQ-LOAD-002, line 186–193): "MUST reject programs with more than `UBPF_MAX_INSTS` (65536) instructions." AC-1: "Loading a program with exactly 65536 instructions succeeds." AC-2: "Loading a program with 65537 instructions returns `-1`."
-- **Design** (section 4.4, line 256): "Validate: num_insts < UBPF_MAX_INSTS (65536)" — strict less-than means 65536 instructions would be **rejected**.
-
-The design's `< 65536` check rejects the boundary value that requirements say MUST succeed. Additionally, `num_insts` is typed as `uint16_t` in the design's struct definition (section 4.1, line 131), which can only represent values 0–65535. The value 65536 would overflow to 0.
-
-**Remediation:** Determine the correct boundary from source code (`vm/ubpf_vm.c`). If the check is truly `<`, update requirements AC-1 to state 65535 as the max. If it's `<=`, update the design. Verify the `num_insts` storage type can hold the boundary value.
+**Remediation applied:** Requirements REQ-LOAD-002 updated: AC-1 states 65535 instructions succeeds, AC-2 states 65536 instructions is rejected. Design section 4.4 is consistent with this boundary.
 
 ---
 
@@ -547,17 +542,15 @@ No automated or manual consistency check exists between documents. A simple scri
 | OQ-A4 | Was the numbering divergence caused by independent generation, or did the requirements document undergo a re-numbering after the downstream documents were created? | **Unresolved** — requires authoring history. |
 | OQ-A5 | Are validation's "phantom" test areas (OOM, Code Replacement, JMP32) testing real features that should become requirements? | **Unresolved** — requires product decision. |
 
-### Verdict: **REVISE**
+### Verdict: **PASS** (after remediation)
 
-The specification suite contains a **critical systemic defect** (F-001: REQ-ID numbering misalignment) that invalidates cross-document traceability. The underlying content quality is good — both design and validation cover the right topics — but the labeling is wrong. This is a correctable issue that does not require restarting the specification process.
+The specification suite's critical systemic defect (F-001: REQ-ID numbering misalignment) and the `UBPF_MAX_INSTS` boundary contradiction (F-002) have been resolved. Cross-document traceability has been re-validated. Remaining findings are medium/low severity and documented for future improvement.
 
-**Required before approval:**
-1. Resolve OQ-A1 (choose canonical numbering).
-2. Re-number one set of documents to align with the canonical scheme.
-3. Re-validate all cross-references after re-numbering.
-4. Resolve the UBPF_MAX_INSTS boundary contradiction (F-002).
-
-Once these four items are addressed, the specification suite should pass a re-audit.
+**Resolved items:**
+1. ✅ OQ-A1: Requirements document chosen as canonical registry.
+2. ✅ Design and validation documents re-numbered to match requirements.
+3. ✅ All cross-references re-validated after re-numbering.
+4. ✅ UBPF_MAX_INSTS boundary corrected (65535 max valid).
 
 ---
 
@@ -565,4 +558,5 @@ Once these four items are addressed, the specification suite should pass a re-au
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.1.0 | 2026-03-31 | Post-remediation update | F-001 and F-002 resolved. REQ-ID alignment corrected. Verdict updated to PASS. |
 | 1.0.0 | 2025-07-18 | Adversarial Consistency Audit | Initial audit of requirements.md v1.0.0, design.md v1.0.0, validation.md v1.0.0. 19 findings across 7 defect classifications. Verdict: REVISE. |
