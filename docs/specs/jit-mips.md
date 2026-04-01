@@ -1,63 +1,79 @@
-# uBPF JIT Backend Specification: BPF ISA → MIPS64
+# uBPF JIT Backend Specification: BPF ISA → MIPS64r6
 
 **Document Version:** 1.0.0
 **Date:** 2026-04-01
-**Status:** Proposed — No implementation exists yet
+**Status:** Draft — Forward-looking specification (no implementation yet)
 
 ---
 
 ## 1. Overview
 
-This document specifies the proposed mapping from BPF ISA instructions to MIPS64 Release 6 native instructions for a uBPF JIT backend. It follows the same structure as the existing x86-64 (`jit-x86-64.md`) and ARM64 (`jit-arm64.md`) backend specifications.
+This document specifies the proposed mapping from BPF ISA instructions to MIPS64 Release 6 (MIPS64r6) native instructions for a uBPF JIT backend. It follows the same structure as the existing x86-64 (`jit-x86-64.md`) and ARM64 (`jit-arm64.md`) backend specifications.
 
-**Target ISA:** MIPS64 Release 6 (MIPS64r6)
+**Target ISA:** MIPS64 Release 6 (MIPS64r6), little-endian (mipsel64r6)
 
-**Why MIPS64r6:** Release 6 eliminates branch delay slots (compact branches), adds native division/modulo instructions (DDIV/DMOD without HI/LO registers), and simplifies several instruction encodings. Pre-R6 MIPS would require delay slot handling and HI/LO register management, significantly complicating the JIT.
+**ISA Reference:** MIPS64® Architecture for Programmers Volume II: The MIPS64® Instruction Set, Revision 6.06, December 15, 2016 (MIPS Open license).
 
-**ABI:** N64 (64-bit pointers, 64-bit registers, 8 argument registers)
+**ABI:** n64 (64-bit pointers, 64-bit GPRs, 8 argument registers in `$a0`–`$a7`)
 
-> All mappings in this document are marked **[PROPOSED]** — they require validation through implementation and testing.
+**Key MIPS64r6 advantages over pre-R6:**
+- Compact branches (`BC`, `BEQC`, `BNEC`, etc.) — **no delay slots** (KNOWN: ISA ref, compact branch descriptions)
+- Native `DDIV`/`DMOD`/`DDIVU`/`DMODU` — results in GPR directly, no HI/LO registers (KNOWN: ISA ref, "DDIV" page)
+- `DMUL`/`DMUH` — 64-bit multiply with direct GPR result (KNOWN: ISA ref, "DMUL" page)
+
+**Compilation model:** Single-pass code emission into a working buffer, followed by a fixup pass to resolve forward references (jumps, branches, data references). The buffer is then copied to a `PROT_READ|PROT_EXEC` mapping. This is the same pipeline used by the x86-64 and ARM64 backends (KNOWN: `jit-x86-64.md` §1, `jit-arm64.md` §1).
 
 ---
 
 ## 2. Register Mapping
 
-### 2.1 BPF → MIPS64 Register Mapping
+### 2.1 BPF → MIPS64r6 Register Mapping
 
 > **Cross-reference:** REQ-UBPF-ISA-REG-001 (Register File)
 
-| BPF Register | MIPS64 Register | Name | Rationale |
-|---|---|---|---|
-| R0 (return) | `$v0` ($2) | Return value | Natural N64 return register |
-| R1 (param 1) | `$a0` ($4) | Argument 0 | Zero-cost helper call marshaling |
-| R2 (param 2) | `$a1` ($5) | Argument 1 | Zero-cost helper call marshaling |
-| R3 (param 3) | `$a2` ($6) | Argument 2 | Zero-cost helper call marshaling |
-| R4 (param 4) | `$a3` ($7) | Argument 3 | Zero-cost helper call marshaling |
-| R5 (param 5) | `$a4` ($8) | Argument 4 | Zero-cost helper call marshaling |
-| R6 (callee-saved) | `$s0` ($16) | Saved 0 | Callee-saved in N64 ABI |
-| R7 (callee-saved) | `$s1` ($17) | Saved 1 | Callee-saved in N64 ABI |
-| R8 (callee-saved) | `$s2` ($18) | Saved 2 | Callee-saved in N64 ABI |
-| R9 (callee-saved) | `$s3` ($19) | Saved 3 | Callee-saved in N64 ABI |
-| R10 (frame ptr) | `$s4` ($20) | Saved 4 | Callee-saved, BPF frame pointer |
+| BPF Register | MIPS64r6 Register | Name | Role | Notes |
+|---|---|---|---|---|
+| R0 (return) | `$v0` ($2) | Return value | Function return | Natural n64 return register |
+| R1 (param 1) | `$a0` ($4) | Argument 0 | Context pointer | Zero-cost helper call marshaling |
+| R2 (param 2) | `$a1` ($5) | Argument 1 | Context length | Zero-cost helper call marshaling |
+| R3 (param 3) | `$a2` ($6) | Argument 2 | Helper param 3 | Zero-cost helper call marshaling |
+| R4 (param 4) | `$a3` ($7) | Argument 3 | Helper param 4 | Zero-cost helper call marshaling |
+| R5 (param 5) | `$a4` ($8) | Argument 4 | Helper param 5 | Zero-cost helper call marshaling |
+| R6 (callee-saved) | `$s0` ($16) | Saved 0 | Callee-saved | Preserved across calls (n64 ABI) |
+| R7 (callee-saved) | `$s1` ($17) | Saved 1 | Callee-saved | Preserved across calls (n64 ABI) |
+| R8 (callee-saved) | `$s2` ($18) | Saved 2 | Callee-saved | Preserved across calls (n64 ABI) |
+| R9 (callee-saved) | `$s3` ($19) | Saved 3 | Callee-saved | Preserved across calls (n64 ABI) |
+| R10 (frame ptr) | `$s4` ($20) | Saved 4 | BPF frame pointer | Callee-saved; read-only in BPF |
 
-**[PROPOSED]** This mapping places BPF parameters (R1–R5) directly in MIPS64 ABI argument registers (`$a0`–`$a4`), eliminating parameter shuffling for external helper calls — the same strategy used by the ARM64 backend.
+`[DESIGN DECISION]` BPF R1–R5 are mapped to `$a0`–`$a4` (the first 5 of 8 n64 argument registers) so that external helper calls require no parameter shuffling — the same strategy used by the ARM64 backend (KNOWN: `jit-arm64.md` §2.1). BPF R0 maps to `$v0` (the natural return register in n64).
 
 ### 2.2 Scratch/Temporary Registers
 
-| MIPS64 Register | Name | Usage |
+| MIPS64r6 Register | Name | Usage |
 |---|---|---|
-| `$t0` ($12) | Temp 1 | Large immediate materialization, constant blinding |
-| `$t1` ($13) | Temp 2 | Division scratch, address computation |
-| `$t2` ($14) | Temp 3 | Atomic operation scratch, offset materialization |
-| `$t3` ($15) | Temp 4 | Backup scratch for complex sequences |
-| `$at` ($1) | Assembler temp | **RESERVED** — not used by JIT |
-| `$k0`–`$k1` ($26–$27) | Kernel | **RESERVED** — not used by JIT |
-| `$gp` ($28) | Global pointer | **RESERVED** — not used by JIT |
-| `$ra` ($31) | Return address | Used for JALR calls, saved in prologue |
-| `$sp` ($29) | Stack pointer | Stack management |
-| `$fp` ($30) | Frame pointer | Native frame pointer (not BPF R10) |
+| `$t0` ($12) | Temp 0 | Large immediate materialization, constant blinding XOR key |
+| `$t1` ($13) | Temp 1 | Division scratch, atomic operation scratch |
+| `$t2` ($14) | Temp 2 | Address computation for out-of-range offsets, atomic address |
+| `$t3` ($15) | Temp 3 | Additional scratch for complex instruction sequences |
+| `$s5` ($21) | Saved 5 | `[DESIGN DECISION]` Helper table base register (loaded in prologue) |
 
-**[DECISION NEEDED]:** Should `$v1` ($3) be used as an additional scratch register, or reserved for future use?
+**Reserved registers (NOT used by JIT):**
+
+| Register | Reason |
+|---|---|
+| `$zero` ($0) | Hardwired zero (KNOWN: ISA ref) |
+| `$at` ($1) | Assembler temporary — reserved by convention |
+| `$k0`–`$k1` ($26–$27) | Kernel reserved — must not be modified by user code |
+| `$gp` ($28) | Global pointer — reserved for ABI use |
+| `$ra` ($31) | Return address — used by JALR, saved/restored in prologue/epilogue |
+| `$sp` ($29) | Stack pointer — managed by prologue/epilogue |
+| `$fp` ($30) | Frame pointer — native frame pointer (saved/restored) |
+
+### 2.3 Callee-Saved Registers (must preserve in prologue/epilogue)
+
+Per n64 ABI: `$s0`–`$s7` ($16–$23), `$fp` ($30), `$ra` ($31).
+
+The JIT uses `$s0`–`$s5` ($16–$21) and must save/restore them plus `$fp` and `$ra`.
 
 ---
 
@@ -67,217 +83,228 @@ This document specifies the proposed mapping from BPF ISA instructions to MIPS64
 
 > **Cross-reference:** REQ-UBPF-ISA-ALU-001 (Core ALU Operations)
 
-All 64-bit ALU operations use MIPS64 doubleword instructions.
+All 64-bit ALU operations use MIPS64 doubleword instructions. These do NOT trap on overflow (using unsigned variants like `DADDU`/`DSUBU`).
 
-| BPF Instruction | MIPS64 Sequence | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `ADD64 dst, src` | `DADDU dst, dst, src` | Unsigned add (no trap on overflow) |
-| `ADD64 dst, imm` | `DADDIU dst, dst, imm` | If \|imm\| ≤ 32767; else materialize imm in `$t0` then `DADDU` |
-| `SUB64 dst, src` | `DSUBU dst, dst, src` | |
-| `SUB64 dst, imm` | `DADDIU dst, dst, -imm` | If \|imm\| ≤ 32768; else materialize and `DSUBU` |
-| `MUL64 dst, src` | `DMUL dst, dst, src` | MIPS64r6 native |
-| `MUL64 dst, imm` | Materialize imm → `$t0`; `DMUL dst, dst, $t0` | |
-| `DIV64 dst, src` | See §3.3 | Division-by-zero check required |
-| `MOD64 dst, src` | See §3.3 | |
-| `OR64 dst, src` | `OR dst, dst, src` | |
-| `OR64 dst, imm` | `ORI dst, dst, imm` | If 0 ≤ imm ≤ 65535; else materialize |
-| `AND64 dst, src` | `AND dst, dst, src` | |
-| `AND64 dst, imm` | `ANDI dst, dst, imm` | If 0 ≤ imm ≤ 65535; else materialize |
-| `XOR64 dst, src` | `XOR dst, dst, src` | |
-| `XOR64 dst, imm` | `XORI dst, dst, imm` | If 0 ≤ imm ≤ 65535; else materialize |
-| `LSH64 dst, src` | `DSLLV dst, dst, src` | Shift amount masked to 0–63 by hardware |
-| `LSH64 dst, imm` | `DSLL dst, dst, imm` | imm 0–31; `DSLL32` for 32–63 |
-| `RSH64 dst, src` | `DSRLV dst, dst, src` | Logical right shift |
-| `RSH64 dst, imm` | `DSRL dst, dst, imm` | imm 0–31; `DSRL32` for 32–63 |
-| `ARSH64 dst, src` | `DSRAV dst, dst, src` | Arithmetic right shift |
-| `ARSH64 dst, imm` | `DSRA dst, dst, imm` | imm 0–31; `DSRA32` for 32–63 |
+| `ADD64_REG dst, src` | `DADDU dst, dst, src` | No overflow trap (KNOWN: ISA ref, "DADDU") |
+| `ADD64_IMM dst, imm` | `DADDIU dst, dst, imm` | 16-bit signed imm (KNOWN: ISA ref, "DADDIU"). For \|imm\| > 32767: materialize in `$t0`, then `DADDU` |
+| `SUB64_REG dst, src` | `DSUBU dst, dst, src` | No overflow trap (KNOWN: ISA ref, "DSUBU") |
+| `SUB64_IMM dst, imm` | `DADDIU dst, dst, -imm` | If -32768 ≤ -imm ≤ 32767; else materialize and `DSUBU` |
+| `MUL64_REG dst, src` | `DMUL dst, dst, src` | R6 native (KNOWN: ISA ref, "DMUL"). Result in GPR, no HI/LO |
+| `MUL64_IMM dst, imm` | Materialize imm → `$t0`; `DMUL dst, dst, $t0` | |
+| `DIV64_REG dst, src` | See §3.3 | Division-by-zero check required |
+| `MOD64_REG dst, src` | See §3.3 | |
+| `OR64_REG dst, src` | `OR dst, dst, src` | (KNOWN: ISA ref, "OR") |
+| `OR64_IMM dst, imm` | `ORI dst, dst, imm` | 16-bit unsigned imm (0–65535). Larger: materialize + `OR` |
+| `AND64_REG dst, src` | `AND dst, dst, src` | (KNOWN: ISA ref, "AND") |
+| `AND64_IMM dst, imm` | `ANDI dst, dst, imm` | 16-bit unsigned imm. Larger: materialize + `AND` |
+| `XOR64_REG dst, src` | `XOR dst, dst, src` | (KNOWN: ISA ref, "XOR") |
+| `XOR64_IMM dst, imm` | `XORI dst, dst, imm` | 16-bit unsigned imm. Larger: materialize + `XOR` |
+| `LSH64_REG dst, src` | `DSLLV dst, dst, src` | Low 6 bits of src used as shift amount (KNOWN: ISA ref, "DSLLV") |
+| `LSH64_IMM dst, imm` | `DSLL dst, dst, imm` (imm 0–31) or `DSLL32 dst, dst, imm-32` (imm 32–63) | (KNOWN: ISA ref, "DSLL", "DSLL32") |
+| `RSH64_REG dst, src` | `DSRLV dst, dst, src` | Logical right shift (KNOWN: ISA ref, "DSRLV") |
+| `RSH64_IMM dst, imm` | `DSRL dst, dst, imm` or `DSRL32 dst, dst, imm-32` | (KNOWN: ISA ref, "DSRL", "DSRL32") |
+| `ARSH64_REG dst, src` | `DSRAV dst, dst, src` | Arithmetic right shift (KNOWN: ISA ref, "DSRAV") |
+| `ARSH64_IMM dst, imm` | `DSRA dst, dst, imm` or `DSRA32 dst, dst, imm-32` | (KNOWN: ISA ref, "DSRA", "DSRA32") |
 | `NEG64 dst` | `DSUBU dst, $zero, dst` | Negate via subtract from zero |
-| `MOV64 dst, src` | `OR dst, src, $zero` | Move via OR with zero (MIPS idiom) |
-| `MOV64 dst, imm` | See §3.9 (immediate materialization) | |
+| `MOV64_REG dst, src` | `OR dst, src, $zero` | MIPS move idiom |
+| `MOV64_IMM dst, imm` | See §3.9 (immediate materialization) | |
 
-**[PROPOSED]** Shift masking: MIPS64 `DSLLV`/`DSRLV`/`DSRAV` use only the low 6 bits of the shift amount register, which matches BPF's 0x3F mask for 64-bit shifts.
+**Shift masking:** MIPS64 `DSLLV`/`DSRLV`/`DSRAV` use the low 6 bits (0–63) of the shift amount register (KNOWN: ISA ref, "DSLLV" — "The bit-shift amount is specified by the low-order 6 bits of GPR rs"). This matches BPF's 0x3F mask for 64-bit shifts.
 
 ### 3.2 ALU32 Operations
 
 > **Cross-reference:** REQ-UBPF-ISA-ALU-002 (ALU32 Zero-Extension)
 
-32-bit ALU operations use MIPS64 word-sized instructions (`ADDU`, `SUBU`, etc.) with W-suffix variants where available.
+32-bit ALU operations use MIPS64 word-sized instructions (`ADDU`, `SUBU`, `MUL`, etc.).
 
-**[CHALLENGE: 32-bit zero-extension]** On MIPS64, 32-bit ALU instructions (e.g., `ADDU`) **sign-extend** the result to 64 bits, NOT zero-extend. BPF requires zero-extension. Every 32-bit ALU result MUST be explicitly zero-extended:
+**CRITICAL: 32-bit sign-extension vs. zero-extension**
 
+The MIPS64 ISA states: *"the 32-bit result is sign-extended and placed into GPR rt"* (KNOWN: ISA ref, "ADDIU" Restrictions — "If GPR rs does not contain a sign-extended 32-bit value, the result of the operation is UNPREDICTABLE"). BPF requires 32-bit ALU results to be **zero-extended** to 64 bits. Therefore, every 32-bit ALU result MUST be explicitly zero-extended.
+
+**Zero-extension sequence:**
 ```asm
-# BPF: ADD32 dst, src
-ADDU  dst, dst, src       # 32-bit add (result sign-extended to 64)
-DINSU dst, $zero, 32, 32  # Zero upper 32 bits
-# Alternative: DSLL32 + DSRL32 (two-instruction sequence)
-# DSLL32 dst, dst, 0      # Shift left 32
-# DSRL32 dst, dst, 0      # Shift right 32 (zero-extends)
+# After any 32-bit ALU op, zero-extend upper 32 bits:
+DSLL32  dst, dst, 0     # Shift left by 32 (clears upper 32, moves lower 32 to upper)
+DSRL32  dst, dst, 0     # Shift right by 32 (moves back, zeros upper 32)
 ```
 
-**[DECISION NEEDED]:** `DINSU` (R2+) vs `DSLL32`+`DSRL32` for zero-extension. `DINSU` is a single instruction but only available on MIPS64r2+. The shift pair is universally available.
+`[DESIGN DECISION]` Using `DSLL32`+`DSRL32` (2 instructions) for zero-extension rather than `DINSU` (1 instruction, but MIPS64r2+ only — needs R2 confirmation, and encoding is complex). The shift pair is universally available on all MIPS64 implementations.
 
-| BPF Instruction | MIPS64 Sequence | Notes |
+| BPF Instruction | MIPS64r6 Sequence | Notes |
 |---|---|---|
-| `ADD32 dst, src` | `ADDU dst, dst, src` + zero-ext | |
-| `SUB32 dst, src` | `SUBU dst, dst, src` + zero-ext | |
-| `MUL32 dst, src` | `MUL dst, dst, src` + zero-ext | MIPS64r6 |
-| `OR32 dst, src` | `OR dst, dst, src` + zero-ext | |
-| `AND32 dst, src` | `AND dst, dst, src` + zero-ext | |
-| `XOR32 dst, src` | `XOR dst, dst, src` + zero-ext | |
-| `LSH32 dst, src` | `SLLV dst, dst, src` + zero-ext | 32-bit shift, mask 0x1F |
-| `RSH32 dst, src` | `SRLV dst, dst, src` + zero-ext | |
-| `ARSH32 dst, src` | `SRAV dst, dst, src` + zero-ext | |
+| `ADD32_REG dst, src` | `ADDU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "ADDU") |
+| `SUB32_REG dst, src` | `SUBU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "SUBU") |
+| `MUL32_REG dst, src` | `MUL dst, dst, src` + zero-ext | R6 native (KNOWN: ISA ref, "MUL") |
+| `OR32_REG dst, src` | `OR dst, dst, src` + zero-ext | |
+| `AND32_REG dst, src` | `AND dst, dst, src` + zero-ext | |
+| `XOR32_REG dst, src` | `XOR dst, dst, src` + zero-ext | |
+| `LSH32_REG dst, src` | `SLLV dst, dst, src` + zero-ext | Low 5 bits used (KNOWN: ISA ref, "SLLV") |
+| `RSH32_REG dst, src` | `SRLV dst, dst, src` + zero-ext | |
+| `ARSH32_REG dst, src` | `SRAV dst, dst, src` + zero-ext | |
 | `NEG32 dst` | `SUBU dst, $zero, dst` + zero-ext | |
-| `MOV32 dst, src` | `ADDU dst, src, $zero` + zero-ext | Or `SLL dst, src, 0` |
+| `MOV32_REG dst, src` | `ADDU dst, src, $zero` + zero-ext | |
+
+**Shift masking (32-bit):** `SLLV`/`SRLV`/`SRAV` use the low 5 bits (0–31) of the shift amount (KNOWN: ISA ref), matching BPF's 0x1F mask.
 
 ### 3.3 Signed Arithmetic (SDIV, SMOD)
 
-> **Cross-reference:** REQ-UBPF-ISA-DIV-003 (Signed Division), REQ-UBPF-ISA-DIV-004 (Signed Modulo)
+> **Cross-reference:** REQ-UBPF-ISA-DIV-001 through DIV-007
 
-MIPS64r6 has native `DDIV`/`DMOD` (64-bit) and `DIV`/`MOD` (32-bit) instructions that write results directly to a GPR (no HI/LO registers).
+MIPS64r6 has native `DDIV`/`DMOD` (64-bit) and `DIV`/`MOD` (32-bit) that write results directly to a GPR (KNOWN: ISA ref, "DDIV", "DMOD", "DIV", "MOD"). No HI/LO register management needed (R6-specific improvement).
 
+**Division-by-zero handling (required by BPF: dst = 0):**
 ```asm
-# BPF: SDIV64 dst, src (offset==1)
-BNEC  src, $zero, .Lnonzero   # Check division by zero
-OR    dst, $zero, $zero        # dst = 0 (div-by-zero result per RFC 9669)
-BC    .Ldone                   # Skip division
+# BPF: DIV64 dst, src (unsigned, offset==0)
+BNEC   src, $zero, .Lnonzero  # R6 compact branch, no delay slot
+OR     dst, $zero, $zero      # dst = 0 (div-by-zero result per RFC 9669)
+BC     .Ldone                  # R6 compact unconditional branch
 .Lnonzero:
-DDIV  dst, dst, src            # Signed 64-bit division
+DDIVU  dst, dst, src          # Unsigned 64-bit division (KNOWN: ISA ref, "DDIVU")
 .Ldone:
 ```
 
-**Division by zero:** RFC 9669 specifies `dst = 0` for division by zero. The JIT must emit an explicit zero-check branch.
+**Modulo-by-zero handling (required by BPF: dst unchanged for 64-bit, upper 32 bits zeroed for 32-bit):**
+```asm
+# BPF: MOD64 dst, src (unsigned, offset==0)
+BNEC   src, $zero, .Lnonzero
+BC     .Ldone                  # dst unchanged (mod-by-zero per RFC 9669)
+.Lnonzero:
+DMODU  dst, dst, src          # Unsigned 64-bit modulo (KNOWN: ISA ref, "DMODU")
+.Ldone:
+```
 
-**Signed modulo:** `DMOD`/`MOD` on MIPS64r6 uses truncated division semantics (`-13 % 3 == -1`), matching RFC 9669.
+**Signed variants (offset==1):** Use `DDIV`/`DMOD` (signed). MIPS64r6 `DDIV` uses truncated division semantics where `-13 / 3 == -4` and `DMOD` gives `-13 % 3 == -1` (KNOWN: ISA ref — MIPS division follows C99/truncated semantics), matching RFC 9669.
 
-**[CHALLENGE: INT_MIN / -1]:** MIPS64r6 `DDIV` behavior for `INT64_MIN / -1` is implementation-defined. The JIT should emit a check: if `src == -1` and `dst == INT64_MIN`, set `dst = INT64_MIN` (matching uBPF interpreter behavior).
+**INT_MIN / -1 handling:** `[DESIGN DECISION]` Emit an explicit check: if `src == -1` and `dst == INT64_MIN`, set `dst = INT64_MIN`. MIPS64r6 `DDIV` behavior for this case is implementation-defined per the ISA ref. The uBPF interpreter returns `INT64_MIN` for this case.
 
 ### 3.4 Sign-Extension MOV (MOVSX)
 
 > **Cross-reference:** REQ-UBPF-ISA-ALU-006 (MOV with Sign-Extension)
 
-| BPF Instruction | MIPS64 Sequence | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `MOVSX dst, src, 8` | `SEB dst, src` | Sign-extend byte (MIPS64r2+) |
-| `MOVSX dst, src, 16` | `SEH dst, src` | Sign-extend halfword (MIPS64r2+) |
-| `MOVSX dst, src, 32` | `SLL dst, src, 0` | Sign-extend word (MIPS64 native behavior) |
-
-**[PROPOSED]** `SLL rd, rs, 0` sign-extends a 32-bit value to 64 bits on MIPS64, which is the standard idiom for word sign-extension.
+| `MOVSX dst, src, 8` | `SEB dst, src` | Sign-extend byte (KNOWN: ISA ref, "SEB" — R2+/R6) |
+| `MOVSX dst, src, 16` | `SEH dst, src` | Sign-extend halfword (KNOWN: ISA ref, "SEH" — R2+/R6) |
+| `MOVSX dst, src, 32` | `SLL dst, src, 0` | Sign-extend word. MIPS64 `SLL` sign-extends its 32-bit result to 64 bits (KNOWN: ISA ref, "SLL" — result is sign-extended) |
 
 ### 3.5 Byte Swap Operations
 
 > **Cross-reference:** REQ-UBPF-ISA-SWAP-001 (Endianness Conversion), REQ-UBPF-ISA-SWAP-002 (Unconditional Byte Swap)
 
-**[CHALLENGE: No single byte-reverse instruction]** MIPS64 requires multi-instruction sequences for byte reversal.
+This spec targets little-endian MIPS64r6 (mipsel64r6).
 
-| BPF Instruction | MIPS64 Sequence | Notes |
+| BPF Instruction | MIPS64r6 Sequence | Notes |
 |---|---|---|
-| `BSWAP16 dst` | `WSBH dst, dst` then `ANDI dst, dst, 0xFFFF` | WSBH swaps bytes in each halfword |
-| `BSWAP32 dst` | `WSBH dst, dst` then `ROTR dst, dst, 16` then zero-ext | |
-| `BSWAP64 dst` | `DSBH dst, dst` then `DSHD dst, dst` | DSBH+DSHD = full 64-bit byte reverse |
-| `LE16/LE32/LE64` | No-op on little-endian MIPS, full swap on big-endian | `[DECISION NEEDED]`: Target LE or BE MIPS? |
-| `BE16/BE32/BE64` | Full swap on little-endian, no-op on big-endian | |
-
-**[DECISION NEEDED]:** MIPS can be either big-endian or little-endian. The JIT must target a specific endianness or emit conditional sequences. Most modern MIPS64 embedded systems are little-endian.
+| `LE16 dst` | No-op (+ truncate: `ANDI dst, dst, 0xFFFF`) | Already little-endian |
+| `LE32 dst` | No-op (+ zero-ext: `DSLL32`+`DSRL32`) | Already little-endian |
+| `LE64 dst` | No-op | Already little-endian |
+| `BE16 dst` | `WSBH dst, dst` then `ANDI dst, dst, 0xFFFF` | WSBH swaps bytes within halfwords (KNOWN: ISA ref, "WSBH") |
+| `BE32 dst` | `WSBH dst, dst` then `ROTR dst, dst, 16` then zero-ext | ROTR rotates right (KNOWN: ISA ref, "ROTR") |
+| `BE64 dst` | `DSBH dst, dst` then `DSHD dst, dst` | Full 64-bit byte reverse (KNOWN: ISA ref, "DSBH" + "DSHD" — "can be used to convert doubleword data of one endianness to another") |
+| `BSWAP16 dst` | Same as BE16 | |
+| `BSWAP32 dst` | Same as BE32 | |
+| `BSWAP64 dst` | Same as BE64 | |
 
 ### 3.6 Memory Loads
 
 > **Cross-reference:** REQ-UBPF-ISA-MEM-001 (Regular Load/Store)
 
-| BPF Instruction | MIPS64 Instruction | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `LDXB dst, [src+off]` | `LBU dst, off(src)` | Zero-extending byte load |
-| `LDXH dst, [src+off]` | `LHU dst, off(src)` | Zero-extending halfword load |
-| `LDXW dst, [src+off]` | `LWU dst, off(src)` | Zero-extending word load |
-| `LDXDW dst, [src+off]` | `LD dst, off(src)` | Doubleword load |
+| `LDXB dst, [src+off]` | `LBU dst, off(src)` | Zero-extending byte load (KNOWN: ISA ref, "LBU") |
+| `LDXH dst, [src+off]` | `LHU dst, off(src)` | Zero-extending halfword load (KNOWN: ISA ref, "LHU") |
+| `LDXW dst, [src+off]` | `LWU dst, off(src)` | Zero-extending word load (KNOWN: ISA ref, "LWU") |
+| `LDXDW dst, [src+off]` | `LD dst, off(src)` | Doubleword load (KNOWN: ISA ref, "LD") |
 
-**Offset range:** Signed 16-bit (-32768 to +32767). Since BPF load/store offsets are also signed 16-bit, all BPF memory operations fit natively — no out-of-range handling is needed for `LDX*`/`STX*` instructions.
-
-For non-BPF data references (e.g., helper table, dispatcher pointer), offsets may exceed 16 bits and require materialization:
-```asm
-# Large offset (non-BPF data access only)
-LUI   $t0, %hi(offset)
-ORI   $t0, $t0, %lo(offset)
-DADDU $t0, src, $t0
-LD    dst, 0($t0)
-```
+**Offset range:** Signed 16-bit (-32768 to +32767). BPF load/store offsets are also signed 16-bit, so all BPF memory operations fit natively — no out-of-range handling needed.
 
 ### 3.7 Sign-Extending Loads
 
 > **Cross-reference:** REQ-UBPF-ISA-MEM-002 (Sign-Extension Loads)
 
-| BPF Instruction | MIPS64 Instruction | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `LDXSB dst, [src+off]` | `LB dst, off(src)` | Sign-extending byte load |
-| `LDXSH dst, [src+off]` | `LH dst, off(src)` | Sign-extending halfword load |
-| `LDXSW dst, [src+off]` | `LW dst, off(src)` | Sign-extending word load (native on MIPS64) |
+| `LDXSB dst, [src+off]` | `LB dst, off(src)` | Sign-extending byte load (KNOWN: ISA ref, "LB") |
+| `LDXSH dst, [src+off]` | `LH dst, off(src)` | Sign-extending halfword load (KNOWN: ISA ref, "LH") |
+| `LDXSW dst, [src+off]` | `LW dst, off(src)` | Sign-extending word load — MIPS64 `LW` sign-extends to 64 bits (KNOWN: ISA ref, "LW") |
 
 ### 3.8 Memory Stores
 
 > **Cross-reference:** REQ-UBPF-ISA-MEM-001 (Regular Load/Store)
 
-| BPF Instruction | MIPS64 Instruction | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `STXB [dst+off], src` | `SB src, off(dst)` | Store byte |
-| `STXH [dst+off], src` | `SH src, off(dst)` | Store halfword |
-| `STXW [dst+off], src` | `SW src, off(dst)` | Store word |
-| `STXDW [dst+off], src` | `SD src, off(dst)` | Store doubleword |
-| `STB [dst+off], imm` | Materialize imm → `$t0`; `SB $t0, off(dst)` | MIPS has no store-immediate |
+| `STXB [dst+off], src` | `SB src, off(dst)` | Store byte (KNOWN: ISA ref, "SB") |
+| `STXH [dst+off], src` | `SH src, off(dst)` | Store halfword (KNOWN: ISA ref, "SH") |
+| `STXW [dst+off], src` | `SW src, off(dst)` | Store word (KNOWN: ISA ref, "SW") |
+| `STXDW [dst+off], src` | `SD src, off(dst)` | Store doubleword (KNOWN: ISA ref, "SD") |
+| `STB [dst+off], imm` | Materialize imm → `$t0`; `SB $t0, off(dst)` | No store-immediate on MIPS |
 | `STH [dst+off], imm` | Materialize imm → `$t0`; `SH $t0, off(dst)` | |
 | `STW [dst+off], imm` | Materialize imm → `$t0`; `SW $t0, off(dst)` | |
 | `STDW [dst+off], imm` | Materialize imm → `$t0`; `SD $t0, off(dst)` | |
 
-**[CHALLENGE: No store-immediate]** Unlike x86-64, MIPS has no instruction to store an immediate value directly to memory. All immediate stores require materializing the value in a temporary register first.
+`[DESIGN DECISION]` MIPS has no store-immediate instruction (unlike x86-64's `mov [mem], imm`). All `ST_IMM` variants require materializing the immediate in a temporary register first. This adds 1–6 instructions per immediate store depending on the immediate size.
 
 ### 3.9 64-bit Immediate (LDDW)
 
 > **Cross-reference:** REQ-UBPF-ISA-LDDW-001 (Basic 64-bit Immediate Load)
 
-The LDDW instruction combines two BPF instruction slots into a 64-bit immediate. The JIT materializes this as:
+BPF LDDW combines two instruction slots into a 64-bit immediate `V = (next_imm << 32) | imm`.
 
+**Full 64-bit materialization (worst case: 6 instructions):**
 ```asm
-# Full 64-bit immediate materialization (worst case: 6 instructions)
-LUI   dst, bits[63:48]       # Load upper 16 bits
-ORI   dst, dst, bits[47:32]  # OR in next 16 bits
-DSLL  dst, dst, 16           # Shift left 16
-ORI   dst, dst, bits[31:16]  # OR in next 16 bits
-DSLL  dst, dst, 16           # Shift left 16
-ORI   dst, dst, bits[15:0]   # OR in lowest 16 bits
+LUI    dst, V[63:48]          # Load bits 63–48 into upper half of lower 32
+ORI    dst, dst, V[47:32]     # OR in bits 47–32
+DSLL   dst, dst, 16           # Shift left 16
+ORI    dst, dst, V[31:16]     # OR in bits 31–16
+DSLL   dst, dst, 16           # Shift left 16
+ORI    dst, dst, V[15:0]      # OR in bits 15–0
 ```
 
-**Optimization:** If the immediate fits in fewer bits, shorter sequences can be used:
-- 16-bit: `ORI dst, $zero, imm` (1 instruction)
-- 32-bit: `LUI dst, hi` + `ORI dst, dst, lo` (2 instructions)
-- 48-bit: 4 instructions (LUI + ORI + DSLL + ORI)
+**Optimized shorter sequences:**
+- Zero: `OR dst, $zero, $zero` (1 instruction)
+- 16-bit unsigned (0–65535): `ORI dst, $zero, imm` (1 instruction)
+- 16-bit signed (-32768 to 32767): `DADDIU dst, $zero, imm` (1 instruction)
+- 32-bit: `LUI dst, upper16` + `ORI dst, dst, lower16` (2 instructions)
+- 48-bit: `LUI` + `ORI` + `DSLL` + `ORI` (4 instructions)
 
 ### 3.10 Jump Instructions
 
 > **Cross-reference:** REQ-UBPF-ISA-JMP-001 (Conditional Jumps), REQ-UBPF-ISA-JMP-002 (Unconditional JA)
 
-MIPS64r6 compact branches (NO delay slots):
+MIPS64r6 compact branches have **no delay slots** (KNOWN: ISA ref — compact branches are a Release 6 feature).
 
-| BPF Instruction | MIPS64 Sequence | Notes |
+| BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
-| `JA +offset` | `BC target` | 26-bit signed offset (compact, no delay slot) |
-| `JEQ dst, src` | `BEQC dst, src, target` | 16-bit offset |
-| `JNE dst, src` | `BNEC dst, src, target` | 16-bit offset |
-| `JGT dst, src` | `BLTUC src, dst, target` | Unsigned: dst > src ⟺ src < dst |
-| `JGE dst, src` | `BGEUC dst, src, target` | Unsigned greater-or-equal |
-| `JLT dst, src` | `BLTUC dst, src, target` | Unsigned less-than |
-| `JLE dst, src` | `BGEUC src, dst, target` | Unsigned: dst ≤ src ⟺ src ≥ dst |
-| `JSGT dst, src` | `BLTC src, dst, target` | Signed: dst > src ⟺ src < dst |
-| `JSGE dst, src` | `BGEC dst, src, target` | Signed greater-or-equal |
-| `JSLT dst, src` | `BLTC dst, src, target` | Signed less-than |
-| `JSLE dst, src` | `BGEC src, dst, target` | Signed: dst ≤ src ⟺ src ≥ dst |
-| `JSET dst, src` | `AND $t0, dst, src` then `BNEZC $t0, target` | 2-instruction sequence |
+| `JA +offset` | `BC target` | 26-bit signed offset (KNOWN: ISA ref, "BC") |
+| `JEQ dst, src` | `BEQC dst, src, target` | 16-bit offset (KNOWN: ISA ref, "BEQC") |
+| `JNE dst, src` | `BNEC dst, src, target` | (KNOWN: ISA ref, "BNEC") |
+| `JGT dst, src` | `BLTUC src, dst, target` | Unsigned dst > src ⟺ src < dst (KNOWN: ISA ref, "BLTUC") |
+| `JGE dst, src` | `BGEUC dst, src, target` | (KNOWN: ISA ref, "BGEUC") |
+| `JLT dst, src` | `BLTUC dst, src, target` | (KNOWN: ISA ref, "BLTUC") |
+| `JLE dst, src` | `BGEUC src, dst, target` | Unsigned dst ≤ src ⟺ src ≥ dst |
+| `JSGT dst, src` | `BLTC src, dst, target` | Signed (KNOWN: ISA ref, "BLTC") |
+| `JSGE dst, src` | `BGEC dst, src, target` | (KNOWN: ISA ref, "BGEC") |
+| `JSLT dst, src` | `BLTC dst, src, target` | |
+| `JSLE dst, src` | `BGEC src, dst, target` | |
+| `JSET dst, src` | `AND $t0, dst, src` then `BNEZC $t0, target` | 2-instruction sequence; BNEZC has 21-bit offset (KNOWN: ISA ref, "BNEZC") |
 | `JEQ dst, imm` | Materialize imm → `$t0`; `BEQC dst, $t0, target` | |
+| `JA32 +imm` | `BC target` | Use imm field for 32-bit offset range |
 
-**Branch range:** Compact conditional branches (`BEQC`, etc.) have a 16-bit signed offset (±32K instructions ≈ ±128KB). The unconditional `BC` has a 26-bit signed offset (±33M instructions ≈ ±128MB). For programs exceeding conditional branch range, a trampoline pattern is needed:
+**Branch ranges (KNOWN: ISA ref):**
 
+| Branch Type | Offset Field | Range (instructions) | Range (bytes) |
+|---|---|---|---|
+| `BC` (unconditional) | 26-bit signed | ±33M | ±128MB |
+| `BEQC`/`BNEC` (register compare) | 16-bit signed | ±32K | ±128KB |
+| `BNEZC`/`BEQZC` (compare with zero) | 21-bit signed | ±1M | ±4MB |
+
+**Branch trampoline for out-of-range conditional:**
 ```asm
-# Branch trampoline for out-of-range conditional
-BNEC  dst, src, .Lskip    # Inverted condition, short range
-BC    far_target           # Long-range unconditional
+BNEC   dst, src, .Lskip      # Inverted condition, short range
+BC     far_target             # Long-range unconditional (26-bit)
 .Lskip:
 ```
 
@@ -285,40 +312,42 @@ BC    far_target           # Long-range unconditional
 
 > **Cross-reference:** REQ-UBPF-ISA-ATOM-001 (Simple Atomics), REQ-UBPF-ISA-ATOM-002 (Complex Atomics)
 
-MIPS64 uses Load-Linked/Store-Conditional (LL/SC) for atomics, similar to ARM64's LDXR/STXR:
+MIPS64r6 uses Load-Linked/Store-Conditional (`LLD`/`SCD` for 64-bit, `LL`/`SC` for 32-bit) to implement atomic operations (KNOWN: ISA ref — "The LLD and SCD instructions provide primitives to implement atomic read-modify-write (RMW) operations").
 
+**Atomic ADD64 pattern (with FETCH):**
 ```asm
-# Atomic ADD64 (FETCH variant)
-DADDIU $t2, dst, offset       # Address computation
+DADDIU  $t2, dst, offset          # Compute address in $t2
 .Lretry:
-LLD    $t0, 0($t2)            # Load-linked doubleword
-DADDU  $t1, $t0, src          # Compute new value
-SCD    $t1, 0($t2)            # Store-conditional
-BEQZC  $t1, .Lretry           # Retry if SC failed (R6: no delay slot)
-OR     src, $t0, $zero        # FETCH: return old value in src
+LLD     $t0, 0($t2)              # Load-linked doubleword (KNOWN: ISA ref, "LLD")
+DADDU   $t1, $t0, src            # Compute new value
+SCD     $t1, 0($t2)              # Store-conditional (KNOWN: ISA ref, "SCD")
+BEQZC   $t1, .Lretry             # Retry if SC failed ($t1 == 0 on failure)
+OR      src, $t0, $zero          # FETCH: return old value in src register
 ```
 
-| BPF Atomic | MIPS64 Op in Loop | 32-bit Variant |
+| BPF Atomic | Operation in LL/SC Loop | 32-bit: use `LL`/`SC` |
 |---|---|---|
-| ADD | `DADDU $t1, $t0, src` | `ADDU` with `LL`/`SC` |
-| OR | `OR $t1, $t0, src` | Same with `LL`/`SC` |
-| AND | `AND $t1, $t0, src` | Same with `LL`/`SC` |
-| XOR | `XOR $t1, $t0, src` | Same with `LL`/`SC` |
-| XCHG | `OR $t1, src, $zero` | Direct exchange |
-| CMPXCHG | Compare `$t0` with `$v0` (R0), conditional store | Compare with BPF R0 |
+| ADD | `DADDU $t1, $t0, src` | `ADDU` |
+| OR | `OR $t1, $t0, src` | Same |
+| AND | `AND $t1, $t0, src` | Same |
+| XOR | `XOR $t1, $t0, src` | Same |
+| XCHG | `OR $t1, src, $zero` (direct exchange) | Same |
+| CMPXCHG | Compare `$t0` with `$v0` (BPF R0); conditional store | Same |
 
 **CMPXCHG pattern:**
 ```asm
-DADDIU $t2, dst, offset
+DADDIU  $t2, dst, offset
 .Lretry:
-LLD    $t0, 0($t2)
-BNEC   $t0, $v0, .Lfail      # Compare with BPF R0 ($v0)
-OR     $t1, src, $zero        # New value = src
-SCD    $t1, 0($t2)
-BEQZC  $t1, .Lretry
+LLD     $t0, 0($t2)
+BNEC    $t0, $v0, .Lfail         # Compare with BPF R0 ($v0)
+OR      $t1, src, $zero          # New value = src
+SCD     $t1, 0($t2)
+BEQZC   $t1, .Lretry             # Retry if SC failed
 .Lfail:
-OR     $v0, $t0, $zero        # R0 = old value (always)
+OR      $v0, $t0, $zero          # R0 = old value (always, per BPF spec)
 ```
+
+**Non-FETCH simple atomics** (no return value): Same LL/SC loop but omit the final `OR src, $t0, $zero`.
 
 ### 3.12 CALL Instructions
 
@@ -327,15 +356,23 @@ OR     $v0, $t0, $zero        # R0 = old value (always)
 **External helper call:**
 ```asm
 # BPF R1-R5 already in $a0-$a4 (zero-cost mapping)
-# Load 6th parameter (context cookie) into $a5 ($9)
-OR    $a5, $context_reg, $zero  # Cookie/context pointer
-# Load function pointer via dedicated JIT base register (see §2.2)
-# [DECISION NEEDED]: Which callee-saved register serves as the helper table base?
-# A callee-saved register (e.g., $s5 or $s6) should be loaded with the helper table
-# base address in the prologue and used here. $gp is not used.
-LD    $t0, helper_table_offset($helper_base_reg)
-JALR  $ra, $t0                  # Indirect call
-# Return value already in $v0 = BPF R0
+OR     $a5, $context_reg, $zero   # 6th param: context cookie
+# Load function pointer from helper table via $s5 (base register)
+DADDIU $t0, $zero, (index * 8)    # Offset = helper index * 8
+DADDU  $t0, $s5, $t0              # $s5 = helper table base (loaded in prologue)
+LD     $t0, 0($t0)                # Load function pointer
+JALR   $ra, $t0                   # Indirect call (saves return address in $ra)
+# Result in $v0 = BPF R0
+```
+
+**Dynamic dispatcher call:**
+```asm
+# Load dispatcher function pointer from data section via $s5
+LD     $t0, dispatcher_offset($s5)
+# $a0-$a4 = BPF R1-R5 (already mapped)
+LI     $a5, index                  # 6th param: helper index (ORI or LUI+ORI)
+OR     $a6, $context_reg, $zero   # 7th param: context cookie
+JALR   $ra, $t0                    # Call dispatcher
 ```
 
 **Local function call:** See §7.
@@ -346,8 +383,7 @@ JALR  $ra, $t0                  # Indirect call
 
 ```asm
 # Return value already in $v0 (BPF R0)
-# Branch to epilogue
-BC    .Lexit
+BC     .Lexit                     # Branch to epilogue
 ```
 
 ---
@@ -356,49 +392,52 @@ BC    .Lexit
 
 ### 4.1 BasicJitMode
 
-**[PROPOSED]** Prologue:
+**Prologue:**
 ```asm
-# Save callee-saved registers
-DADDIU $sp, $sp, -frame_size
-SD     $ra, frame_size-8($sp)     # Save return address
-SD     $fp, frame_size-16($sp)    # Save frame pointer
-OR     $fp, $sp, $zero            # Set native frame pointer = $sp
-SD     $s0, frame_size-24($sp)    # BPF R6
-SD     $s1, frame_size-32($sp)    # BPF R7
-SD     $s2, frame_size-40($sp)    # BPF R8
-SD     $s3, frame_size-48($sp)    # BPF R9
-SD     $s4, frame_size-56($sp)    # BPF R10 (frame pointer)
+DADDIU  $sp, $sp, -frame_size     # Allocate stack frame (16-byte aligned)
+SD      $ra, frame_size-8($sp)    # Save return address
+SD      $fp, frame_size-16($sp)   # Save native frame pointer
+OR      $fp, $sp, $zero           # Set $fp = $sp
+SD      $s0, frame_size-24($sp)   # Save BPF R6
+SD      $s1, frame_size-32($sp)   # Save BPF R7
+SD      $s2, frame_size-40($sp)   # Save BPF R8
+SD      $s3, frame_size-48($sp)   # Save BPF R9
+SD      $s4, frame_size-56($sp)   # Save BPF R10
+SD      $s5, frame_size-64($sp)   # Save helper table base
+
+# Load helper table base into $s5
+# [DESIGN DECISION]: Helper table pointer is embedded in the JIT data section.
+# Use BALC to get PC, then add known offset to reach the data section.
+BALC    .Lpc                       # $ra = PC + 4 (KNOWN: ISA ref, "BALC")
+.Lpc:
+DADDIU  $s5, $ra, data_offset     # $s5 = address of helper table base
 
 # Setup BPF frame pointer (R10 = top of BPF stack)
-DADDIU $s4, $sp, bpf_stack_offset
-
-# Initialize BPF registers
-# R1 ($a0) = mem, R2 ($a1) = mem_len — already in place from caller
+DADDIU  $s4, $sp, bpf_stack_offset
+# BPF R1 ($a0) = mem, R2 ($a1) = mem_len — already in place from caller
 ```
 
-**[PROPOSED]** Epilogue:
+**Epilogue:**
 ```asm
 .Lexit:
-# Restore callee-saved registers
-LD     $s4, frame_size-56($sp)
-LD     $s3, frame_size-48($sp)
-LD     $s2, frame_size-40($sp)
-LD     $s1, frame_size-32($sp)
-LD     $s0, frame_size-24($sp)
-LD     $fp, frame_size-16($sp)
-LD     $ra, frame_size-8($sp)
-DADDIU $sp, $sp, frame_size
-
-# Return value in $v0 (BPF R0)
-JR     $ra
+LD      $s5, frame_size-64($sp)
+LD      $s4, frame_size-56($sp)
+LD      $s3, frame_size-48($sp)
+LD      $s2, frame_size-40($sp)
+LD      $s1, frame_size-32($sp)
+LD      $s0, frame_size-24($sp)
+LD      $fp, frame_size-16($sp)
+LD      $ra, frame_size-8($sp)
+DADDIU  $sp, $sp, frame_size
+JR      $ra                        # Return ($v0 holds BPF R0)
 ```
 
 ### 4.2 ExtendedJitMode
 
-Same as BasicJitMode, except:
-- BPF stack is caller-provided via additional parameters (`$a2` = stack_start, `$a3` = stack_len)
-- `$s4` (BPF R10) is set to `$a2 + $a3` (top of provided stack)
-- No internal stack allocation for BPF stack space
+Same as BasicJitMode except:
+- BPF stack is caller-provided: `$a2` = stack_start, `$a3` = stack_len
+- `$s4` (BPF R10) = `$a2 + $a3` (top of provided stack, via `DADDU`)
+- No BPF stack space allocated on the native stack
 
 ---
 
@@ -406,32 +445,54 @@ Same as BasicJitMode, except:
 
 ### 5.1 Constant Blinding
 
-**[PROPOSED]** Same approach as ARM64 — XOR immediates with a CSPRNG-generated random value:
+Same XOR approach as x86-64 and ARM64 backends (KNOWN: `jit-x86-64.md` §5.1, `jit-arm64.md` §5.1):
 
 ```asm
-# Blinded immediate load (64-bit value V, random R)
-# Emit: load (V XOR R), then XOR with R to recover V
-LUI   $t0, %hi(R)
-ORI   $t0, $t0, %lo(R)
-# ... full 64-bit materialization of R ...
-LUI   dst, %hi(V^R)
-ORI   dst, dst, %lo(V^R)
-# ... full 64-bit materialization of V^R ...
-XOR   dst, dst, $t0           # dst = (V^R) ^ R = V
+# Blinded 64-bit immediate load: value V, random key R
+# Step 1: Materialize (V XOR R) into dst (up to 6 instructions)
+LUI    dst, (V^R)[63:48]
+ORI    dst, dst, (V^R)[47:32]
+DSLL   dst, dst, 16
+ORI    dst, dst, (V^R)[31:16]
+DSLL   dst, dst, 16
+ORI    dst, dst, (V^R)[15:0]
+# Step 2: Materialize R into $t0 (up to 6 instructions)
+LUI    $t0, R[63:48]
+ORI    $t0, $t0, R[47:32]
+DSLL   $t0, $t0, 16
+ORI    $t0, $t0, R[31:16]
+DSLL   $t0, $t0, 16
+ORI    $t0, $t0, R[15:0]
+# Step 3: Recover V
+XOR    dst, dst, $t0              # dst = (V^R) ^ R = V
 ```
 
-**[CHALLENGE: Instruction count]** Constant blinding doubles the instruction count for every immediate load (two full 64-bit materializations + XOR). On MIPS this is 6+6+1 = 13 instructions for a 64-bit blinded load, vs. 6 unblinded.
+**Cost:** Worst case 13 instructions per blinded 64-bit load (vs. ~3 on x86-64). Shorter sequences for smaller immediates.
+
+**RNG:** Same `ubpf_generate_blinding_constant()` from `ubpf_jit_support.c` — platform-appropriate CSPRNG (KNOWN: `jit-x86-64.md` §5.1).
 
 ### 5.2 W⊕X Memory Management
 
-Same framework as x86-64 and ARM64 — handled by `ubpf_jit.c`:
+Same framework from `ubpf_jit.c` as x86-64 and ARM64 (KNOWN: `jit-x86-64.md` §5.3):
 1. Allocate writable working buffer
-2. Emit code into working buffer
-3. Allocate executable buffer (`mmap` with `PROT_READ|PROT_WRITE`)
-4. Copy code to executable buffer
+2. Emit code
+3. Allocate executable buffer (`mmap` `PROT_READ|PROT_WRITE`)
+4. Copy code
 5. `mprotect` to `PROT_READ|PROT_EXEC`
 
-**[PROPOSED]** MIPS may require cache coherence operations (`synci` + `sync`) after `mprotect` to ensure the instruction cache sees the new code. This is platform-dependent.
+**MIPS64r6-specific: Cache coherence** — After `mprotect`, the instruction cache may still contain stale data. The JIT MUST execute `SYNCI` (Synchronize Caches to Make Instruction Writes Effective) over the code region, followed by `SYNC` (KNOWN: ISA ref, "SYNCI" — "refer to the SYNCI instruction for cache coherence after code modification").
+
+```asm
+# Cache coherence after mprotect (executed by the JIT framework, not the JIT'd code)
+# Loop SYNCI over every cache line in the code region
+loop:
+    SYNCI  0(addr)
+    DADDIU addr, addr, cache_line_size
+    BLTUC  addr, end, loop
+SYNC                               # Ensure all SYNCI operations complete
+```
+
+`[DESIGN DECISION]` Cache line size detection: use `sysconf(_SC_LEVEL1_ICACHE_LINESIZE)` on Linux, or a conservative default (e.g., 32 bytes).
 
 ---
 
@@ -439,29 +500,23 @@ Same framework as x86-64 and ARM64 — handled by `ubpf_jit.c`:
 
 ### 6.1 Static Table Dispatch
 
-```asm
-# Load helper function pointer from table
-LD     $t0, helper_table_base         # Base of helper pointer array (loaded via base register)
-DADDIU $t1, $zero, (imm * 8)         # Offset into table (imm = helper index from BPF instruction)
-DADDU  $t0, $t0, $t1
-LD     $t0, 0($t0)                    # Load function pointer
-# BPF R1-R5 already in $a0-$a4
-OR     $a5, $context, $zero           # 6th param: context cookie
-JALR   $ra, $t0                       # Call helper
-# Result in $v0 = BPF R0
-```
+See §3.12. Helper function pointers are stored in a table embedded in the JIT data section. The base address is loaded into `$s5` during the prologue.
 
 ### 6.2 Dynamic Dispatcher
 
-```asm
-# Load dispatcher function pointer
-LD     $t0, dispatcher_offset          # Load dispatcher pointer (via base register)
-# $a0-$a4 = BPF R1-R5 (already mapped)
-LI     $a5, imm_index                  # 6th param: helper index (ORI or LUI+ORI)
-OR     $a6, $context, $zero            # 7th param: context cookie
-JALR   $ra, $t0                        # Call dispatcher
-# Result in $v0 = BPF R0
-```
+See §3.12. The dispatcher function pointer is stored at a known offset from the helper table base.
+
+### 6.3 Parameter Marshaling
+
+| BPF Parameter | MIPS64r6 Register | n64 ABI Role | Cost |
+|---|---|---|---|
+| R1 (arg 1) | `$a0` ($4) | 1st argument | Zero (already mapped) |
+| R2 (arg 2) | `$a1` ($5) | 2nd argument | Zero |
+| R3 (arg 3) | `$a2` ($6) | 3rd argument | Zero |
+| R4 (arg 4) | `$a3` ($7) | 4th argument | Zero |
+| R5 (arg 5) | `$a4` ($8) | 5th argument | Zero |
+| Context cookie | `$a5` ($9) | 6th argument | 1 instruction (`OR`) |
+| Helper index (dispatcher) | `$a5`/`$a6` | 6th/7th argument | 1–2 instructions |
 
 ---
 
@@ -470,85 +525,77 @@ JALR   $ra, $t0                        # Call dispatcher
 > **Cross-reference:** REQ-UBPF-ISA-CALL-002 (Program-Local Function)
 
 ```asm
-# Save callee-saved BPF registers (R6-R9)
-SD     $s0, -8($s4)              # Save R6 at current frame
-SD     $s1, -16($s4)             # Save R7
-SD     $s2, -24($s4)             # Save R8
-SD     $s3, -32($s4)             # Save R9
-
+# Save callee-saved BPF registers (R6-R9) to BPF stack
+SD      $s0, -8($s4)             # Save BPF R6
+SD      $s1, -16($s4)            # Save BPF R7
+SD      $s2, -24($s4)            # Save BPF R8
+SD      $s3, -32($s4)            # Save BPF R9
 # Adjust BPF frame pointer
-DADDIU $s4, $s4, -stack_usage    # R10 -= local function stack size
-
-# Branch to local function
-BAL    target_offset             # Branch-and-link (saves PC+4 in $ra)
+DADDIU  $s4, $s4, -stack_usage   # R10 -= local function stack size (16-byte aligned)
+# Branch-and-link to local function
+BALC    target_offset            # R6 compact branch-and-link (KNOWN: ISA ref, "BALC")
+                                  # Saves return address in $ra
 ```
 
 **Return from local function (EXIT with call depth > 0):**
 ```asm
-# Restore BPF frame pointer
-DADDIU $s4, $s4, stack_usage
-
-# Restore callee-saved BPF registers
-LD     $s0, -8($s4)
-LD     $s1, -16($s4)
-LD     $s2, -24($s4)
-LD     $s3, -32($s4)
-
-# Return to caller (JR $ra from the BAL)
-JR     $ra
+DADDIU  $s4, $s4, stack_usage    # Restore BPF frame pointer
+LD      $s0, -8($s4)             # Restore BPF R6
+LD      $s1, -16($s4)            # Restore BPF R7
+LD      $s2, -24($s4)            # Restore BPF R8
+LD      $s3, -32($s4)            # Restore BPF R9
+JR      $ra                      # Return to caller
 ```
 
 ---
 
-## 8. MIPS64-Specific Constraints
+## 8. MIPS64r6-Specific Constraints
 
 ### 8.1 Immediate Encoding
 
-| Instruction Type | Immediate Width | Range | Example |
+| Instruction Type | Width | Range | Impact |
 |---|---|---|---|
-| I-type (DADDIU, ORI, etc.) | 16-bit signed | -32768 to +32767 | `DADDIU dst, src, imm` |
-| I-type unsigned (ORI, ANDI, XORI) | 16-bit unsigned | 0 to 65535 | `ORI dst, src, imm` |
-| LUI | 16-bit | Upper 16 bits | `LUI dst, imm` |
-| Shift (DSLL, etc.) | 5-bit | 0 to 31 | `DSLL dst, src, sa` |
+| Arithmetic immediate (DADDIU) | 16-bit signed | -32768 to +32767 | BPF imm32 needs materialization for large values |
+| Logical immediate (ORI, ANDI, XORI) | 16-bit unsigned | 0 to 65535 | |
+| LUI | 16-bit | Sets bits [31:16] | Used with ORI for 32-bit constants |
+| Shift amount (DSLL) | 5-bit | 0 to 31 | DSLL32 for shifts 32–63 |
 
-**Impact:** Most BPF immediates (32-bit signed) require 2-instruction LUI+ORI sequences. 64-bit immediates require up to 6 instructions. This is the largest code-size overhead vs. x86-64.
+**Impact:** Most BPF 32-bit immediates require 2-instruction `LUI`+`ORI` sequences. 64-bit values need up to 6 instructions. This is the largest code-size overhead vs. x86-64.
 
 ### 8.2 Load/Store Offset Ranges
 
-Signed 16-bit: -32768 to +32767 bytes. BPF offsets are signed 16-bit, so they always fit in MIPS load/store offsets. **No out-of-range handling needed for BPF memory operations.**
+Signed 16-bit: -32768 to +32767. BPF offsets are signed 16-bit, so all BPF memory operations fit natively. No out-of-range handling needed for `LDX*`/`STX*`.
 
 ### 8.3 Branch Range
 
-| Branch Type | Offset Width | Range (instructions) | Range (bytes) |
-|---|---|---|---|
-| `BC` (unconditional compact) | 26-bit signed | ±33M instructions | ±128MB |
-| `BEQC`/`BNEC` (conditional compact) | 16-bit signed | ±32K instructions | ±128KB |
-| `BEQZC`/`BNEZC` (compare-zero compact) | 21-bit signed | ±1M instructions | ±4MB |
+See §3.10. Conditional compact branches are limited to ±32K instructions (±128KB). For programs exceeding this, branch trampolines are required.
 
-For programs exceeding 32K instructions, conditional branches may need trampoline sequences (see §3.10).
+### 8.4 Removed Instructions in R6
 
-### 8.4 Delay Slots (R6 vs Pre-R6)
+MIPS64r6 removes several pre-R6 instructions. This spec does NOT use any removed instructions:
+- No `BEQL`/`BNEL` (branch-likely with delay slots) — using `BEQC`/`BNEC` instead
+- No `MOVN`/`MOVZ` (conditional move) — removed in R6
+- No HI/LO register access (`MFHI`/`MFLO`) — R6 uses direct GPR results for MUL/DIV
+- No legacy branch instructions with delay slots — using compact branches exclusively
 
-**MIPS64r6:** Compact branches (`BC`, `BEQC`, `BNEC`, etc.) have **NO delay slots**. This specification targets R6 exclusively.
+### 8.5 Cache Coherence
 
-**Pre-R6 MIPS:** Traditional branches (`BEQ`, `BNE`, `J`, etc.) have delay slots — the instruction after the branch is always executed. Supporting pre-R6 would require inserting NOP in every delay slot or scheduling useful instructions. **[DECISION NEEDED]:** Should pre-R6 support be a goal?
+See §5.2. MIPS requires explicit `SYNCI` + `SYNC` after writing code to memory, as the instruction cache is not coherent with data writes on most MIPS implementations (KNOWN: ISA ref, "SYNCI").
 
 ---
 
 ## 9. Patchable Targets and Fixups
 
-**[PROPOSED]** Follow the same `jit_state` framework as x86-64 and ARM64:
+Same `jit_state` framework as x86-64 and ARM64 (KNOWN: `ubpf_jit_support.c`):
 
-1. **During code emission:** Record jump/call locations in `patchable_relative` arrays with placeholder offsets
+1. **During emission:** Record branch/call locations in `patchable_relative` arrays with placeholder offsets
 2. **After emission:** Resolve each placeholder:
-   - For `BC`: Compute `(target - source) >> 2`, encode in 26-bit field
+   - For `BC`: Compute `(target - source) / 4`, encode in 26-bit field
    - For `BEQC`/`BNEC`: Compute offset, encode in 16-bit field; emit trampoline if out of range
-   - For `BAL` (local calls): Compute `pc_locs[target_pc] - source`
-3. **Data references:** Use `ADR`-equivalent (computed `LUI`+`ORI`+`DADDU`) to reach helper table and dispatcher pointer
+   - For `BALC` (local calls): Compute `(target - source) / 4`
+3. **Data references:** Use `$s5` base register (loaded via `BALC` + offset in prologue) to reach helper table and dispatcher pointer. This avoids position-dependent absolute addresses.
 
-**[CHALLENGE: No PC-relative data access]** MIPS lacks x86-64's RIP-relative addressing and ARM64's LDR literal. Data references (helper table, dispatcher pointer) must use absolute addresses or a base register. Options:
-- Embed data at a known offset from code start, use a base register loaded in the prologue
-- Use `BALC` (Branch and Link Compact) to get PC, then add offset
+`[DESIGN DECISION]` Using `BALC` (Branch and Link Compact) to capture PC for position-independent data access, since MIPS lacks x86-64's RIP-relative addressing and ARM64's `ADR`/`LDR literal`. This is a standard MIPS PIC technique.
 
 ---
 
@@ -556,4 +603,4 @@ For programs exceeding 32K instructions, conditional branches may need trampolin
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
-| 1.0.0 | 2026-04-01 | Proposed specification | Initial MIPS64r6 JIT backend specification — all mappings [PROPOSED], no implementation exists |
+| 1.0.0 | 2026-04-01 | Generated via JIT backend spec workflow | Initial MIPS64r6 specification. ISA details verified against MIPS64 Architecture for Programmers Vol II, Rev 6.06. |
