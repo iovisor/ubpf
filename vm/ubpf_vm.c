@@ -1815,7 +1815,6 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_LSH_REG:
         case EBPF_OP_RSH_IMM:
         case EBPF_OP_RSH_REG:
-        case EBPF_OP_NEG:
         case EBPF_OP_MOD_REG:
         case EBPF_OP_XOR_IMM:
         case EBPF_OP_XOR_REG:
@@ -1823,6 +1822,13 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_MOV_REG:
         case EBPF_OP_ARSH_IMM:
         case EBPF_OP_ARSH_REG:
+            break;
+
+        case EBPF_OP_NEG:
+            if (inst.src != 0) {
+                *errmsg = ubpf_error("invalid src field for neg op at PC %d", i);
+                return false;
+            }
             break;
 
         case EBPF_OP_LE:
@@ -1849,7 +1855,6 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
         case EBPF_OP_LSH64_REG:
         case EBPF_OP_RSH64_IMM:
         case EBPF_OP_RSH64_REG:
-        case EBPF_OP_NEG64:
         case EBPF_OP_MOD64_REG:
         case EBPF_OP_XOR64_IMM:
         case EBPF_OP_XOR64_REG:
@@ -1860,6 +1865,13 @@ validate(const struct ubpf_vm* vm, const struct ebpf_inst* insts, uint32_t num_i
             break;
         case EBPF_OP_ARSH64_IMM:
         case EBPF_OP_ARSH64_REG:
+            break;
+
+        case EBPF_OP_NEG64:
+            if (inst.src != 0) {
+                *errmsg = ubpf_error("invalid src field for neg64 op at PC %d", i);
+                return false;
+            }
             break;
 
         case EBPF_OP_LDXW:
