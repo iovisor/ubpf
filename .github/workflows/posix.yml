@@ -123,8 +123,9 @@ jobs:
 
         if [[ "${{ inputs.arch }}" == "mips64" ]] ; then
           sudo apt install -y \
-            g++-mips64el-linux-gnuabi64 \
             gcc-mips64el-linux-gnuabi64 \
+            g++-mips64el-linux-gnuabi64 \
+            libc6-dev-mips64el-cross \
             qemu-user
         fi
 
@@ -159,7 +160,7 @@ jobs:
         fi
 
     - name: Build/install libbpf From Source
-      if: inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm'
+      if: (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm') && inputs.arch != 'mips64'
       run: ./.github/scripts/build-libbpf.sh
       shell: bash
 
@@ -186,7 +187,7 @@ jobs:
           arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake"
         elif [[ "${{ inputs.arch }}" == "mips64" ]] ; then
           # Cross-compiling for MIPS64r6 on x86_64
-          arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/mips64.cmake"
+          arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/mips64.cmake -DUBPF_SKIP_EXTERNAL=true"
         else
           arch_flags=""
         fi
