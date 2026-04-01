@@ -220,7 +220,38 @@ MODU   dst, dst, src          # Unsigned 32-bit modulo (KNOWN: ISA ref, "MODU")
 
 **Signed variants (offset==1):** Use `DDIV`/`DMOD` (signed). MIPS64r6 `DDIV` uses truncated division semantics where `-13 / 3 == -4` and `DMOD` gives `-13 % 3 == -1` (KNOWN: ISA ref — MIPS division follows C99/truncated semantics), matching RFC 9669.
 
-**INT_MIN / -1 handling:** `[DESIGN DECISION]` Emit an explicit check: if `src == -1` and `dst == INT64_MIN`, set `dst = INT64_MIN`. MIPS64r6 `DDIV` behavior for this case is implementation-defined per the ISA ref. The uBPF interpreter returns `INT64_MIN` for this case.
+**INT_MIN / -1 overflow handling:** `[DESIGN DECISION]` Emit explicit checks for the signed overflow edge case. MIPS64r6 `DDIV`/`DMOD` behavior for INT_MIN / -1 is implementation-defined per the ISA ref. The uBPF interpreter defines specific behavior for this case (KNOWN: `vm/ubpf_vm.c`; cross-ref: REQ-UBPF-ISA-DIV-005, uBPF extension):
+
+| Operation | Width | Edge Case | uBPF Result | MIPS64r6 JIT Sequence |
+|---|---|---|---|---|
+| SDIV | 64-bit | `INT64_MIN / -1` | `INT64_MIN` | Check `src == -1 && dst == INT64_MIN` → set `dst = INT64_MIN` |
+| SDIV | 32-bit | `INT32_MIN / -1` | `INT32_MIN` | Same check (32-bit values) + zero-ext |
+| SMOD | 64-bit | `INT64_MIN % -1` | `0` | Check `src == -1` → set `dst = 0` |
+| SMOD | 32-bit | `INT32_MIN % -1` | `0` | Check `src == -1` → set `dst = 0` + zero-ext |
+
+```asm
+# SDIV64 with INT_MIN/-1 guard:
+DADDIU  $t4, $zero, -1
+BNEC    src, $t4, .Lnormal        # Not dividing by -1, skip guard
+# src == -1: check if dst == INT64_MIN
+LUI     $t4, 0x8000               # $t4 = INT64_MIN (sign-extended from 0x80000000)
+DSLL32  $t4, $t4, 0               # Shift to get 0x8000000000000000
+BNEC    dst, $t4, .Lnormal        # dst != INT64_MIN, safe to divide
+OR      dst, $t4, $zero           # dst = INT64_MIN (overflow result)
+BC      .Ldone
+.Lnormal:
+DDIV    dst, dst, src
+.Ldone:
+
+# SMOD64 with -1 guard (simpler: any value % -1 == 0):
+DADDIU  $t4, $zero, -1
+BNEC    src, $t4, .Lnormal
+OR      dst, $zero, $zero         # dst = 0
+BC      .Ldone
+.Lnormal:
+DMOD    dst, dst, src
+.Ldone:
+```
 
 ### 3.4 Sign-Extension MOV (MOVSX)
 
