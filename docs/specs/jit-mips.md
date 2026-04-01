@@ -56,6 +56,7 @@ This document specifies the proposed mapping from BPF ISA instructions to MIPS64
 | `$t2` ($14) | Temp 2 | Address computation for out-of-range offsets, atomic address |
 | `$t3` ($15) | Temp 3 | Additional scratch for complex instruction sequences |
 | `$s5` ($21) | Saved 5 | `[DESIGN DECISION]` Helper table base register (loaded in prologue) |
+| `$s6` ($22) | Saved 6 | `[DESIGN DECISION]` Context/cookie pointer (preserved across helper calls) |
 
 **Reserved registers (NOT used by JIT):**
 
@@ -73,7 +74,7 @@ This document specifies the proposed mapping from BPF ISA instructions to MIPS64
 
 Per n64 ABI: `$s0`–`$s7` ($16–$23), `$fp` ($30), `$ra` ($31).
 
-The JIT uses `$s0`–`$s5` ($16–$21) and must save/restore them plus `$fp` and `$ra`.
+The JIT uses `$s0`–`$s6` ($16–$22) and must save/restore them plus `$fp` and `$ra`.
 
 ---
 
@@ -126,8 +127,8 @@ The MIPS64 ISA states: *"the 32-bit result is sign-extended and placed into GPR 
 **Zero-extension sequence:**
 ```asm
 # After any 32-bit ALU op, zero-extend upper 32 bits:
-DSLL32  dst, dst, 0     # Shift left by 32 (clears upper 32, moves lower 32 to upper)
-DSRL32  dst, dst, 0     # Shift right by 32 (moves back, zeros upper 32)
+DSLL32  dst, dst, 0     # Shift left by 32 (moves original low 32 into high 32, clears low 32, discards old high 32)
+DSRL32  dst, dst, 0     # Shift right by 32 (restores low 32 bits into low position, zeros upper 32)
 ```
 
 `[DESIGN DECISION]` Using `DSLL32`+`DSRL32` (2 instructions) for zero-extension rather than `DINSU` (1 instruction, but MIPS64r2+ only — needs R2 confirmation, and encoding is complex). The shift pair is universally available on all MIPS64 implementations.
@@ -135,16 +136,28 @@ DSRL32  dst, dst, 0     # Shift right by 32 (moves back, zeros upper 32)
 | BPF Instruction | MIPS64r6 Sequence | Notes |
 |---|---|---|
 | `ADD32_REG dst, src` | `ADDU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "ADDU") |
+| `ADD32_IMM dst, imm` | `ADDIU dst, dst, imm` + zero-ext | 16-bit signed imm; larger: materialize in `$t0`, `ADDU` |
 | `SUB32_REG dst, src` | `SUBU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "SUBU") |
+| `SUB32_IMM dst, imm` | `ADDIU dst, dst, -imm` + zero-ext | If fits; else materialize and `SUBU` |
 | `MUL32_REG dst, src` | `MUL dst, dst, src` + zero-ext | R6 native (KNOWN: ISA ref, "MUL") |
+| `MUL32_IMM dst, imm` | Materialize imm → `$t0`; `MUL dst, dst, $t0` + zero-ext | |
+| `DIV32_REG dst, src` | See §3.3 (32-bit division) + zero-ext | |
+| `MOD32_REG dst, src` | See §3.3 (32-bit modulo) + zero-ext | |
 | `OR32_REG dst, src` | `OR dst, dst, src` + zero-ext | |
+| `OR32_IMM dst, imm` | `ORI dst, dst, imm` + zero-ext | 16-bit unsigned; larger: materialize + `OR` |
 | `AND32_REG dst, src` | `AND dst, dst, src` + zero-ext | |
+| `AND32_IMM dst, imm` | `ANDI dst, dst, imm` + zero-ext | 16-bit unsigned; larger: materialize + `AND` |
 | `XOR32_REG dst, src` | `XOR dst, dst, src` + zero-ext | |
+| `XOR32_IMM dst, imm` | `XORI dst, dst, imm` + zero-ext | 16-bit unsigned; larger: materialize + `XOR` |
 | `LSH32_REG dst, src` | `SLLV dst, dst, src` + zero-ext | Low 5 bits used (KNOWN: ISA ref, "SLLV") |
+| `LSH32_IMM dst, imm` | `SLL dst, dst, imm` + zero-ext | 5-bit immediate (KNOWN: ISA ref, "SLL") |
 | `RSH32_REG dst, src` | `SRLV dst, dst, src` + zero-ext | |
+| `RSH32_IMM dst, imm` | `SRL dst, dst, imm` + zero-ext | |
 | `ARSH32_REG dst, src` | `SRAV dst, dst, src` + zero-ext | |
+| `ARSH32_IMM dst, imm` | `SRA dst, dst, imm` + zero-ext | |
 | `NEG32 dst` | `SUBU dst, $zero, dst` + zero-ext | |
 | `MOV32_REG dst, src` | `ADDU dst, src, $zero` + zero-ext | |
+| `MOV32_IMM dst, imm` | Materialize imm → `dst` + zero-ext | |
 
 **Shift masking (32-bit):** `SLLV`/`SRLV`/`SRAV` use the low 5 bits (0–31) of the shift amount (KNOWN: ISA ref), matching BPF's 0x1F mask.
 
@@ -165,6 +178,18 @@ DDIVU  dst, dst, src          # Unsigned 64-bit division (KNOWN: ISA ref, "DDIVU
 .Ldone:
 ```
 
+**32-bit division-by-zero handling:**
+```asm
+# BPF: DIV32 dst, src (unsigned, offset==0)
+BNEC   src, $zero, .Lnonzero
+OR     dst, $zero, $zero      # dst = 0
+BC     .Ldone
+.Lnonzero:
+DIVU   dst, dst, src          # Unsigned 32-bit division (KNOWN: ISA ref, "DIVU")
+.Ldone:
+# + zero-extension (DSLL32 + DSRL32)
+```
+
 **Modulo-by-zero handling (required by BPF: dst unchanged for 64-bit, upper 32 bits zeroed for 32-bit):**
 ```asm
 # BPF: MOD64 dst, src (unsigned, offset==0)
@@ -173,6 +198,19 @@ BC     .Ldone                  # dst unchanged (mod-by-zero per RFC 9669)
 .Lnonzero:
 DMODU  dst, dst, src          # Unsigned 64-bit modulo (KNOWN: ISA ref, "DMODU")
 .Ldone:
+```
+
+**32-bit modulo-by-zero handling:**
+```asm
+# BPF: MOD32 dst, src (unsigned, offset==0)
+# Per RFC 9669: for ALU (32-bit), mod-by-zero preserves low 32 bits but zeros upper 32 bits
+BNEC   src, $zero, .Lnonzero
+# dst unchanged but must zero-extend (upper 32 cleared per RFC 9669 ALU mod-by-zero)
+BC     .Lzeroext
+.Lnonzero:
+MODU   dst, dst, src          # Unsigned 32-bit modulo (KNOWN: ISA ref, "MODU")
+.Lzeroext:
+# + zero-extension (DSLL32 + DSRL32)
 ```
 
 **Signed variants (offset==1):** Use `DDIV`/`DMOD` (signed). MIPS64r6 `DDIV` uses truncated division semantics where `-13 / 3 == -4` and `DMOD` gives `-13 % 3 == -1` (KNOWN: ISA ref — MIPS division follows C99/truncated semantics), matching RFC 9669.
@@ -293,6 +331,20 @@ MIPS64r6 compact branches have **no delay slots** (KNOWN: ISA ref — compact br
 | `JEQ dst, imm` | Materialize imm → `$t0`; `BEQC dst, $t0, target` | |
 | `JA32 +imm` | `BC target` | Use imm field for 32-bit offset range |
 
+**JMP32 (32-bit comparisons):**
+
+JMP32 instructions compare only the lower 32 bits of operands. On MIPS64, this requires zero-extending both operands to 32-bit before comparison, or using 32-bit compare instructions:
+
+| BPF JMP32 Instruction | MIPS64r6 Sequence | Notes |
+|---|---|---|
+| `JEQ32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BEQC $t0, $t1, target` | Sign-extend to canonical 32-bit, then compare |
+| `JNE32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BNEC $t0, $t1, target` | |
+| `JGT32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BLTUC $t1, $t0, target` | Unsigned 32-bit compare |
+| `JSGT32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BLTC $t1, $t0, target` | Signed 32-bit compare |
+| `JSET32 dst, src` | `AND $t0, dst, src; SLL $t0, $t0, 0; BNEZC $t0, target` | Test low 32 bits |
+
+`[DESIGN DECISION]` Using `SLL rd, rs, 0` to canonicalize 32-bit values before comparison. This ensures the comparison operands are proper sign-extended 32-bit values, which is required for MIPS64 compare instructions to behave correctly on 32-bit data.
+
 **Branch ranges (KNOWN: ISA ref):**
 
 | Branch Type | Offset Field | Range (instructions) | Range (bytes) |
@@ -356,7 +408,7 @@ OR      $v0, $t0, $zero          # R0 = old value (always, per BPF spec)
 **External helper call:**
 ```asm
 # BPF R1-R5 already in $a0-$a4 (zero-cost mapping)
-OR     $a5, $context_reg, $zero   # 6th param: context cookie
+OR     $a5, $s6, $zero            # 6th param: context cookie ($s6 = preserved context register)
 # Load function pointer from helper table via $s5 (base register)
 DADDIU $t0, $zero, (index * 8)    # Offset = helper index * 8
 DADDU  $t0, $s5, $t0              # $s5 = helper table base (loaded in prologue)
@@ -370,8 +422,11 @@ JALR   $ra, $t0                   # Indirect call (saves return address in $ra)
 # Load dispatcher function pointer from data section via $s5
 LD     $t0, dispatcher_offset($s5)
 # $a0-$a4 = BPF R1-R5 (already mapped)
-LI     $a5, index                  # 6th param: helper index (ORI or LUI+ORI)
-OR     $a6, $context_reg, $zero   # 7th param: context cookie
+# 6th param: helper index — concrete instruction depends on index size:
+#   If index fits in 16-bit unsigned: ORI $a5, $zero, index
+#   If index needs 32-bit:            LUI $a5, index[31:16]; ORI $a5, $a5, index[15:0]
+ORI    $a5, $zero, index            # (assuming index < 65536; else LUI+ORI)
+OR     $a6, $s6, $zero             # 7th param: context cookie
 JALR   $ra, $t0                    # Call dispatcher
 ```
 
@@ -404,22 +459,33 @@ SD      $s2, frame_size-40($sp)   # Save BPF R8
 SD      $s3, frame_size-48($sp)   # Save BPF R9
 SD      $s4, frame_size-56($sp)   # Save BPF R10
 SD      $s5, frame_size-64($sp)   # Save helper table base
+SD      $s6, frame_size-72($sp)   # Save context register
 
 # Load helper table base into $s5
 # [DESIGN DECISION]: Helper table pointer is embedded in the JIT data section.
 # Use BALC to get PC, then add known offset to reach the data section.
 BALC    .Lpc                       # $ra = PC + 4 (KNOWN: ISA ref, "BALC")
 .Lpc:
+# If data_offset fits in 16-bit signed (±32KB):
 DADDIU  $s5, $ra, data_offset     # $s5 = address of helper table base
+# If data_offset exceeds ±32KB (large JIT output):
+#   LUI    $t0, data_offset[31:16]
+#   ORI    $t0, $t0, data_offset[15:0]
+#   DADDU  $s5, $ra, $t0
 
 # Setup BPF frame pointer (R10 = top of BPF stack)
 DADDIU  $s4, $sp, bpf_stack_offset
+# Save context pointer for helper calls
+# [DESIGN DECISION]: $s6 preserves the mem/context pointer across the
+# entire BPF program execution, since BPF code may overwrite $a0 (BPF R1).
+OR      $s6, $a0, $zero           # $s6 = context pointer (from caller's $a0)
 # BPF R1 ($a0) = mem, R2 ($a1) = mem_len — already in place from caller
 ```
 
 **Epilogue:**
 ```asm
 .Lexit:
+LD      $s6, frame_size-72($sp)
 LD      $s5, frame_size-64($sp)
 LD      $s4, frame_size-56($sp)
 LD      $s3, frame_size-48($sp)
