@@ -210,7 +210,7 @@ uBPF uses a multi-layered testing strategy:
 | REQ-SEC-002 | Bounds check toggle | TC-SEC-010 | **Medium** — implicitly tested (bounds on by default); `[GAP: no explicit toggle test]` |
 | REQ-SEC-003 | Undefined behavior detection (shadow stack & registers) | TC-SEC-002, TC-SEC-008, TC-SEC-009 | **Low** — `[GAP: no explicit UB detection, shadow stack, or shadow register tests]` |
 | REQ-SEC-004 | Constant blinding | TC-SEC-003 | **High** — constant_blinding custom test, CI env var |
-| REQ-SEC-005 | Read-only bytecode | TC-SEC-004 | **High** — readonly_bytecode custom test |
+| REQ-SEC-005 | Read-only bytecode | TC-SEC-004 | **Medium** — readonly_bytecode custom test (toggles mode; `[GAP: no test verifying pages are actually read-only]`) |
 | REQ-SEC-006 | Pointer secret / XOR encoding | TC-SEC-005 | **Low** — `[GAP: no test verifying XOR encoding effectiveness]` |
 | REQ-SEC-007 | Retpolines | TC-SEC-006 | **Medium** — CI runs with/without retpolines; no functional test |
 | REQ-SEC-008 | W⊕X enforcement | TC-SEC-007 | **Medium** — implicitly tested by JIT execution |

@@ -60,9 +60,9 @@ This design addresses the following requirement categories (see `docs/specs/requ
 │  ubpf_create/destroy · ubpf_load/load_elf · ubpf_exec         │
 │  ubpf_compile · ubpf_register · ubpf_toggle_*                 │
 ├────────────┬──────────────┬──────────────┬─────────────────────┤
-│ INTERPRETER│ JIT FRAMEWORK│  ELF LOADER  │  INSTRUCTION        │
-│ ubpf_vm.c  │ ubpf_jit.c   │ ubpf_loader.c│  VALIDATOR          │
-│            │              │              │ ubpf_instruction_    │
+│ INTERPRETER│ JIT FRAMEWORK│  ELF LOADER  │ INSTR VALIDATOR     │
+│ ubpf_vm.c  │ ubpf_jit.c   │ ubpf_loader.c│ ubpf_instruction_   │
+│            │              │              │  valid.c            │
 │ XOR-decode │ ┌──────────┐ │ ELF parsing  │  valid.c            │
 │ fetch loop │ │x86-64 JIT│ │ Relocations  │                     │
 │ Shadow     │ │ARM64 JIT │ │ Linking      │ Per-opcode filters  │
