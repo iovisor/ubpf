@@ -121,6 +121,13 @@ jobs:
             qemu-user
         fi
 
+        if [[ "${{ inputs.arch }}" == "mips64" ]] ; then
+          sudo apt install -y \
+            g++-mips64el-linux-gnuabi64 \
+            gcc-mips64el-linux-gnuabi64 \
+            qemu-user
+        fi
+
         if [[ "${{ inputs.enable_valgrind }}" == "true" ]] ; then
           sudo apt-get install -y \
             valgrind
@@ -177,6 +184,9 @@ jobs:
         if [[ "${{ inputs.arch }}" == "arm64" && "${{ inputs.platform }}" == "ubuntu-latest" ]] ; then
           # Cross-compiling for ARM64 on x86_64
           arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/arm64.cmake"
+        elif [[ "${{ inputs.arch }}" == "mips64" ]] ; then
+          # Cross-compiling for MIPS64r6 on x86_64
+          arch_flags="-DCMAKE_TOOLCHAIN_FILE=cmake/mips64.cmake"
         else
           arch_flags=""
         fi

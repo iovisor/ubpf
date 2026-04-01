@@ -36,6 +36,7 @@ if(UBPF_ENABLE_TESTS)
   add_subdirectory("ubpf_plugin")
   add_subdirectory("bpf")
   add_subdirectory("aarch64_test")
+  add_subdirectory("mips64_test")
 endif()
 
 if(UBPF_ENABLE_PACKAGE)

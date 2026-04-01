@@ -175,6 +175,13 @@ jobs:
       platform: ubuntu-24.04-arm
       build_type: RelWithDebInfo
 
+  linux_release_mips64:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: mips64
+      platform: ubuntu-latest
+      build_type: RelWithDebInfo
+
   linux_release_scan_build:
     uses: ./.github/workflows/posix.yml
     with:
@@ -261,6 +268,13 @@ jobs:
     with:
       arch: arm64
       platform: ubuntu-24.04-arm
+      build_type: Debug
+
+  linux_debug_mips64:
+    uses: ./.github/workflows/posix.yml
+    with:
+      arch: mips64
+      platform: ubuntu-latest
       build_type: Debug
 
   linux_debug_coverage:
