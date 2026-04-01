@@ -51,10 +51,10 @@ This document specifies the proposed mapping from BPF ISA instructions to MIPS64
 
 | MIPS64r6 Register | Name | Usage |
 |---|---|---|
-| `$t0` ($12) | Temp 0 | Large immediate materialization, constant blinding XOR key |
-| `$t1` ($13) | Temp 1 | Division scratch, atomic operation scratch |
-| `$t2` ($14) | Temp 2 | Address computation for out-of-range offsets, atomic address |
-| `$t3` ($15) | Temp 3 | Additional scratch for complex instruction sequences |
+| `$t4` ($12) | Temp 0 | Large immediate materialization, constant blinding XOR key |
+| `$t5` ($13) | Temp 1 | Division scratch, atomic operation scratch |
+| `$t6` ($14) | Temp 2 | Address computation for out-of-range offsets, atomic address |
+| `$t7` ($15) | Temp 3 | Additional scratch for complex instruction sequences |
 | `$s5` ($21) | Saved 5 | `[DESIGN DECISION]` Helper table base register (loaded in prologue) |
 | `$s6` ($22) | Saved 6 | `[DESIGN DECISION]` Context/cookie pointer (preserved across helper calls) |
 
@@ -89,11 +89,11 @@ All 64-bit ALU operations use MIPS64 doubleword instructions. These do NOT trap 
 | BPF Instruction | MIPS64r6 Instruction | Notes |
 |---|---|---|
 | `ADD64_REG dst, src` | `DADDU dst, dst, src` | No overflow trap (KNOWN: ISA ref, "DADDU") |
-| `ADD64_IMM dst, imm` | `DADDIU dst, dst, imm` | 16-bit signed imm (KNOWN: ISA ref, "DADDIU"). For \|imm\| > 32767: materialize in `$t0`, then `DADDU` |
+| `ADD64_IMM dst, imm` | `DADDIU dst, dst, imm` | 16-bit signed imm (KNOWN: ISA ref, "DADDIU"). For \|imm\| > 32767: materialize in `$t4`, then `DADDU` |
 | `SUB64_REG dst, src` | `DSUBU dst, dst, src` | No overflow trap (KNOWN: ISA ref, "DSUBU") |
 | `SUB64_IMM dst, imm` | `DADDIU dst, dst, -imm` | If -32768 ≤ -imm ≤ 32767; else materialize and `DSUBU` |
 | `MUL64_REG dst, src` | `DMUL dst, dst, src` | R6 native (KNOWN: ISA ref, "DMUL"). Result in GPR, no HI/LO |
-| `MUL64_IMM dst, imm` | Materialize imm → `$t0`; `DMUL dst, dst, $t0` | |
+| `MUL64_IMM dst, imm` | Materialize imm → `$t4`; `DMUL dst, dst, $t4` | |
 | `DIV64_REG dst, src` | See §3.3 | Division-by-zero check required |
 | `MOD64_REG dst, src` | See §3.3 | |
 | `OR64_REG dst, src` | `OR dst, dst, src` | (KNOWN: ISA ref, "OR") |
@@ -122,28 +122,33 @@ All 64-bit ALU operations use MIPS64 doubleword instructions. These do NOT trap 
 
 **CRITICAL: 32-bit sign-extension vs. zero-extension**
 
-The MIPS64 ISA states: *"the 32-bit result is sign-extended and placed into GPR rt"* (KNOWN: ISA ref, "ADDIU" Restrictions — "If GPR rs does not contain a sign-extended 32-bit value, the result of the operation is UNPREDICTABLE"). BPF requires 32-bit ALU results to be **zero-extended** to 64 bits. Therefore, every 32-bit ALU result MUST be explicitly zero-extended.
+The MIPS64 ISA states: *"the 32-bit result is sign-extended and placed into GPR rt"* (KNOWN: ISA ref, "ADDIU" Restrictions — "If GPR rs does not contain a sign-extended 32-bit value, the result of the operation is UNPREDICTABLE"). BPF requires 32-bit ALU results to be **zero-extended** to 64 bits.
 
-**Zero-extension sequence:**
+`[DESIGN DECISION]` **Strategy: Use 64-bit operations with explicit 32-bit masking.** Rather than using 32-bit word instructions (`ADDU`/`ADDIU`) which require sign-extended inputs and produce sign-extended outputs (violating BPF's zero-extension contract), the JIT SHOULD use 64-bit doubleword instructions (`DADDU`/`DADDIU`) and then zero-extend the result. This avoids the UNPREDICTABLE behavior restriction entirely:
+
+**ALU32 implementation pattern:**
 ```asm
-# After any 32-bit ALU op, zero-extend upper 32 bits:
-DSLL32  dst, dst, 0     # Shift left by 32 (moves original low 32 into high 32, clears low 32, discards old high 32)
-DSRL32  dst, dst, 0     # Shift right by 32 (restores low 32 bits into low position, zeros upper 32)
+# BPF: ADD32 dst, src
+DADDU   dst, dst, src            # 64-bit add (always well-defined, no input restriction)
+DSLL32  dst, dst, 0              # Zero-extend: shift left 32 (keeps low 32 in high position)
+DSRL32  dst, dst, 0              # Shift right 32 (restores low 32, zeros upper 32)
 ```
 
-`[DESIGN DECISION]` Using `DSLL32`+`DSRL32` (2 instructions) for zero-extension rather than `DINSU` (1 instruction, but MIPS64r2+ only — needs R2 confirmation, and encoding is complex). The shift pair is universally available on all MIPS64 implementations.
+This is 3 instructions per ALU32 op (vs. 3 using `ADDU` + zero-ext), but is always correct regardless of input register state. The shift pair is universally available on all MIPS64 implementations.
+
+**Exception:** `SLLV`/`SRLV`/`SRAV` (32-bit shifts) are still used since they naturally operate on 32-bit values and produce sign-extended results which the subsequent zero-extension corrects.
 
 | BPF Instruction | MIPS64r6 Sequence | Notes |
 |---|---|---|
-| `ADD32_REG dst, src` | `ADDU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "ADDU") |
-| `ADD32_IMM dst, imm` | `ADDIU dst, dst, imm` + zero-ext | 16-bit signed imm; larger: materialize in `$t0`, `ADDU` |
-| `SUB32_REG dst, src` | `SUBU dst, dst, src` + zero-ext | (KNOWN: ISA ref, "SUBU") |
-| `SUB32_IMM dst, imm` | `ADDIU dst, dst, -imm` + zero-ext | If fits; else materialize and `SUBU` |
-| `MUL32_REG dst, src` | `MUL dst, dst, src` + zero-ext | R6 native (KNOWN: ISA ref, "MUL") |
-| `MUL32_IMM dst, imm` | Materialize imm → `$t0`; `MUL dst, dst, $t0` + zero-ext | |
+| `ADD32_REG dst, src` | `DADDU dst, dst, src` + zero-ext | 64-bit add avoids UNPREDICTABLE |
+| `ADD32_IMM dst, imm` | `DADDIU dst, dst, imm` + zero-ext | 16-bit signed imm; larger: materialize in `$t4`, `DADDU` |
+| `SUB32_REG dst, src` | `DSUBU dst, dst, src` + zero-ext | |
+| `SUB32_IMM dst, imm` | `DADDIU dst, dst, -imm` + zero-ext | If fits; else materialize and `DSUBU` |
+| `MUL32_REG dst, src` | `DMUL dst, dst, src` + zero-ext | 64-bit mul, zero-ext truncates to 32-bit result |
+| `MUL32_IMM dst, imm` | Materialize imm → `$t4`; `DMUL dst, dst, $t4` + zero-ext | |
 | `DIV32_REG dst, src` | See §3.3 (32-bit division) + zero-ext | |
 | `MOD32_REG dst, src` | See §3.3 (32-bit modulo) + zero-ext | |
-| `OR32_REG dst, src` | `OR dst, dst, src` + zero-ext | |
+| `OR32_REG dst, src` | `OR dst, dst, src` + zero-ext | Bitwise ops are width-agnostic |
 | `OR32_IMM dst, imm` | `ORI dst, dst, imm` + zero-ext | 16-bit unsigned; larger: materialize + `OR` |
 | `AND32_REG dst, src` | `AND dst, dst, src` + zero-ext | |
 | `AND32_IMM dst, imm` | `ANDI dst, dst, imm` + zero-ext | 16-bit unsigned; larger: materialize + `AND` |
@@ -278,10 +283,10 @@ This spec targets little-endian MIPS64r6 (mipsel64r6).
 | `STXH [dst+off], src` | `SH src, off(dst)` | Store halfword (KNOWN: ISA ref, "SH") |
 | `STXW [dst+off], src` | `SW src, off(dst)` | Store word (KNOWN: ISA ref, "SW") |
 | `STXDW [dst+off], src` | `SD src, off(dst)` | Store doubleword (KNOWN: ISA ref, "SD") |
-| `STB [dst+off], imm` | Materialize imm → `$t0`; `SB $t0, off(dst)` | No store-immediate on MIPS |
-| `STH [dst+off], imm` | Materialize imm → `$t0`; `SH $t0, off(dst)` | |
-| `STW [dst+off], imm` | Materialize imm → `$t0`; `SW $t0, off(dst)` | |
-| `STDW [dst+off], imm` | Materialize imm → `$t0`; `SD $t0, off(dst)` | |
+| `STB [dst+off], imm` | Materialize imm → `$t4`; `SB $t4, off(dst)` | No store-immediate on MIPS |
+| `STH [dst+off], imm` | Materialize imm → `$t4`; `SH $t4, off(dst)` | |
+| `STW [dst+off], imm` | Materialize imm → `$t4`; `SW $t4, off(dst)` | |
+| `STDW [dst+off], imm` | Materialize imm → `$t4`; `SD $t4, off(dst)` | |
 
 `[DESIGN DECISION]` MIPS has no store-immediate instruction (unlike x86-64's `mov [mem], imm`). All `ST_IMM` variants require materializing the immediate in a temporary register first. This adds 1–6 instructions per immediate store depending on the immediate size.
 
@@ -327,8 +332,8 @@ MIPS64r6 compact branches have **no delay slots** (KNOWN: ISA ref — compact br
 | `JSGE dst, src` | `BGEC dst, src, target` | (KNOWN: ISA ref, "BGEC") |
 | `JSLT dst, src` | `BLTC dst, src, target` | |
 | `JSLE dst, src` | `BGEC src, dst, target` | |
-| `JSET dst, src` | `AND $t0, dst, src` then `BNEZC $t0, target` | 2-instruction sequence; BNEZC has 21-bit offset (KNOWN: ISA ref, "BNEZC") |
-| `JEQ dst, imm` | Materialize imm → `$t0`; `BEQC dst, $t0, target` | |
+| `JSET dst, src` | `AND $t4, dst, src` then `BNEZC $t4, target` | 2-instruction sequence; BNEZC has 21-bit offset (KNOWN: ISA ref, "BNEZC") |
+| `JEQ dst, imm` | Materialize imm → `$t4`; `BEQC dst, $t4, target` | |
 | `JA32 +imm` | `BC target` | Use imm field for 32-bit offset range |
 
 **JMP32 (32-bit comparisons):**
@@ -337,11 +342,11 @@ JMP32 instructions compare only the lower 32 bits of operands. On MIPS64, this r
 
 | BPF JMP32 Instruction | MIPS64r6 Sequence | Notes |
 |---|---|---|
-| `JEQ32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BEQC $t0, $t1, target` | Sign-extend to canonical 32-bit, then compare |
-| `JNE32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BNEC $t0, $t1, target` | |
-| `JGT32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BLTUC $t1, $t0, target` | Unsigned 32-bit compare |
-| `JSGT32 dst, src` | `SLL $t0, dst, 0; SLL $t1, src, 0; BLTC $t1, $t0, target` | Signed 32-bit compare |
-| `JSET32 dst, src` | `AND $t0, dst, src; SLL $t0, $t0, 0; BNEZC $t0, target` | Test low 32 bits |
+| `JEQ32 dst, src` | `SLL $t4, dst, 0; SLL $t5, src, 0; BEQC $t4, $t5, target` | Sign-extend to canonical 32-bit, then compare |
+| `JNE32 dst, src` | `SLL $t4, dst, 0; SLL $t5, src, 0; BNEC $t4, $t5, target` | |
+| `JGT32 dst, src` | `SLL $t4, dst, 0; SLL $t5, src, 0; BLTUC $t5, $t4, target` | Unsigned 32-bit compare |
+| `JSGT32 dst, src` | `SLL $t4, dst, 0; SLL $t5, src, 0; BLTC $t5, $t4, target` | Signed 32-bit compare |
+| `JSET32 dst, src` | `AND $t4, dst, src; SLL $t4, $t4, 0; BNEZC $t4, target` | Test low 32 bits |
 
 `[DESIGN DECISION]` Using `SLL rd, rs, 0` to canonicalize 32-bit values before comparison. This ensures the comparison operands are proper sign-extended 32-bit values, which is required for MIPS64 compare instructions to behave correctly on 32-bit data.
 
@@ -368,66 +373,73 @@ MIPS64r6 uses Load-Linked/Store-Conditional (`LLD`/`SCD` for 64-bit, `LL`/`SC` f
 
 **Atomic ADD64 pattern (with FETCH):**
 ```asm
-DADDIU  $t2, dst, offset          # Compute address in $t2
+DADDIU  $t6, dst, offset          # Compute address in $t6
 .Lretry:
-LLD     $t0, 0($t2)              # Load-linked doubleword (KNOWN: ISA ref, "LLD")
-DADDU   $t1, $t0, src            # Compute new value
-SCD     $t1, 0($t2)              # Store-conditional (KNOWN: ISA ref, "SCD")
-BEQZC   $t1, .Lretry             # Retry if SC failed ($t1 == 0 on failure)
-OR      src, $t0, $zero          # FETCH: return old value in src register
+LLD     $t4, 0($t6)              # Load-linked doubleword (KNOWN: ISA ref, "LLD")
+DADDU   $t5, $t4, src            # Compute new value
+SCD     $t5, 0($t6)              # Store-conditional (KNOWN: ISA ref, "SCD")
+BEQZC   $t5, .Lretry             # Retry if SC failed ($t5 == 0 on failure)
+OR      src, $t4, $zero          # FETCH: return old value in src register
 ```
 
 | BPF Atomic | Operation in LL/SC Loop | 32-bit: use `LL`/`SC` |
 |---|---|---|
-| ADD | `DADDU $t1, $t0, src` | `ADDU` |
-| OR | `OR $t1, $t0, src` | Same |
-| AND | `AND $t1, $t0, src` | Same |
-| XOR | `XOR $t1, $t0, src` | Same |
-| XCHG | `OR $t1, src, $zero` (direct exchange) | Same |
-| CMPXCHG | Compare `$t0` with `$v0` (BPF R0); conditional store | Same |
+| ADD | `DADDU $t5, $t4, src` | `ADDU` |
+| OR | `OR $t5, $t4, src` | Same |
+| AND | `AND $t5, $t4, src` | Same |
+| XOR | `XOR $t5, $t4, src` | Same |
+| XCHG | `OR $t5, src, $zero` (direct exchange) | Same |
+| CMPXCHG | Compare `$t4` with `$v0` (BPF R0); conditional store | Same |
 
 **CMPXCHG pattern:**
 ```asm
-DADDIU  $t2, dst, offset
+DADDIU  $t6, dst, offset
 .Lretry:
-LLD     $t0, 0($t2)
-BNEC    $t0, $v0, .Lfail         # Compare with BPF R0 ($v0)
-OR      $t1, src, $zero          # New value = src
-SCD     $t1, 0($t2)
-BEQZC   $t1, .Lretry             # Retry if SC failed
+LLD     $t4, 0($t6)
+BNEC    $t4, $v0, .Lfail         # Compare with BPF R0 ($v0)
+OR      $t5, src, $zero          # New value = src
+SCD     $t5, 0($t6)
+BEQZC   $t5, .Lretry             # Retry if SC failed
 .Lfail:
-OR      $v0, $t0, $zero          # R0 = old value (always, per BPF spec)
+OR      $v0, $t4, $zero          # R0 = old value (always, per BPF spec)
 ```
 
-**Non-FETCH simple atomics** (no return value): Same LL/SC loop but omit the final `OR src, $t0, $zero`.
+**Non-FETCH simple atomics** (no return value): Same LL/SC loop but omit the final `OR src, $t4, $zero`.
 
 ### 3.12 CALL Instructions
 
 > **Cross-reference:** REQ-UBPF-ISA-CALL-001 (External Helper), REQ-UBPF-ISA-CALL-002 (Program-Local Function)
 
 **External helper call:**
+
+`[DESIGN DECISION]` **$ra preservation:** `JALR` clobbers `$ra`. When executing inside a local function (call depth > 0), the return address from `BALC` (used for local calls, §7) would be lost. The JIT MUST save `$ra` to the native stack before every helper call and restore it afterwards:
+
 ```asm
 # BPF R1-R5 already in $a0-$a4 (zero-cost mapping)
-OR     $a5, $s6, $zero            # 6th param: context cookie ($s6 = preserved context register)
+SD     $ra, ra_save_offset($sp)    # Save $ra (clobbered by JALR)
+OR     $a5, $s6, $zero             # 6th param: context cookie ($s6 = preserved context register)
 # Load function pointer from helper table via $s5 (base register)
-DADDIU $t0, $zero, (index * 8)    # Offset = helper index * 8
-DADDU  $t0, $s5, $t0              # $s5 = helper table base (loaded in prologue)
-LD     $t0, 0($t0)                # Load function pointer
-JALR   $ra, $t0                   # Indirect call (saves return address in $ra)
+DADDIU $t4, $zero, (index * 8)     # Offset = helper index * 8
+DADDU  $t4, $s5, $t4               # $s5 = helper table base (loaded in prologue)
+LD     $t4, 0($t4)                 # Load function pointer
+JALR   $ra, $t4                    # Indirect call (saves return address in $ra)
+LD     $ra, ra_save_offset($sp)    # Restore $ra
 # Result in $v0 = BPF R0
 ```
 
 **Dynamic dispatcher call:**
 ```asm
 # Load dispatcher function pointer from data section via $s5
-LD     $t0, dispatcher_offset($s5)
+SD     $ra, ra_save_offset($sp)     # Save $ra (clobbered by JALR)
+LD     $t4, dispatcher_offset($s5)
 # $a0-$a4 = BPF R1-R5 (already mapped)
 # 6th param: helper index — concrete instruction depends on index size:
 #   If index fits in 16-bit unsigned: ORI $a5, $zero, index
 #   If index needs 32-bit:            LUI $a5, index[31:16]; ORI $a5, $a5, index[15:0]
 ORI    $a5, $zero, index            # (assuming index < 65536; else LUI+ORI)
 OR     $a6, $s6, $zero             # 7th param: context cookie
-JALR   $ra, $t0                    # Call dispatcher
+JALR   $ra, $t4                    # Call dispatcher
+LD     $ra, ra_save_offset($sp)    # Restore $ra
 ```
 
 **Local function call:** See §7.
@@ -469,9 +481,9 @@ BALC    .Lpc                       # $ra = PC + 4 (KNOWN: ISA ref, "BALC")
 # If data_offset fits in 16-bit signed (±32KB):
 DADDIU  $s5, $ra, data_offset     # $s5 = address of helper table base
 # If data_offset exceeds ±32KB (large JIT output):
-#   LUI    $t0, data_offset[31:16]
-#   ORI    $t0, $t0, data_offset[15:0]
-#   DADDU  $s5, $ra, $t0
+#   LUI    $t4, data_offset[31:16]
+#   ORI    $t4, $t4, data_offset[15:0]
+#   DADDU  $s5, $ra, $t4
 
 # Setup BPF frame pointer (R10 = top of BPF stack)
 DADDIU  $s4, $sp, bpf_stack_offset
@@ -522,15 +534,15 @@ DSLL   dst, dst, 16
 ORI    dst, dst, (V^R)[31:16]
 DSLL   dst, dst, 16
 ORI    dst, dst, (V^R)[15:0]
-# Step 2: Materialize R into $t0 (up to 6 instructions)
-LUI    $t0, R[63:48]
-ORI    $t0, $t0, R[47:32]
-DSLL   $t0, $t0, 16
-ORI    $t0, $t0, R[31:16]
-DSLL   $t0, $t0, 16
-ORI    $t0, $t0, R[15:0]
+# Step 2: Materialize R into $t4 (up to 6 instructions)
+LUI    $t4, R[63:48]
+ORI    $t4, $t4, R[47:32]
+DSLL   $t4, $t4, 16
+ORI    $t4, $t4, R[31:16]
+DSLL   $t4, $t4, 16
+ORI    $t4, $t4, R[15:0]
 # Step 3: Recover V
-XOR    dst, dst, $t0              # dst = (V^R) ^ R = V
+XOR    dst, dst, $t4              # dst = (V^R) ^ R = V
 ```
 
 **Cost:** Worst case 13 instructions per blinded 64-bit load (vs. ~3 on x86-64). Shorter sequences for smaller immediates.
