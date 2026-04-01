@@ -1211,6 +1211,136 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             emit_bc(state, 0);
             break;
 
+        /* ---- Atomic operations [JIT-SPEC §3.11] — LL/SC loops ---- */
+        case EBPF_OP_ATOMIC_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            /* Compute address: $t6 = dst + offset */
+            emit_daddiu(state, temp_addr_register, dst, inst.offset);
+
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+            case EBPF_ALU_OP_OR:
+            case EBPF_ALU_OP_AND:
+            case EBPF_ALU_OP_XOR: {
+                /* retry: LLD $t4, 0($t6) */
+                uint32_t retry_loc = state->offset;
+                emit_lld(state, temp_register, temp_addr_register, 0);
+                /* Compute new value in $t5 */
+                if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_ADD)
+                    emit_daddu(state, temp_div_register, temp_register, src);
+                else if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_OR)
+                    emit_or(state, temp_div_register, temp_register, src);
+                else if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_AND)
+                    emit_and(state, temp_div_register, temp_register, src);
+                else
+                    emit_xor(state, temp_div_register, temp_register, src);
+                /* SCD $t5, 0($t6) */
+                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                /* BEQZC $t5, retry */
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                if (fetch) emit_or(state, src, temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH): {
+                uint32_t retry_loc = state->offset;
+                emit_lld(state, temp_register, temp_addr_register, 0);
+                emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
+                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                emit_or(state, src, temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH): {
+                uint32_t retry_loc = state->offset;
+                emit_lld(state, temp_register, temp_addr_register, 0);
+                /* Compare with R0 ($v0) */
+                uint32_t fail_loc = state->offset;
+                emit_mips64(state, 0); /* placeholder BNEC $t4, $v0, .Lfail */
+                emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
+                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                /* .Lfail: */
+                uint32_t fail_target = state->offset;
+                /* Patch BNEC */
+                int32_t fail_rel = ((int32_t)(fail_target - fail_loc)) >> 2;
+                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP07 << 26) |
+                                    ((uint32_t)temp_register << 21) |
+                                    ((uint32_t)MIPS_REG_V0 << 16) |
+                                    ((uint32_t)fail_rel & 0xFFFF);
+                memcpy(state->buf + fail_loc, &bnec_enc, 4);
+                /* R0 = old value (always) */
+                emit_or(state, map_register(0), temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            default:
+                *errmsg = ubpf_error("MIPS64r6 JIT: unknown atomic op 0x%02x at PC %d", inst.imm, i);
+                return -1;
+            }
+        } break;
+
+        case EBPF_OP_ATOMIC32_STORE: {
+            bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
+            emit_daddiu(state, temp_addr_register, dst, inst.offset);
+
+            switch (inst.imm & EBPF_ALU_OP_MASK) {
+            case EBPF_ALU_OP_ADD:
+            case EBPF_ALU_OP_OR:
+            case EBPF_ALU_OP_AND:
+            case EBPF_ALU_OP_XOR: {
+                uint32_t retry_loc = state->offset;
+                emit_ll(state, temp_register, temp_addr_register, 0);
+                if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_ADD)
+                    emit_daddu(state, temp_div_register, temp_register, src);
+                else if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_OR)
+                    emit_or(state, temp_div_register, temp_register, src);
+                else if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_AND)
+                    emit_and(state, temp_div_register, temp_register, src);
+                else
+                    emit_xor(state, temp_div_register, temp_register, src);
+                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                if (fetch) emit_or(state, src, temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH): {
+                uint32_t retry_loc = state->offset;
+                emit_ll(state, temp_register, temp_addr_register, 0);
+                emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
+                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                emit_or(state, src, temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH): {
+                uint32_t retry_loc = state->offset;
+                emit_ll(state, temp_register, temp_addr_register, 0);
+                uint32_t fail_loc = state->offset;
+                emit_mips64(state, 0); /* placeholder BNEC */
+                emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
+                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
+                emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
+                uint32_t fail_target = state->offset;
+                int32_t fail_rel = ((int32_t)(fail_target - fail_loc)) >> 2;
+                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP07 << 26) |
+                                    ((uint32_t)temp_register << 21) |
+                                    ((uint32_t)MIPS_REG_V0 << 16) |
+                                    ((uint32_t)fail_rel & 0xFFFF);
+                memcpy(state->buf + fail_loc, &bnec_enc, 4);
+                emit_or(state, map_register(0), temp_register, MIPS_REG_ZERO);
+                break;
+            }
+            default:
+                *errmsg = ubpf_error("MIPS64r6 JIT: unknown atomic32 op 0x%02x at PC %d", inst.imm, i);
+                return -1;
+            }
+        } break;
+
         default:
             *errmsg = ubpf_error("MIPS64r6 JIT: unsupported opcode 0x%02x at PC %d", inst.opcode, i);
             return -1;

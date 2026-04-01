@@ -132,6 +132,10 @@ ubpf_create(void)
     vm->jit_translate = ubpf_translate_arm64;
     vm->jit_update_dispatcher = ubpf_jit_update_dispatcher_arm64;
     vm->jit_update_helper = ubpf_jit_update_helper_arm64;
+#elif defined(__mips__) && defined(__mips_isa_rev) && (__mips_isa_rev >= 6) && (__mips == 64)
+    vm->jit_translate = ubpf_translate_mips64;
+    vm->jit_update_dispatcher = ubpf_jit_update_dispatcher_mips64;
+    vm->jit_update_helper = ubpf_jit_update_helper_mips64;
 #else
     vm->jit_translate = ubpf_translate_null;
     vm->jit_update_dispatcher = ubpf_jit_update_dispatcher_null;

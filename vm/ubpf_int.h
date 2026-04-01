@@ -168,6 +168,36 @@ ubpf_jit_update_helper_x86_64(
     size_t size,
     uint32_t offset);
 
+// mips64r6
+struct ubpf_jit_result
+ubpf_translate_mips64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode);
+bool
+ubpf_jit_update_dispatcher_mips64(
+    struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset);
+bool
+ubpf_jit_update_helper_mips64(
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset);
+
+// mips64
+struct ubpf_jit_result
+ubpf_translate_mips64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode);
+bool
+ubpf_jit_update_dispatcher_mips64(
+    struct ubpf_vm* vm, external_function_dispatcher_t new_dispatcher, uint8_t* buffer, size_t size, uint32_t offset);
+bool
+ubpf_jit_update_helper_mips64(
+    struct ubpf_vm* vm,
+    extended_external_helper_t new_helper,
+    unsigned int idx,
+    uint8_t* buffer,
+    size_t size,
+    uint32_t offset);
+
 // uhm, hello?
 struct ubpf_jit_result
 ubpf_translate_null(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode);
