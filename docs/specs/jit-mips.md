@@ -160,8 +160,8 @@ This is 3 instructions per ALU32 op (vs. 3 using `ADDU` + zero-ext), but is alwa
 | `RSH32_IMM dst, imm` | `SRL dst, dst, imm` + zero-ext | |
 | `ARSH32_REG dst, src` | `SRAV dst, dst, src` + zero-ext | |
 | `ARSH32_IMM dst, imm` | `SRA dst, dst, imm` + zero-ext | |
-| `NEG32 dst` | `SUBU dst, $zero, dst` + zero-ext | |
-| `MOV32_REG dst, src` | `ADDU dst, src, $zero` + zero-ext | |
+| `NEG32 dst` | `DSUBU dst, $zero, dst` + zero-ext | 64-bit negate avoids UNPREDICTABLE |
+| `MOV32_REG dst, src` | `OR dst, src, $zero` + zero-ext | Bitwise OR is width-agnostic |
 | `MOV32_IMM dst, imm` | Materialize imm → `dst` + zero-ext | |
 
 **Shift masking (32-bit):** `SLLV`/`SRLV`/`SRAV` use the low 5 bits (0–31) of the shift amount (KNOWN: ISA ref), matching BPF's 0x1F mask.
@@ -412,25 +412,25 @@ OR      $v0, $t4, $zero          # R0 = old value (always, per BPF spec)
 
 **External helper call:**
 
-`[DESIGN DECISION]` **$ra preservation:** `JALR` clobbers `$ra`. When executing inside a local function (call depth > 0), the return address from `BALC` (used for local calls, §7) would be lost. The JIT MUST save `$ra` to the native stack before every helper call and restore it afterwards:
+`[DESIGN DECISION]` **$ra preservation:** `JALR` clobbers `$ra`. When executing inside a local function (call depth > 0), the return address from `BALC` (used for local calls, §7) would be lost. The JIT saves `$ra` to a dedicated native stack slot (`helper_ra_save`, distinct from the local-call `ra_slot_offset`) before every helper call:
 
 ```asm
 # BPF R1-R5 already in $a0-$a4 (zero-cost mapping)
-SD     $ra, ra_save_offset($sp)    # Save $ra (clobbered by JALR)
+SD     $ra, helper_ra_save($sp)    # Save $ra (distinct from local-call ra_slot_offset)
 OR     $a5, $s6, $zero             # 6th param: context cookie ($s6 = preserved context register)
 # Load function pointer from helper table via $s5 (base register)
 DADDIU $t4, $zero, (index * 8)     # Offset = helper index * 8
 DADDU  $t4, $s5, $t4               # $s5 = helper table base (loaded in prologue)
 LD     $t4, 0($t4)                 # Load function pointer
 JALR   $ra, $t4                    # Indirect call (saves return address in $ra)
-LD     $ra, ra_save_offset($sp)    # Restore $ra
+LD     $ra, helper_ra_save($sp)    # Restore $ra
 # Result in $v0 = BPF R0
 ```
 
 **Dynamic dispatcher call:**
 ```asm
 # Load dispatcher function pointer from data section via $s5
-SD     $ra, ra_save_offset($sp)     # Save $ra (clobbered by JALR)
+SD     $ra, helper_ra_save($sp)     # Save $ra (clobbered by JALR)
 LD     $t4, dispatcher_offset($s5)
 # $a0-$a4 = BPF R1-R5 (already mapped)
 # 6th param: helper index — concrete instruction depends on index size:
@@ -439,7 +439,7 @@ LD     $t4, dispatcher_offset($s5)
 ORI    $a5, $zero, index            # (assuming index < 65536; else LUI+ORI)
 OR     $a6, $s6, $zero             # 7th param: context cookie
 JALR   $ra, $t4                    # Call dispatcher
-LD     $ra, ra_save_offset($sp)    # Restore $ra
+LD     $ra, helper_ra_save($sp)    # Restore $ra
 ```
 
 **Local function call:** See §7.
@@ -593,8 +593,9 @@ See §3.12. The dispatcher function pointer is stored at a known offset from the
 | R3 (arg 3) | `$a2` ($6) | 3rd argument | Zero |
 | R4 (arg 4) | `$a3` ($7) | 4th argument | Zero |
 | R5 (arg 5) | `$a4` ($8) | 5th argument | Zero |
-| Context cookie | `$a5` ($9) | 6th argument | 1 instruction (`OR`) |
-| Helper index (dispatcher) | `$a5`/`$a6` | 6th/7th argument | 1–2 instructions |
+| Context cookie (static helper) | `$a5` ($9) | 6th argument | 1 instruction (`OR` from `$s6`) |
+| Helper index (dispatcher only) | `$a5` ($9) | 6th argument | 1–2 instructions (ORI or LUI+ORI) |
+| Context cookie (dispatcher only) | `$a6` ($10) | 7th argument | 1 instruction (`OR` from `$s6`) |
 
 ---
 
@@ -602,7 +603,12 @@ See §3.12. The dispatcher function pointer is stored at a known offset from the
 
 > **Cross-reference:** REQ-UBPF-ISA-CALL-002 (Program-Local Function)
 
+`[DESIGN DECISION]` **$ra management:** MIPS has a single link register (`$ra`). Both `BALC` (local calls) and `JALR` (helper calls) write to `$ra`, so nested calls would clobber the return address. The JIT MUST save `$ra` to the **native stack** (not the BPF stack) as part of each local call frame. The prologue reserves a dedicated `$ra` save slot per call depth level.
+
+**Local function call sequence:**
 ```asm
+# Save $ra to native stack (current call frame's $ra slot)
+SD      $ra, ra_slot_offset($sp)
 # Save callee-saved BPF registers (R6-R9) to BPF stack
 SD      $s0, -8($s4)             # Save BPF R6
 SD      $s1, -16($s4)            # Save BPF R7
@@ -610,9 +616,13 @@ SD      $s2, -24($s4)            # Save BPF R8
 SD      $s3, -32($s4)            # Save BPF R9
 # Adjust BPF frame pointer
 DADDIU  $s4, $s4, -stack_usage   # R10 -= local function stack size (16-byte aligned)
+# Allocate native stack space for callee's $ra save slot
+DADDIU  $sp, $sp, -16            # Reserve space for callee's $ra (16-byte aligned)
 # Branch-and-link to local function
 BALC    target_offset            # R6 compact branch-and-link (KNOWN: ISA ref, "BALC")
-                                  # Saves return address in $ra
+                                  # Writes return address to $ra
+# After return:
+DADDIU  $sp, $sp, 16             # Deallocate callee's native frame
 ```
 
 **Return from local function (EXIT with call depth > 0):**
@@ -622,8 +632,12 @@ LD      $s0, -8($s4)             # Restore BPF R6
 LD      $s1, -16($s4)            # Restore BPF R7
 LD      $s2, -24($s4)            # Restore BPF R8
 LD      $s3, -32($s4)            # Restore BPF R9
+# Restore caller's $ra from native stack
+LD      $ra, ra_slot_offset($sp) # Restore caller's return address
 JR      $ra                      # Return to caller
 ```
+
+**Helper calls within local functions:** The `SD $ra` / `LD $ra` around `JALR` in §3.12 uses `helper_ra_save` on the native stack, which is distinct from the local-call `ra_slot_offset`. This ensures helper calls don't clobber the local function's return address.
 
 ---
 
