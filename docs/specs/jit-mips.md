@@ -191,9 +191,11 @@ DDIV  dst, dst, src            # Signed 64-bit division
 | `LDXW dst, [src+off]` | `LWU dst, off(src)` | Zero-extending word load |
 | `LDXDW dst, [src+off]` | `LD dst, off(src)` | Doubleword load |
 
-**Offset range:** Signed 16-bit (-32768 to +32767). For offsets outside this range:
+**Offset range:** Signed 16-bit (-32768 to +32767). Since BPF load/store offsets are also signed 16-bit, all BPF memory operations fit natively — no out-of-range handling is needed for `LDX*`/`STX*` instructions.
+
+For non-BPF data references (e.g., helper table, dispatcher pointer), offsets may exceed 16 bits and require materialization:
 ```asm
-# Large offset: materialize in $t0, then add
+# Large offset (non-BPF data access only)
 LUI   $t0, %hi(offset)
 ORI   $t0, $t0, %lo(offset)
 DADDU $t0, src, $t0
@@ -270,7 +272,7 @@ MIPS64r6 compact branches (NO delay slots):
 | `JSET dst, src` | `AND $t0, dst, src` then `BNEZC $t0, target` | 2-instruction sequence |
 | `JEQ dst, imm` | Materialize imm → `$t0`; `BEQC dst, $t0, target` | |
 
-**Branch range:** Compact conditional branches (`BEQC`, etc.) have a 16-bit signed offset (±32K instructions = ±128KB). The unconditional `BC` has a 26-bit offset (±256M). For programs exceeding conditional branch range, a trampoline pattern is needed:
+**Branch range:** Compact conditional branches (`BEQC`, etc.) have a 16-bit signed offset (±32K instructions ≈ ±128KB). The unconditional `BC` has a 26-bit signed offset (±33M instructions ≈ ±128MB). For programs exceeding conditional branch range, a trampoline pattern is needed:
 
 ```asm
 # Branch trampoline for out-of-range conditional
@@ -327,8 +329,11 @@ OR     $v0, $t0, $zero        # R0 = old value (always)
 # BPF R1-R5 already in $a0-$a4 (zero-cost mapping)
 # Load 6th parameter (context cookie) into $a5 ($9)
 OR    $a5, $context_reg, $zero  # Cookie/context pointer
-# Load function pointer
-LD    $t0, helper_table_offset($gp_or_base)
+# Load function pointer via dedicated JIT base register (see §2.2)
+# [DECISION NEEDED]: Which callee-saved register serves as the helper table base?
+# A callee-saved register (e.g., $s5 or $s6) should be loaded with the helper table
+# base address in the prologue and used here. $gp is not used.
+LD    $t0, helper_table_offset($helper_base_reg)
 JALR  $ra, $t0                  # Indirect call
 # Return value already in $v0 = BPF R0
 ```
@@ -357,6 +362,7 @@ BC    .Lexit
 DADDIU $sp, $sp, -frame_size
 SD     $ra, frame_size-8($sp)     # Save return address
 SD     $fp, frame_size-16($sp)    # Save frame pointer
+OR     $fp, $sp, $zero            # Set native frame pointer = $sp
 SD     $s0, frame_size-24($sp)    # BPF R6
 SD     $s1, frame_size-32($sp)    # BPF R7
 SD     $s2, frame_size-40($sp)    # BPF R8
@@ -435,14 +441,13 @@ Same framework as x86-64 and ARM64 — handled by `ubpf_jit.c`:
 
 ```asm
 # Load helper function pointer from table
-LD     $t0, helper_table_base    # Base of helper pointer array
-DSLL   $t1, $zero, 3             # index * 8 (computed from imm field)
-DADDIU $t1, $t1, (imm * 8)      # Offset into table
+LD     $t0, helper_table_base         # Base of helper pointer array (loaded via base register)
+DADDIU $t1, $zero, (imm * 8)         # Offset into table (imm = helper index from BPF instruction)
 DADDU  $t0, $t0, $t1
-LD     $t0, 0($t0)               # Load function pointer
+LD     $t0, 0($t0)                    # Load function pointer
 # BPF R1-R5 already in $a0-$a4
-OR     $a5, $context, $zero      # 6th param: context cookie
-JALR   $ra, $t0                  # Call helper
+OR     $a5, $context, $zero           # 6th param: context cookie
+JALR   $ra, $t0                       # Call helper
 # Result in $v0 = BPF R0
 ```
 
@@ -450,11 +455,11 @@ JALR   $ra, $t0                  # Call helper
 
 ```asm
 # Load dispatcher function pointer
-LD     $t0, dispatcher_offset     # Load dispatcher pointer
+LD     $t0, dispatcher_offset          # Load dispatcher pointer (via base register)
 # $a0-$a4 = BPF R1-R5 (already mapped)
-OR     $a5, $zero, imm_index     # 6th param: helper index
-OR     $a6, $context, $zero      # 7th param: context cookie
-JALR   $ra, $t0                  # Call dispatcher
+LI     $a5, imm_index                  # 6th param: helper index (ORI or LUI+ORI)
+OR     $a6, $context, $zero            # 7th param: context cookie
+JALR   $ra, $t0                        # Call dispatcher
 # Result in $v0 = BPF R0
 ```
 
