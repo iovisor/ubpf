@@ -195,7 +195,7 @@ uBPF uses a multi-layered testing strategy:
 | REQ-ISA-004 | Signed division and modulo | TC-ISA-013 | **High** — sdiv32.data, sdiv64.data, smod32.data, smod64.data |
 | REQ-ISA-005 | MOV with sign-extension (MOVSX) | TC-ISA-008 | **High** — conformance movsx tests |
 | REQ-ISA-006 | Byte swap operations | TC-ISA-014 | **High** — conformance be16/32/64, le16/32/64 tests |
-| REQ-ISA-007 | Memory load/store and LDDW | TC-ISA-005, TC-ISA-006 | **High** — ldx.data, st.data, stx.data, lddw.data, 80+ conformance tests |
+| REQ-ISA-007 | Memory load/store and LDDW | TC-ISA-005, TC-ISA-006 | **High** — ldx.data, st.data, stx.data, 80+ conformance tests (including lddw.data) |
 | REQ-ISA-008 | Sign-extending loads | TC-ISA-007 | **High** — ldxsb-positive.data, ldxsh.data, conformance tests |
 | REQ-ISA-009 | Jump instructions (64-bit and 32-bit) | TC-ISA-009, TC-ISA-010 | **High** — jmp.data, 40+ conformance jmp/jmp32 tests |
 | REQ-ISA-010 | Atomic operations | TC-ISA-011 | **Medium** — atomic_validate custom test (validation only) |
@@ -574,7 +574,7 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-ISA-007
 - **Level:** Unit
 - **Confidence:** High
-- **Evidence:** `tests/lddw.data`, conformance LDDW tests
+- **Evidence:** `external/bpf_conformance/tests/lddw.data`, conformance LDDW tests
 - **Pass criteria:** 64-bit immediate values are correctly loaded via two-instruction LDDW
 - **Existing tests:** lddw, conformance LDDW tests
 
@@ -659,7 +659,7 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** High
 - **Evidence:** `test_framework/test_jit.py` — runs every `.data` file through JIT with 20 register-offset variants
 - **Pass criteria:** JIT output matches interpreter output for all tests
-- **Existing tests:** ~360 × 20 = ~7200 JIT test executions
+- **Existing tests:** ~360 x 20 = ~7200 JIT test executions
 
 #### TC-JIT-002: compile_ex API
 - **Traces to:** REQ-JIT-002
@@ -865,7 +865,7 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-EXT-005
 - **Level:** Unit
 - **Confidence:** High
-- **Evidence:** `custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc`, `*_unaligned.cc`, `*_zero.cc`, `*_default.cc`
+- **Evidence:** `custom_tests/srcs/ubpf_test_custom_local_function_stack_size.cc`, `*_unaligned.cc`, `*_zero.cc`, `ubpf_test_default_local_function_stack_size.cc`
 - **Pass criteria:** Custom stack sizes applied; unaligned rejected; zero accepted; default works
 - **Existing tests:** 4 custom tests
 

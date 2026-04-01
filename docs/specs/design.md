@@ -121,7 +121,7 @@ This design addresses the following requirement categories (see `docs/specs/requ
 
 *Implements: REQ-LIFE-001, REQ-LIFE-002*
 
-`struct ubpf_vm`(defined in `vm/ubpf_int.h`) is the single opaque type representing a VM instance. It is never exposed to users — only a pointer is returned from `ubpf_create()`.
+`struct ubpf_vm` (defined in `vm/ubpf_int.h`) is the single opaque type representing a VM instance. It is never exposed to users — only a pointer is returned from `ubpf_create()`.
 
 **Field Groups:**
 
@@ -171,7 +171,7 @@ CALLBACKS
 ```
 
 **Confidence:** High
-**Source:** `vm/ubpf_int.h:27-95`
+**Source:** `vm/ubpf_int.h:67-119`
 
 ### 4.2 Instruction Representation
 
@@ -359,7 +359,7 @@ CALL src==0, imm=index:
 ```
 
 **Confidence:** High
-**Source:** `vm/ubpf_vm.c:ubpf_exec_ex` (lines ~300-700)
+**Source:** `vm/ubpf_vm.c:ubpf_exec_ex` (lines ~758-1751)
 
 ### 4.6 JIT Compilation Pipeline
 
@@ -461,7 +461,7 @@ This prevents an attacker from controlling immediate bytes in JIT output.
 **RNG Sources:** BCryptGenRandom (Windows), getrandom (Linux), arc4random_buf (macOS), rand() fallback.
 
 **Confidence:** High
-**Source:** `vm/ubpf_jit_x86_64.c` (constant blinding macros, ~lines 200-250)
+**Source:** `vm/ubpf_jit_x86_64.c` (constant blinding functions, ~lines 462-707)
 
 #### Retpoline Support (x86-64)
 

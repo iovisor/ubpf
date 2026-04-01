@@ -233,7 +233,7 @@ When `readonly_bytecode_enabled` is `false`, `ubpf_load()` MUST allocate via `ma
 
 `ubpf_load()` MUST XOR-encode each stored instruction with both the base address of the instruction array (`(uint64_t)vm->insts`) and `vm->pointer_secret` when storing. Instruction fetch MUST XOR-decode using the same two values transparently.
 
-- **Source:** `vm/ubpf_vm.c:2266-2290` (`ubpf_fetch_instruction`, `ubpf_store_instruction`), declared in `vm/ubpf_int.h:201-212`
+- **Source:** `vm/ubpf_vm.c:2265-2287` (`ubpf_fetch_instruction`, `ubpf_store_instruction`), declared in `vm/ubpf_int.h:201-212`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: With a non-zero pointer secret, raw memory at `vm->insts` does not contain valid eBPF opcodes.
@@ -683,7 +683,7 @@ The VM MUST support byte swap operations:
 - `EBPF_OP_LE` / `EBPF_OP_BE`: Legacy endian conversion (16, 32, or 64-bit).
 - `EBPF_OP_BSWAP`: Unconditional byte swap.
 
-- **Source:** `vm/ebpf.h:100, 128, 155`
+- **Source:** `vm/ebpf.h:100, 127-128, 155`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: `LE 16` on a big-endian value converts to little-endian 16-bit.
@@ -1011,7 +1011,7 @@ uBPF MUST compile and run on Windows with MSVC. Platform compatibility MUST be p
 - `BCryptGenRandom` for cryptographic random generation.
 - Linking against `Ws2_32.lib` and the `win-c` submodule.
 
-- **Source:** `vm/compat/windows/`, `vm/compat/CMakeLists.txt:9-30`, `vm/ubpf_int.h:238-249` (MSVC atomics)
+- **Source:** `vm/compat/windows/`, `vm/compat/CMakeLists.txt:9-30`, `vm/ubpf_int.h:251-266` (MSVC atomics)
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: The project builds with MSVC on Windows without errors.
@@ -1028,7 +1028,7 @@ uBPF MUST compile and run on Linux with GCC or Clang. Linux-specific dependencie
 - `getrandom` for cryptographic random generation.
 - GCC/Clang built-in atomics for interpreter atomic operations.
 
-- **Source:** `cmake/platform.cmake:13-14`, `vm/CMakeLists.txt:69-78`, `vm/ubpf_int.h:253-265`
+- **Source:** `cmake/platform.cmake:13-14`, `vm/CMakeLists.txt:69-78`, `vm/ubpf_int.h:237-249`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: The project builds with GCC and Clang on Linux.
@@ -1067,9 +1067,9 @@ The JIT MUST use platform-appropriate cryptographically secure random number gen
 - Windows: `BCryptGenRandom`.
 - Linux: `getrandom`.
 - macOS: `arc4random_buf`.
-- Fallback: `rand()`. `[ASSUMPTION: rand() fallback exists for platforms without CSPRNG; this is not cryptographically secure]`
+- Fallback: `rand()` (not cryptographically secure).
 
-- **Source:** `vm/ubpf_jit_support.c:173-210` (`ubpf_generate_blinding_constant` implementation), declared in `vm/ubpf_jit_support.h:211`
+- **Source:** `vm/ubpf_jit_support.c:172-204` (`ubpf_generate_blinding_constant` implementation), declared in `vm/ubpf_jit_support.h:211`
 - **Confidence:** **Medium** — platform implementations inferred from build configuration.
 - **Acceptance Criteria:**
   - AC-1: On each supported platform, `ubpf_generate_blinding_constant()` returns non-deterministic 64-bit values.

@@ -313,7 +313,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D5_ASSUMPTION_DRIFT
 - **Severity:** Low
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
 **Description:** All three documents are now dated 2026-03-31 and share version 1.0.0. This finding has been resolved.
 
@@ -331,7 +331,7 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D2_UNTESTED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
 **Description:** REQ-LOAD-011 "LDDW Pairing Validation" now has a matching validation entry in the traceability matrix, mapped to TC-LOAD-004 (instruction validation). The original misalignment (where validation mapped REQ-LOAD-011 to "Code replacement") has been corrected.
 
