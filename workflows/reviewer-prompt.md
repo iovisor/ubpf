@@ -323,12 +323,12 @@ Produce aggregate metrics:
 # Task: Audit MIPS64r6 JIT Implementation Against Specification
 
 You are tasked with auditing the uBPF MIPS64r6 JIT backend implementation
-(`vm/ubpf_jit_mips64.c`) against its specification (`jit-mips64r6.md`)
+(`vm/ubpf_jit_mips64.c`) against its specification (`jit-mips.md`)
 to detect every gap between what was specified and what was built.
 
 ## Inputs
 
-**Specification**: The MIPS64r6 JIT backend specification (`jit-mips64r6.md`).
+**Specification**: The MIPS64r6 JIT backend specification (`jit-mips.md`).
 
 **Source Code**: `vm/ubpf_jit_mips64.c` — the implementation to audit.
 

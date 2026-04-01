@@ -334,7 +334,7 @@ virtual machine. You produce C source code — specifically `vm/ubpf_jit_mips64.
 
 ## Inputs
 
-**Specification**: The MIPS64r6 JIT backend specification (`jit-mips64r6.md`),
+**Specification**: The MIPS64r6 JIT backend specification (`jit-mips.md`),
 which defines the complete mapping from BPF ISA to MIPS64r6 machine code.
 This spec follows the same structure as the x86-64 and ARM64 backend specs.
 

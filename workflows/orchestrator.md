@@ -22,7 +22,7 @@ validator declares DONE.
 
 Before starting the workflow, ensure you have:
 
-1. **MIPS64r6 JIT Spec** — `docs/specs/jit-mips64r6.md` (generated from
+1. **MIPS64r6 JIT Spec** — `docs/specs/jit-mips.md` (generated from
    `generate-jit-mips64r6-prompt.md`, reviewed and finalized)
 2. **Reference source files** (read-only context for the coder):
    - `vm/ubpf_jit_arm64.c` — ARM64 JIT backend (style reference)

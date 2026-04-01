@@ -200,7 +200,7 @@ which findings were addressed and how.
 **Iteration History**: All previous verdicts, finding reports, and change
 summaries from earlier iterations.
 
-**MIPS64r6 JIT Spec**: The specification (`jit-mips64r6.md`) — the
+**MIPS64r6 JIT Spec**: The specification (`jit-mips.md`) — the
 authoritative reference for all spec-grounding decisions.
 
 ## Instructions
