@@ -798,6 +798,478 @@ emit_dmod(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, e
 
 /* Public API stubs */
 
+/* ========================================================================
+ * Division / Modulo with zero-check and INT_MIN/-1 guard
+ * [JIT-SPEC] §3.3
+ * ======================================================================== */
+static void
+emit_divmod(struct jit_state* state, uint8_t opcode, enum MipsRegister dst,
+            enum MipsRegister divisor, int16_t bpf_offset, bool sixty_four)
+{
+    bool is_mod = (opcode & EBPF_ALU_OP_MASK) == (EBPF_OP_MOD_IMM & EBPF_ALU_OP_MASK);
+    bool is_signed = (bpf_offset == 1);
+
+    /* Check divisor != 0. BNEC is a R6 compact branch (no delay slot). */
+    uint32_t branch_nz_loc = state->offset;
+    emit_instruction(state, 0); /* placeholder BNEC divisor, $zero, .Lnonzero */
+
+    /* Division-by-zero path */
+    if (!is_mod) {
+        emit_or(state, dst, MIPS_REG_ZERO, MIPS_REG_ZERO); /* dst = 0 */
+    } else if (!sixty_four) {
+        emit_zero_ext32(state, dst); /* 32-bit mod: clear upper 32 */
+    }
+    /* else: 64-bit mod, dst unchanged */
+    uint32_t branch_done_loc = state->offset;
+    emit_instruction(state, 0); /* placeholder BC .Ldone */
+
+    /* .Lnonzero: */
+    uint32_t nonzero_loc = state->offset;
+
+    if (sixty_four) {
+        if (is_signed) {
+            if (is_mod)
+                emit_dmod(state, dst, dst, divisor);
+            else
+                emit_ddiv(state, dst, dst, divisor);
+        } else {
+            if (is_mod)
+                emit_dmodu(state, dst, dst, divisor);
+            else
+                emit_ddivu(state, dst, dst, divisor);
+        }
+    } else {
+        if (is_signed) {
+            if (is_mod)
+                emit_mod(state, dst, dst, divisor);
+            else
+                emit_div(state, dst, dst, divisor);
+        } else {
+            if (is_mod)
+                emit_modu(state, dst, dst, divisor);
+            else
+                emit_divu(state, dst, dst, divisor);
+        }
+        emit_zero_ext32(state, dst);
+    }
+
+    /* .Ldone: */
+    uint32_t done_loc = state->offset;
+
+    /* Patch BNEC: divisor, $zero, .Lnonzero */
+    {
+        int32_t rel = ((int32_t)(nonzero_loc - branch_nz_loc)) >> 2;
+        uint32_t enc = ((uint32_t)MIPS_OP_POP07 << 26) |
+                       ((uint32_t)divisor << 21) | ((uint32_t)MIPS_REG_ZERO << 16) |
+                       ((uint32_t)rel & 0xFFFF);
+        memcpy(state->buf + branch_nz_loc, &enc, 4);
+    }
+    /* Patch BC .Ldone */
+    {
+        int32_t rel = ((int32_t)(done_loc - branch_done_loc)) >> 2;
+        uint32_t enc = ((uint32_t)MIPS_OP_BC << 26) | ((uint32_t)rel & 0x03FFFFFF);
+        memcpy(state->buf + branch_done_loc, &enc, 4);
+    }
+}
+
+/* ========================================================================
+ * Prologue / Epilogue
+ * [JIT-SPEC] §4
+ * ======================================================================== */
+
+/* Frame layout (grows downward):
+ *   [frame_size - 8]   $ra
+ *   [frame_size - 16]  $fp
+ *   [frame_size - 24]  $s0 (BPF R6)
+ *   [frame_size - 32]  $s1 (BPF R7)
+ *   [frame_size - 40]  $s2 (BPF R8)
+ *   [frame_size - 48]  $s3 (BPF R9)
+ *   [frame_size - 56]  $s4 (BPF R10)
+ *   [frame_size - 64]  $s5 (helper table base)
+ *   [frame_size - 72]  $s6 (context)
+ *   [frame_size - 80]  helper_ra_save (for $ra around JALR)
+ *   [0..frame_size-80]  BPF stack space
+ */
+#define MIPS_SAVE_AREA_SIZE 80 /* 10 slots * 8 bytes */
+
+static void
+emit_jit_prologue(struct jit_state* state, size_t bpf_stack_size)
+{
+    int frame_size = MIPS_SAVE_AREA_SIZE + (int)((bpf_stack_size + 15) & ~15);
+
+    emit_daddiu(state, MIPS_REG_SP, MIPS_REG_SP, (int16_t)(-frame_size));
+
+    int off = frame_size - 8;
+    emit_sd(state, MIPS_REG_RA, MIPS_REG_SP, (int16_t)off); off -= 8;
+    emit_sd(state, MIPS_REG_FP, MIPS_REG_SP, (int16_t)off); off -= 8;
+    for (unsigned i = 0; i < _countof(callee_saved_registers); i++) {
+        emit_sd(state, callee_saved_registers[i], MIPS_REG_SP, (int16_t)off);
+        off -= 8;
+    }
+
+    /* Set native frame pointer */
+    emit_or(state, MIPS_REG_FP, MIPS_REG_SP, MIPS_REG_ZERO);
+
+    /* Preserve context pointer ($a0) in $s6 for helper calls */
+    emit_or(state, VOLATILE_CTXT, MIPS_REG_A0, MIPS_REG_ZERO);
+
+    /* BPF frame pointer R10 ($s4) = top of BPF stack */
+    emit_daddiu(state, map_register(10), MIPS_REG_SP,
+                (int16_t)(MIPS_SAVE_AREA_SIZE + (int)bpf_stack_size));
+
+    state->entry_loc = state->offset;
+}
+
+static void
+emit_jit_epilogue(struct jit_state* state, size_t bpf_stack_size)
+{
+    state->exit_loc = state->offset;
+
+    int frame_size = MIPS_SAVE_AREA_SIZE + (int)((bpf_stack_size + 15) & ~15);
+
+    int off = frame_size - 8;
+    emit_ld(state, MIPS_REG_RA, MIPS_REG_SP, (int16_t)off); off -= 8;
+    emit_ld(state, MIPS_REG_FP, MIPS_REG_SP, (int16_t)off); off -= 8;
+    for (unsigned i = 0; i < _countof(callee_saved_registers); i++) {
+        emit_ld(state, callee_saved_registers[i], MIPS_REG_SP, (int16_t)off);
+        off -= 8;
+    }
+
+    emit_daddiu(state, MIPS_REG_SP, MIPS_REG_SP, (int16_t)frame_size);
+    emit_jr(state, MIPS_REG_RA);
+}
+
+/* ========================================================================
+ * Main translate function
+ * [JIT-SPEC] §3
+ * ======================================================================== */
+
+static bool
+is_imm_op(const struct ebpf_inst* inst)
+{
+    return (inst->opcode & EBPF_SRC_REG) == 0 &&
+           inst->opcode != EBPF_OP_EXIT &&
+           inst->opcode != EBPF_OP_JA &&
+           inst->opcode != EBPF_OP_JA32 &&
+           inst->opcode != EBPF_OP_LDDW;
+}
+
+static bool
+is_alu64_op(const struct ebpf_inst* inst)
+{
+    return (inst->opcode & EBPF_CLS_MASK) == EBPF_CLS_ALU64;
+}
+
+static uint8_t
+to_reg_op(uint8_t opcode)
+{
+    return opcode | EBPF_SRC_REG;
+}
+
+static int
+translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
+{
+    emit_jit_prologue(state, UBPF_EBPF_STACK_SIZE);
+
+    for (int i = 0; i < vm->num_insts; i++) {
+        if (state->jit_status != NoError)
+            break;
+
+        struct ebpf_inst inst = ubpf_fetch_instruction(vm, i);
+        state->pc_locs[i] = state->offset;
+
+        enum MipsRegister dst = map_register(inst.dst);
+        enum MipsRegister src = map_register(inst.src);
+        uint8_t opcode = inst.opcode;
+        int sixty_four = is_alu64_op(&inst);
+
+        /* Compute jump target PC */
+        int64_t target_pc_64 = (opcode == EBPF_OP_JA32)
+            ? (int64_t)i + (int64_t)inst.imm + 1
+            : (int64_t)i + (int64_t)inst.offset + 1;
+        uint32_t target_pc = (uint32_t)target_pc_64;
+
+        /* Materialize immediate into temp_register, convert to register op */
+        if (is_imm_op(&inst) &&
+            opcode != EBPF_OP_MOV_IMM && opcode != EBPF_OP_MOV64_IMM) {
+            if (vm->constant_blinding_enabled) {
+                uint64_t rnd = ubpf_generate_blinding_constant();
+                emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm ^ rnd);
+                emit_load_imm64(state, temp_div_register, rnd);
+                emit_xor(state, temp_register, temp_register, temp_div_register);
+            } else {
+                emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm);
+            }
+            src = temp_register;
+            opcode = to_reg_op(opcode);
+        }
+
+        switch (opcode) {
+
+        /* ---- ALU64 register ---- */
+        case EBPF_OP_ADD64_REG:  emit_daddu(state, dst, dst, src); break;
+        case EBPF_OP_SUB64_REG:  emit_dsubu(state, dst, dst, src); break;
+        case EBPF_OP_MUL64_REG:  emit_dmul(state, dst, dst, src);  break;
+        case EBPF_OP_OR64_REG:   emit_or(state, dst, dst, src);    break;
+        case EBPF_OP_AND64_REG:  emit_and(state, dst, dst, src);   break;
+        case EBPF_OP_XOR64_REG:  emit_xor(state, dst, dst, src);   break;
+        case EBPF_OP_LSH64_REG:  emit_dsllv(state, dst, dst, src); break;
+        case EBPF_OP_RSH64_REG:  emit_dsrlv(state, dst, dst, src); break;
+        case EBPF_OP_ARSH64_REG: emit_dsrav(state, dst, dst, src); break;
+        case EBPF_OP_NEG64:      emit_dsubu(state, dst, MIPS_REG_ZERO, dst); break;
+        case EBPF_OP_DIV64_REG:
+        case EBPF_OP_MOD64_REG:
+            emit_divmod(state, opcode, dst, src, inst.offset, true);
+            break;
+
+        /* ---- ALU32 register — 64-bit ops + zero-ext [JIT-SPEC §3.2] ---- */
+        case EBPF_OP_ADD_REG:  emit_daddu(state, dst, dst, src); emit_zero_ext32(state, dst); break;
+        case EBPF_OP_SUB_REG:  emit_dsubu(state, dst, dst, src); emit_zero_ext32(state, dst); break;
+        case EBPF_OP_MUL_REG:  emit_dmul(state, dst, dst, src);  emit_zero_ext32(state, dst); break;
+        case EBPF_OP_OR_REG:   emit_or(state, dst, dst, src);    emit_zero_ext32(state, dst); break;
+        case EBPF_OP_AND_REG:  emit_and(state, dst, dst, src);   emit_zero_ext32(state, dst); break;
+        case EBPF_OP_XOR_REG:  emit_xor(state, dst, dst, src);   emit_zero_ext32(state, dst); break;
+        case EBPF_OP_LSH_REG:  emit_sllv(state, dst, dst, src);  emit_zero_ext32(state, dst); break;
+        case EBPF_OP_RSH_REG:  emit_srlv(state, dst, dst, src);  emit_zero_ext32(state, dst); break;
+        case EBPF_OP_ARSH_REG: emit_srav(state, dst, dst, src);  emit_zero_ext32(state, dst); break;
+        case EBPF_OP_NEG:      emit_dsubu(state, dst, MIPS_REG_ZERO, dst); emit_zero_ext32(state, dst); break;
+        case EBPF_OP_DIV_REG:
+        case EBPF_OP_MOD_REG:
+            emit_divmod(state, opcode, dst, src, inst.offset, false);
+            break;
+
+        /* ---- MOV ---- */
+        case EBPF_OP_MOV64_IMM:
+            if (vm->constant_blinding_enabled) {
+                uint64_t rnd = ubpf_generate_blinding_constant();
+                emit_load_imm64(state, dst, (uint64_t)(int64_t)inst.imm ^ rnd);
+                emit_load_imm64(state, temp_register, rnd);
+                emit_xor(state, dst, dst, temp_register);
+            } else {
+                emit_load_imm64(state, dst, (uint64_t)(int64_t)inst.imm);
+            }
+            break;
+        case EBPF_OP_MOV_IMM:
+            if (vm->constant_blinding_enabled) {
+                uint64_t rnd = ubpf_generate_blinding_constant();
+                emit_load_imm64(state, dst, (uint64_t)(int64_t)inst.imm ^ rnd);
+                emit_load_imm64(state, temp_register, rnd);
+                emit_xor(state, dst, dst, temp_register);
+            } else {
+                emit_load_imm64(state, dst, (uint64_t)(int64_t)inst.imm);
+            }
+            emit_zero_ext32(state, dst);
+            break;
+        case EBPF_OP_MOV64_REG:
+        case EBPF_OP_MOV_REG:
+            if (inst.offset == 8)       { emit_seb(state, dst, src); }
+            else if (inst.offset == 16) { emit_seh(state, dst, src); }
+            else if (inst.offset == 32 && sixty_four) { emit_sll(state, dst, src, 0); }
+            else { emit_or(state, dst, src, MIPS_REG_ZERO); }
+            if (!sixty_four) emit_zero_ext32(state, dst);
+            break;
+
+        /* ---- Byte swap [JIT-SPEC §3.5] ---- */
+        case EBPF_OP_LE:
+            if (inst.imm == 16) emit_andi(state, dst, dst, 0xFFFF);
+            else if (inst.imm == 32) emit_zero_ext32(state, dst);
+            break;
+        case EBPF_OP_BE:
+            if (inst.imm == 16) {
+                emit_wsbh(state, dst, dst);
+                emit_andi(state, dst, dst, 0xFFFF);
+            } else if (inst.imm == 32) {
+                emit_wsbh(state, dst, dst);
+                /* ROTR dst, dst, 16 */
+                emit_r_type(state, MIPS_OP_SPECIAL, 1, dst, dst, 16, MIPS_FUNCT_SRL);
+                emit_zero_ext32(state, dst);
+            } else if (inst.imm == 64) {
+                emit_dsbh(state, dst, dst);
+                emit_dshd(state, dst, dst);
+            }
+            break;
+
+        /* ---- Memory loads [JIT-SPEC §3.6, §3.7] ---- */
+        case EBPF_OP_LDXB:   emit_lbu(state, dst, src, inst.offset); break;
+        case EBPF_OP_LDXH:   emit_lhu(state, dst, src, inst.offset); break;
+        case EBPF_OP_LDXW:   emit_lwu(state, dst, src, inst.offset); break;
+        case EBPF_OP_LDXDW:  emit_ld(state, dst, src, inst.offset);  break;
+        case EBPF_OP_LDXBSX: emit_lb(state, dst, src, inst.offset);  break;
+        case EBPF_OP_LDXHSX: emit_lh(state, dst, src, inst.offset);  break;
+        case EBPF_OP_LDXWSX: emit_lw(state, dst, src, inst.offset);  break;
+
+        /* ---- Memory stores [JIT-SPEC §3.8] ---- */
+        case EBPF_OP_STB:
+            emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm);
+            emit_sb(state, temp_register, dst, inst.offset); break;
+        case EBPF_OP_STH:
+            emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm);
+            emit_sh(state, temp_register, dst, inst.offset); break;
+        case EBPF_OP_STW:
+            emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm);
+            emit_sw(state, temp_register, dst, inst.offset); break;
+        case EBPF_OP_STDW:
+            emit_load_imm64(state, temp_register, (uint64_t)(int64_t)inst.imm);
+            emit_sd(state, temp_register, dst, inst.offset); break;
+        case EBPF_OP_STXB:  emit_sb(state, src, dst, inst.offset); break;
+        case EBPF_OP_STXH:  emit_sh(state, src, dst, inst.offset); break;
+        case EBPF_OP_STXW:  emit_sw(state, src, dst, inst.offset); break;
+        case EBPF_OP_STXDW: emit_sd(state, src, dst, inst.offset); break;
+
+        /* ---- LDDW [JIT-SPEC §3.9] ---- */
+        case EBPF_OP_LDDW: {
+            struct ebpf_inst next = ubpf_fetch_instruction(vm, ++i);
+            uint64_t imm64 = (uint64_t)inst.imm | ((uint64_t)next.imm << 32);
+            if (vm->constant_blinding_enabled) {
+                uint64_t rnd = ubpf_generate_blinding_constant();
+                emit_load_imm64(state, dst, imm64 ^ rnd);
+                emit_load_imm64(state, temp_register, rnd);
+                emit_xor(state, dst, dst, temp_register);
+            } else {
+                emit_load_imm64(state, dst, imm64);
+            }
+            break;
+        }
+
+        /* ---- Jumps [JIT-SPEC §3.10] — R6 compact branches ---- */
+        case EBPF_OP_JA:
+        case EBPF_OP_JA32:
+            note_jump(state, state->offset, target_pc);
+            emit_bc(state, 0);
+            break;
+        case EBPF_OP_JEQ_REG:  case EBPF_OP_JEQ64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_beqc(state, dst, src, 0); break;
+        case EBPF_OP_JNE_REG:  case EBPF_OP_JNE64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bnec(state, dst, src, 0); break;
+        case EBPF_OP_JSET_REG: case EBPF_OP_JSET64_REG:
+            emit_and(state, temp_register, dst, src);
+            note_jump(state, state->offset, target_pc);
+            emit_bnezc(state, temp_register, 0); break;
+        case EBPF_OP_JGT_REG:  case EBPF_OP_JGT64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bltuc(state, src, dst, 0); break;
+        case EBPF_OP_JGE_REG:  case EBPF_OP_JGE64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bgeuc(state, dst, src, 0); break;
+        case EBPF_OP_JLT_REG:  case EBPF_OP_JLT64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bltuc(state, dst, src, 0); break;
+        case EBPF_OP_JLE_REG:  case EBPF_OP_JLE64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bgeuc(state, src, dst, 0); break;
+        case EBPF_OP_JSGT_REG: case EBPF_OP_JSGT64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bltc(state, src, dst, 0); break;
+        case EBPF_OP_JSGE_REG: case EBPF_OP_JSGE64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bgec(state, dst, src, 0); break;
+        case EBPF_OP_JSLT_REG: case EBPF_OP_JSLT64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bltc(state, dst, src, 0); break;
+        case EBPF_OP_JSLE_REG: case EBPF_OP_JSLE64_REG:
+            note_jump(state, state->offset, target_pc);
+            emit_bgec(state, src, dst, 0); break;
+
+        /* ---- CALL [JIT-SPEC §3.12] ---- */
+        case EBPF_OP_CALL:
+            if (inst.src == 0) {
+                /* External helper call */
+                emit_sd(state, MIPS_REG_RA, MIPS_REG_SP, MIPS_SAVE_AREA_SIZE - 80);
+                emit_or(state, MIPS_REG_A5, VOLATILE_CTXT, MIPS_REG_ZERO);
+                emit_load_imm64(state, temp_register, (uint64_t)inst.imm * 8);
+                emit_daddu(state, temp_register, MIPS_REG_S5, temp_register);
+                emit_ld(state, temp_register, temp_register, 0);
+                emit_jalr(state, MIPS_REG_RA, temp_register);
+                emit_ld(state, MIPS_REG_RA, MIPS_REG_SP, MIPS_SAVE_AREA_SIZE - 80);
+            } else if (inst.src == 1) {
+                /* Local function call */
+                emit_sd(state, MIPS_REG_RA, MIPS_REG_SP, MIPS_SAVE_AREA_SIZE - 80);
+                emit_sd(state, map_register(6), map_register(10), -8);
+                emit_sd(state, map_register(7), map_register(10), -16);
+                emit_sd(state, map_register(8), map_register(10), -24);
+                emit_sd(state, map_register(9), map_register(10), -32);
+                uint16_t local_stack = ubpf_stack_usage_for_local_func(vm, i + inst.imm + 1);
+                emit_load_imm64(state, temp_register, local_stack);
+                emit_dsubu(state, map_register(10), map_register(10), temp_register);
+                note_local_call(state, state->offset, (uint32_t)(i + inst.imm + 1));
+                emit_balc(state, 0);
+                emit_load_imm64(state, temp_register, local_stack);
+                emit_daddu(state, map_register(10), map_register(10), temp_register);
+                emit_ld(state, map_register(6), map_register(10), -8);
+                emit_ld(state, map_register(7), map_register(10), -16);
+                emit_ld(state, map_register(8), map_register(10), -24);
+                emit_ld(state, map_register(9), map_register(10), -32);
+                emit_ld(state, MIPS_REG_RA, MIPS_REG_SP, MIPS_SAVE_AREA_SIZE - 80);
+            }
+            break;
+
+        /* ---- EXIT [JIT-SPEC §3.13] ---- */
+        case EBPF_OP_EXIT:
+            note_jump_to_exit(state, state->offset);
+            emit_bc(state, 0);
+            break;
+
+        default:
+            *errmsg = ubpf_error("MIPS64r6 JIT: unsupported opcode 0x%02x at PC %d", inst.opcode, i);
+            return -1;
+        }
+    }
+
+    emit_jit_epilogue(state, UBPF_EBPF_STACK_SIZE);
+    return 0;
+}
+
+/* ========================================================================
+ * Branch fixup resolution
+ * [JIT-SPEC] §9
+ * ======================================================================== */
+
+static void
+patch_branch_mips64(struct jit_state* state, uint32_t instr_offset, int32_t rel)
+{
+    uint32_t instr;
+    memcpy(&instr, state->buf + instr_offset, sizeof(uint32_t));
+    uint8_t op = (instr >> 26) & 0x3F;
+
+    if (op == MIPS_OP_BC || op == MIPS_OP_BALC) {
+        instr |= ((uint32_t)rel & 0x03FFFFFF);
+    } else {
+        instr |= ((uint32_t)rel & 0xFFFF);
+    }
+    memcpy(state->buf + instr_offset, &instr, sizeof(uint32_t));
+}
+
+static bool
+resolve_jumps_mips64(struct jit_state* state)
+{
+    for (unsigned i = 0; i < state->num_jumps; i++) {
+        struct patchable_relative jump = state->jumps[i];
+        int32_t target_loc;
+        if (jump.target_is_exit) {
+            target_loc = state->exit_loc;
+        } else {
+            target_loc = state->pc_locs[jump.target_pc];
+        }
+        int32_t rel = (target_loc - (int32_t)jump.offset_loc) >> 2;
+        patch_branch_mips64(state, jump.offset_loc, rel);
+    }
+    return true;
+}
+
+static bool
+resolve_local_calls_mips64(struct jit_state* state)
+{
+    for (unsigned i = 0; i < state->num_local_calls; i++) {
+        struct patchable_relative call = state->local_calls[i];
+        int32_t target_loc = state->pc_locs[call.target_pc];
+        int32_t rel = (target_loc - (int32_t)call.offset_loc) >> 2;
+        patch_branch_mips64(state, call.offset_loc, rel);
+    }
+    return true;
+}
+
 /**
  * @brief Update the external dispatcher address in JIT'd MIPS64 code.
  *
@@ -854,19 +1326,40 @@ ubpf_jit_update_helper_mips64(
 
 /**
  * @brief Translate eBPF instructions to MIPS64r6 native code.
- * Stub — full implementation pending.
+ * [JIT-SPEC] §1
  */
 struct ubpf_jit_result
 ubpf_translate_mips64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode)
 {
-    (void)vm;
-    (void)buffer;
-    (void)size;
-    (void)jit_mode;
+    struct ubpf_jit_result jit_result;
+    memset(&jit_result, 0, sizeof(jit_result));
+    jit_result.jit_mode = jit_mode;
 
-    struct ubpf_jit_result compile_result;
-    memset(&compile_result, 0, sizeof(compile_result));
-    compile_result.compile_result = UBPF_JIT_COMPILE_FAILURE;
-    compile_result.errmsg = ubpf_error("MIPS64r6 JIT backend not yet implemented");
-    return compile_result;
+    struct jit_state state;
+    if (!initialize_jit_state_result(&state, &jit_result, buffer, *size, vm->num_insts)) {
+        return jit_result;
+    }
+
+    char* errmsg = NULL;
+    if (translate(vm, &state, &errmsg) < 0) {
+        jit_result.compile_result = UBPF_JIT_COMPILE_FAILURE;
+        jit_result.errmsg = errmsg;
+        release_jit_state_result(&state, &jit_result);
+        return jit_result;
+    }
+
+    if (!resolve_jumps_mips64(&state) || !resolve_local_calls_mips64(&state)) {
+        jit_result.compile_result = UBPF_JIT_COMPILE_FAILURE;
+        jit_result.errmsg = ubpf_error("MIPS64r6 JIT: failed to resolve branches");
+        release_jit_state_result(&state, &jit_result);
+        return jit_result;
+    }
+
+    jit_result.compile_result = UBPF_JIT_COMPILE_SUCCESS;
+    jit_result.external_dispatcher_offset = state.dispatcher_loc;
+    jit_result.external_helper_offset = state.helper_table_loc;
+    *size = state.offset;
+
+    release_jit_state_result(&state, &jit_result);
+    return jit_result;
 }
