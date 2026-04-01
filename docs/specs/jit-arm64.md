@@ -472,12 +472,12 @@ All atomic operations use ARM64 Load-Exclusive / Store-Exclusive instructions (L
 
 ```asm
     ; Address computation (if offset != 0)
-    ADD  x25, Xbase, #offset       ; or via MOVZ/ADD for large offsets
+    ADD  x26, Xbase, #offset       ; or via MOVZ/ADD for large offsets (address in x26, avoiding x25)
 retry:
-    LDXR Xload, [x25]             ; Exclusive load (x24 = temp_register)
+    LDXR Xload, [x26]             ; Exclusive load (x24 = temp_register)
     ADD  x8, Xload, Xvalue        ; (or ORR/AND/EOR for OR/AND/XOR)
-    STXR Wstatus, x8, [x25]      ; Exclusive store (status in x25)
-    SUBS WZR, Wstatus, #0         ; Check status
+    STXR W25, x8, [x26]           ; Exclusive store (status in W25, address in x26)
+    SUBS WZR, W25, #0             ; Check status
     B.NE retry                     ; Retry if exclusive monitor lost
     ; If FETCH: MOV result_reg, Xload  (copy old value)
 ```
@@ -765,7 +765,7 @@ The `EMIT_MOVEWIDE_IMMEDIATE` macro gates on `vm->constant_blinding_enabled` (li
 | Stack usage value per local function | Line 1260 | Derived from static analysis, not from BPF instruction |
 | Inline `ADD`/`SUB` immediates (simple path, blinding disabled) | Lines 1316, etc. | Only when blinding is disabled; when enabled, these are converted to register form too |
 
-> **IMPORTANT — Documentation discrepancy:** The public API header (`vm/inc/ubpf.h:160`) states _"ARM64: Not yet implemented — enabling on ARM64 will have no effect."_ This is **outdated**. The ARM64 JIT backend **does** implement constant blinding via the `EMIT_MOVEWIDE_IMMEDIATE` macro and `emit_movewide_immediate_blinded()` function. The coverage is comprehensive — all BPF-program-controlled immediates are blinded when the feature is enabled.
+> **IMPORTANT — Documentation discrepancy (ARM64):** The public API header (`vm/inc/ubpf.h:160`) states _"ARM64: Not yet implemented — enabling on ARM64 will have no effect."_ This is **outdated**. The ARM64 JIT backend **does** implement constant blinding via the `EMIT_MOVEWIDE_IMMEDIATE` macro and `emit_movewide_immediate_blinded()` function. The coverage is comprehensive — all BPF-program-controlled immediates are blinded when the feature is enabled. A follow-up change should update `vm/inc/ubpf.h` to accurately reflect this; until then, this specification is authoritative for ARM64 constant blinding.
 
 ### 5.2 W⊕X Memory Management
 
