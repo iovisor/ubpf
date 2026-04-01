@@ -982,7 +982,7 @@ Computes `rel = (target_loc - source_offset) >> 2`, then writes the 19-bit offse
 
 #### ADR Resolution (`resolve_leas`, line 1814–1834)
 
-Computes `rel = (target_loc - source_offset) >> 2`, then writes into the `ADR` instruction's immediate field via `resolve_adr()` (line 1748–1755). The encoding places bits [20:0] of the immediate into bits [28:5] of the instruction (`immhi` field).
+Computes `rel = (target_loc - source_offset) >> 2`, then writes into the `ADR` instruction's immediate field via `resolve_adr()` (line 1748–1755). The encoding places bits [23:0] of the relative offset into bits [28:5] of the instruction word: `immhi = (immediate & 0x00ffffff) << 5`.
 
 #### Local Call Resolution (`resolve_local_calls`, line 1836–1852)
 
