@@ -252,6 +252,12 @@ emit_j_type(struct jit_state* state, uint32_t opcode, uint32_t target26)
 #define MIPS_OP_POP66    0x36  /* BEQZC rs,offset21 (rs != 0) */
 #define MIPS_OP_POP76    0x3E  /* BNEZC rs,offset21 (rs != 0) */
 
+/* R6 compact comparison branch opcodes (bits [31:26]). */
+#define MIPS_OP_BGEUC    0x06  /* BGEUC rs,rt,offset16 (unsigned >=) */
+#define MIPS_OP_BLTUC    0x07  /* BLTUC rs,rt,offset16 (unsigned <) */
+#define MIPS_OP_BGEC     0x16  /* BGEC  rs,rt,offset16 (signed >=) */
+#define MIPS_OP_BLTC     0x17  /* BLTC  rs,rt,offset16 (signed <) */
+
 /* SPECIAL function codes (bits [5:0] with opcode = 0x00). */
 #define MIPS_FUNCT_DADDU  0x2D
 #define MIPS_FUNCT_DSUBU  0x2F
@@ -796,6 +802,111 @@ emit_dmod(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, e
     emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MOD_SHAMT, MIPS_FUNCT_SOP36);
 }
 
+/** @brief DDIVU rd, rs, rt — unsigned 64-bit divide. [MIPS-ISA]: "DDIVU" */
+static inline void
+emit_ddivu(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MUL_SHAMT, MIPS_FUNCT_SOP37);
+}
+
+/** @brief DMODU rd, rs, rt — unsigned 64-bit modulo. [MIPS-ISA]: "DMODU" */
+static inline void
+emit_dmodu(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MOD_SHAMT, MIPS_FUNCT_SOP37);
+}
+
+/** @brief DIV rd, rs, rt — signed 32-bit divide. [MIPS-ISA]: "DIV" */
+static inline void
+emit_div(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MUL_SHAMT, MIPS_FUNCT_SOP32);
+}
+
+/** @brief MOD rd, rs, rt — signed 32-bit modulo. [MIPS-ISA]: "MOD" */
+static inline void
+emit_mod(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MOD_SHAMT, MIPS_FUNCT_SOP32);
+}
+
+/** @brief DIVU rd, rs, rt — unsigned 32-bit divide. [MIPS-ISA]: "DIVU" */
+static inline void
+emit_divu(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MUL_SHAMT, MIPS_FUNCT_SOP33);
+}
+
+/** @brief MODU rd, rs, rt — unsigned 32-bit modulo. [MIPS-ISA]: "MODU" */
+static inline void
+emit_modu(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rs, enum MipsRegister rt)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, MIPS_MOD_SHAMT, MIPS_FUNCT_SOP33);
+}
+
+/** @brief JR rs — jump register (R6: JALR $zero, rs). [MIPS-ISA]: "JR" */
+static inline void
+emit_jr(struct jit_state* state, enum MipsRegister rs)
+{
+    emit_jalr(state, MIPS_REG_ZERO, rs);
+}
+
+/** @brief SLLV rd, rt, rs — 32-bit shift left logical variable. [MIPS-ISA]: "SLLV" */
+static inline void
+emit_sllv(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rt, enum MipsRegister rs)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, 0, MIPS_FUNCT_SLLV);
+}
+
+/** @brief SRLV rd, rt, rs — 32-bit shift right logical variable. [MIPS-ISA]: "SRLV" */
+static inline void
+emit_srlv(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rt, enum MipsRegister rs)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, 0, MIPS_FUNCT_SRLV);
+}
+
+/** @brief SRAV rd, rt, rs — 32-bit shift right arithmetic variable. [MIPS-ISA]: "SRAV" */
+static inline void
+emit_srav(struct jit_state* state, enum MipsRegister rd, enum MipsRegister rt, enum MipsRegister rs)
+{
+    emit_r_type(state, MIPS_OP_SPECIAL, rs, rt, rd, 0, MIPS_FUNCT_SRAV);
+}
+
+/** @brief ANDI rt, rs, imm — AND immediate (zero-extended). [MIPS-ISA]: "ANDI" */
+static inline void
+emit_andi(struct jit_state* state, enum MipsRegister rt, enum MipsRegister rs, uint16_t imm)
+{
+    emit_i_type(state, MIPS_OP_ANDI, rs, rt, imm);
+}
+
+/** @brief BLTUC rs, rt, offset16 — branch if rs < rt unsigned (compact). [MIPS-ISA]: "BLTUC" */
+static inline void
+emit_bltuc(struct jit_state* state, enum MipsRegister rs, enum MipsRegister rt, int16_t offset)
+{
+    emit_i_type(state, MIPS_OP_BLTUC, rs, rt, (uint16_t)offset);
+}
+
+/** @brief BGEUC rs, rt, offset16 — branch if rs >= rt unsigned (compact). [MIPS-ISA]: "BGEUC" */
+static inline void
+emit_bgeuc(struct jit_state* state, enum MipsRegister rs, enum MipsRegister rt, int16_t offset)
+{
+    emit_i_type(state, MIPS_OP_BGEUC, rs, rt, (uint16_t)offset);
+}
+
+/** @brief BLTC rs, rt, offset16 — branch if rs < rt signed (compact). [MIPS-ISA]: "BLTC" */
+static inline void
+emit_bltc(struct jit_state* state, enum MipsRegister rs, enum MipsRegister rt, int16_t offset)
+{
+    emit_i_type(state, MIPS_OP_BLTC, rs, rt, (uint16_t)offset);
+}
+
+/** @brief BGEC rs, rt, offset16 — branch if rs >= rt signed (compact). [MIPS-ISA]: "BGEC" */
+static inline void
+emit_bgec(struct jit_state* state, enum MipsRegister rs, enum MipsRegister rt, int16_t offset)
+{
+    emit_i_type(state, MIPS_OP_BGEC, rs, rt, (uint16_t)offset);
+}
+
 /* Public API stubs */
 
 /* ========================================================================
@@ -811,7 +922,7 @@ emit_divmod(struct jit_state* state, uint8_t opcode, enum MipsRegister dst,
 
     /* Check divisor != 0. BNEC is a R6 compact branch (no delay slot). */
     uint32_t branch_nz_loc = state->offset;
-    emit_instruction(state, 0); /* placeholder BNEC divisor, $zero, .Lnonzero */
+    emit_mips64(state, 0); /* placeholder BNEZC divisor, .Lnonzero */
 
     /* Division-by-zero path */
     if (!is_mod) {
@@ -821,7 +932,7 @@ emit_divmod(struct jit_state* state, uint8_t opcode, enum MipsRegister dst,
     }
     /* else: 64-bit mod, dst unchanged */
     uint32_t branch_done_loc = state->offset;
-    emit_instruction(state, 0); /* placeholder BC .Ldone */
+    emit_mips64(state, 0); /* placeholder BC .Ldone */
 
     /* .Lnonzero: */
     uint32_t nonzero_loc = state->offset;
@@ -856,12 +967,12 @@ emit_divmod(struct jit_state* state, uint8_t opcode, enum MipsRegister dst,
     /* .Ldone: */
     uint32_t done_loc = state->offset;
 
-    /* Patch BNEC: divisor, $zero, .Lnonzero */
+    /* Patch BNEZC: divisor, .Lnonzero */
     {
         int32_t rel = ((int32_t)(nonzero_loc - branch_nz_loc)) >> 2;
-        uint32_t enc = ((uint32_t)MIPS_OP_POP07 << 26) |
-                       ((uint32_t)divisor << 21) | ((uint32_t)MIPS_REG_ZERO << 16) |
-                       ((uint32_t)rel & 0xFFFF);
+        uint32_t enc = ((uint32_t)MIPS_OP_POP76 << 26) |
+                       ((uint32_t)divisor << 21) |
+                       ((uint32_t)rel & 0x1FFFFF);
         memcpy(state->buf + branch_nz_loc, &enc, 4);
     }
     /* Patch BC .Ldone */
@@ -988,6 +1099,8 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             ? (int64_t)i + (int64_t)inst.imm + 1
             : (int64_t)i + (int64_t)inst.offset + 1;
         uint32_t target_pc = (uint32_t)target_pc_64;
+
+        DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(tgt, target_pc);
 
         /* Materialize immediate into temp_register, convert to register op */
         if (is_imm_op(&inst) &&
@@ -1134,42 +1247,42 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
         /* ---- Jumps [JIT-SPEC §3.10] — R6 compact branches ---- */
         case EBPF_OP_JA:
         case EBPF_OP_JA32:
-            note_jump(state, state->offset, target_pc);
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bc(state, 0);
             break;
-        case EBPF_OP_JEQ_REG:  case EBPF_OP_JEQ64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JEQ_REG:  case EBPF_OP_JEQ32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_beqc(state, dst, src, 0); break;
-        case EBPF_OP_JNE_REG:  case EBPF_OP_JNE64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JNE_REG:  case EBPF_OP_JNE32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bnec(state, dst, src, 0); break;
-        case EBPF_OP_JSET_REG: case EBPF_OP_JSET64_REG:
+        case EBPF_OP_JSET_REG: case EBPF_OP_JSET32_REG:
             emit_and(state, temp_register, dst, src);
-            note_jump(state, state->offset, target_pc);
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bnezc(state, temp_register, 0); break;
-        case EBPF_OP_JGT_REG:  case EBPF_OP_JGT64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JGT_REG:  case EBPF_OP_JGT32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bltuc(state, src, dst, 0); break;
-        case EBPF_OP_JGE_REG:  case EBPF_OP_JGE64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JGE_REG:  case EBPF_OP_JGE32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bgeuc(state, dst, src, 0); break;
-        case EBPF_OP_JLT_REG:  case EBPF_OP_JLT64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JLT_REG:  case EBPF_OP_JLT32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bltuc(state, dst, src, 0); break;
-        case EBPF_OP_JLE_REG:  case EBPF_OP_JLE64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JLE_REG:  case EBPF_OP_JLE32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bgeuc(state, src, dst, 0); break;
-        case EBPF_OP_JSGT_REG: case EBPF_OP_JSGT64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JSGT_REG: case EBPF_OP_JSGT32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bltc(state, src, dst, 0); break;
-        case EBPF_OP_JSGE_REG: case EBPF_OP_JSGE64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JSGE_REG: case EBPF_OP_JSGE32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bgec(state, dst, src, 0); break;
-        case EBPF_OP_JSLT_REG: case EBPF_OP_JSLT64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JSLT_REG: case EBPF_OP_JSLT32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bltc(state, dst, src, 0); break;
-        case EBPF_OP_JSLE_REG: case EBPF_OP_JSLE64_REG:
-            note_jump(state, state->offset, target_pc);
+        case EBPF_OP_JSLE_REG: case EBPF_OP_JSLE32_REG:
+            emit_patchable_relative(state->jumps, state->offset, tgt, state->num_jumps++);
             emit_bgec(state, src, dst, 0); break;
 
         /* ---- CALL [JIT-SPEC §3.12] ---- */
@@ -1193,7 +1306,10 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 uint16_t local_stack = ubpf_stack_usage_for_local_func(vm, i + inst.imm + 1);
                 emit_load_imm64(state, temp_register, local_stack);
                 emit_dsubu(state, map_register(10), map_register(10), temp_register);
-                note_local_call(state, state->offset, (uint32_t)(i + inst.imm + 1));
+                {
+                    DECLARE_PATCHABLE_REGULAR_EBPF_TARGET(call_tgt, (uint32_t)(i + inst.imm + 1));
+                    emit_patchable_relative(state->local_calls, state->offset, call_tgt, state->num_local_calls++);
+                }
                 emit_balc(state, 0);
                 emit_load_imm64(state, temp_register, local_stack);
                 emit_daddu(state, map_register(10), map_register(10), temp_register);
@@ -1206,16 +1322,18 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             break;
 
         /* ---- EXIT [JIT-SPEC §3.13] ---- */
-        case EBPF_OP_EXIT:
-            note_jump_to_exit(state, state->offset);
+        case EBPF_OP_EXIT: {
+            DECLARE_PATCHABLE_SPECIAL_TARGET(exit_tgt, Exit);
+            emit_patchable_relative(state->jumps, state->offset, exit_tgt, state->num_jumps++);
             emit_bc(state, 0);
             break;
+        }
 
         /* ---- Atomic operations [JIT-SPEC §3.11] — LL/SC loops ---- */
         case EBPF_OP_ATOMIC_STORE: {
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
             /* Compute address: $t6 = dst + offset */
-            emit_daddiu(state, temp_addr_register, dst, inst.offset);
+            emit_daddiu(state, offset_register, dst, inst.offset);
 
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
@@ -1224,7 +1342,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             case EBPF_ALU_OP_XOR: {
                 /* retry: LLD $t4, 0($t6) */
                 uint32_t retry_loc = state->offset;
-                emit_lld(state, temp_register, temp_addr_register, 0);
+                emit_lld(state, temp_register, offset_register, 0);
                 /* Compute new value in $t5 */
                 if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_ADD)
                     emit_daddu(state, temp_div_register, temp_register, src);
@@ -1235,7 +1353,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                 else
                     emit_xor(state, temp_div_register, temp_register, src);
                 /* SCD $t5, 0($t6) */
-                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                emit_scd(state, temp_div_register, offset_register, 0);
                 /* BEQZC $t5, retry */
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
@@ -1244,9 +1362,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH): {
                 uint32_t retry_loc = state->offset;
-                emit_lld(state, temp_register, temp_addr_register, 0);
+                emit_lld(state, temp_register, offset_register, 0);
                 emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
-                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                emit_scd(state, temp_div_register, offset_register, 0);
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
                 emit_or(state, src, temp_register, MIPS_REG_ZERO);
@@ -1254,21 +1372,21 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH): {
                 uint32_t retry_loc = state->offset;
-                emit_lld(state, temp_register, temp_addr_register, 0);
+                emit_lld(state, temp_register, offset_register, 0);
                 /* Compare with R0 ($v0) */
                 uint32_t fail_loc = state->offset;
                 emit_mips64(state, 0); /* placeholder BNEC $t4, $v0, .Lfail */
                 emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
-                emit_scd(state, temp_div_register, temp_addr_register, 0);
+                emit_scd(state, temp_div_register, offset_register, 0);
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
                 /* .Lfail: */
                 uint32_t fail_target = state->offset;
                 /* Patch BNEC */
                 int32_t fail_rel = ((int32_t)(fail_target - fail_loc)) >> 2;
-                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP07 << 26) |
-                                    ((uint32_t)temp_register << 21) |
-                                    ((uint32_t)MIPS_REG_V0 << 16) |
+                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP26 << 26) |
+                                    ((uint32_t)MIPS_REG_V0 << 21) |
+                                    ((uint32_t)temp_register << 16) |
                                     ((uint32_t)fail_rel & 0xFFFF);
                 memcpy(state->buf + fail_loc, &bnec_enc, 4);
                 /* R0 = old value (always) */
@@ -1283,7 +1401,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
 
         case EBPF_OP_ATOMIC32_STORE: {
             bool fetch = inst.imm & EBPF_ATOMIC_OP_FETCH;
-            emit_daddiu(state, temp_addr_register, dst, inst.offset);
+            emit_daddiu(state, offset_register, dst, inst.offset);
 
             switch (inst.imm & EBPF_ALU_OP_MASK) {
             case EBPF_ALU_OP_ADD:
@@ -1291,7 +1409,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             case EBPF_ALU_OP_AND:
             case EBPF_ALU_OP_XOR: {
                 uint32_t retry_loc = state->offset;
-                emit_ll(state, temp_register, temp_addr_register, 0);
+                emit_ll(state, temp_register, offset_register, 0);
                 if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_ADD)
                     emit_daddu(state, temp_div_register, temp_register, src);
                 else if ((inst.imm & EBPF_ALU_OP_MASK) == EBPF_ALU_OP_OR)
@@ -1300,7 +1418,7 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
                     emit_and(state, temp_div_register, temp_register, src);
                 else
                     emit_xor(state, temp_div_register, temp_register, src);
-                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                emit_sc(state, temp_div_register, offset_register, 0);
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
                 if (fetch) emit_or(state, src, temp_register, MIPS_REG_ZERO);
@@ -1308,9 +1426,9 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             case (EBPF_ATOMIC_OP_XCHG & ~EBPF_ATOMIC_OP_FETCH): {
                 uint32_t retry_loc = state->offset;
-                emit_ll(state, temp_register, temp_addr_register, 0);
+                emit_ll(state, temp_register, offset_register, 0);
                 emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
-                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                emit_sc(state, temp_div_register, offset_register, 0);
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
                 emit_or(state, src, temp_register, MIPS_REG_ZERO);
@@ -1318,18 +1436,18 @@ translate(struct ubpf_vm* vm, struct jit_state* state, char** errmsg)
             }
             case (EBPF_ATOMIC_OP_CMPXCHG & ~EBPF_ATOMIC_OP_FETCH): {
                 uint32_t retry_loc = state->offset;
-                emit_ll(state, temp_register, temp_addr_register, 0);
+                emit_ll(state, temp_register, offset_register, 0);
                 uint32_t fail_loc = state->offset;
                 emit_mips64(state, 0); /* placeholder BNEC */
                 emit_or(state, temp_div_register, src, MIPS_REG_ZERO);
-                emit_sc(state, temp_div_register, temp_addr_register, 0);
+                emit_sc(state, temp_div_register, offset_register, 0);
                 int32_t retry_rel = ((int32_t)(retry_loc - state->offset)) >> 2;
                 emit_beqzc(state, temp_div_register, (int32_t)retry_rel);
                 uint32_t fail_target = state->offset;
                 int32_t fail_rel = ((int32_t)(fail_target - fail_loc)) >> 2;
-                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP07 << 26) |
-                                    ((uint32_t)temp_register << 21) |
-                                    ((uint32_t)MIPS_REG_V0 << 16) |
+                uint32_t bnec_enc = ((uint32_t)MIPS_OP_POP26 << 26) |
+                                    ((uint32_t)MIPS_REG_V0 << 21) |
+                                    ((uint32_t)temp_register << 16) |
                                     ((uint32_t)fail_rel & 0xFFFF);
                 memcpy(state->buf + fail_loc, &bnec_enc, 4);
                 emit_or(state, map_register(0), temp_register, MIPS_REG_ZERO);
@@ -1365,6 +1483,8 @@ patch_branch_mips64(struct jit_state* state, uint32_t instr_offset, int32_t rel)
 
     if (op == MIPS_OP_BC || op == MIPS_OP_BALC) {
         instr |= ((uint32_t)rel & 0x03FFFFFF);
+    } else if (op == MIPS_OP_POP66 || op == MIPS_OP_POP76) {
+        instr |= ((uint32_t)rel & 0x1FFFFF);
     } else {
         instr |= ((uint32_t)rel & 0xFFFF);
     }
@@ -1377,10 +1497,20 @@ resolve_jumps_mips64(struct jit_state* state)
     for (unsigned i = 0; i < state->num_jumps; i++) {
         struct patchable_relative jump = state->jumps[i];
         int32_t target_loc;
-        if (jump.target_is_exit) {
-            target_loc = state->exit_loc;
+        if (jump.target.is_special) {
+            if (jump.target.target.special == Exit) {
+                target_loc = state->exit_loc;
+            } else if (jump.target.target.special == Enter) {
+                target_loc = state->entry_loc;
+            } else {
+                return false;
+            }
         } else {
-            target_loc = state->pc_locs[jump.target_pc];
+            if (jump.target.target.regular.jit_target_pc != 0) {
+                target_loc = jump.target.target.regular.jit_target_pc;
+            } else {
+                target_loc = state->pc_locs[jump.target.target.regular.ebpf_target_pc];
+            }
         }
         int32_t rel = (target_loc - (int32_t)jump.offset_loc) >> 2;
         patch_branch_mips64(state, jump.offset_loc, rel);
@@ -1393,7 +1523,7 @@ resolve_local_calls_mips64(struct jit_state* state)
 {
     for (unsigned i = 0; i < state->num_local_calls; i++) {
         struct patchable_relative call = state->local_calls[i];
-        int32_t target_loc = state->pc_locs[call.target_pc];
+        int32_t target_loc = state->pc_locs[call.target.target.regular.ebpf_target_pc];
         int32_t rel = (target_loc - (int32_t)call.offset_loc) >> 2;
         patch_branch_mips64(state, call.offset_loc, rel);
     }
@@ -1466,7 +1596,7 @@ ubpf_translate_mips64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum Ji
     jit_result.jit_mode = jit_mode;
 
     struct jit_state state;
-    if (!initialize_jit_state_result(&state, &jit_result, buffer, *size, vm->num_insts)) {
+    if (initialize_jit_state_result(&state, &jit_result, buffer, *size, jit_mode, &jit_result.errmsg) < 0) {
         return jit_result;
     }
 
