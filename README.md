@@ -61,7 +61,7 @@ First, make sure that you have the XCode Command Line Tools installed:
 $ xcode-select --install
 ```
 
-Installing the XCode Command Linux Tools will install Apple's version of the Clang compiler and other developer-support tools.
+Installing the XCode Command Line Tools will install Apple's version of the Clang compiler and other developer-support tools.
 
 uBpf requires that your host have several support libraries installed. The easiest way to configure your host to meet these requirements,
 
