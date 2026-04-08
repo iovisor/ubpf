@@ -100,6 +100,38 @@ ubpf_set_jit_code_size(struct ubpf_vm* vm, size_t code_size)
     return 0;
 }
 
+int
+ubpf_set_max_instructions(struct ubpf_vm* vm, uint32_t max_insts)
+{
+    // Cannot change max_insts if code is already loaded
+    if (vm->insts) {
+        return -1;
+    }
+
+    // If 0, use compile-time default
+    if (max_insts == 0) {
+        max_insts = UBPF_MAX_INSTS;
+    }
+
+    // Reallocate local_func_stack_usage if needed
+    if (max_insts != vm->max_insts) {
+        // Check for overflow on 32-bit systems where size_t might be 32-bit
+        if (max_insts > SIZE_MAX / sizeof(struct ubpf_stack_usage)) {
+            return -1;
+        }
+        
+        struct ubpf_stack_usage* new_stack_usage = calloc(max_insts, sizeof(struct ubpf_stack_usage));
+        if (new_stack_usage == NULL) {
+            return -1;
+        }
+        free(vm->local_func_stack_usage);
+        vm->local_func_stack_usage = new_stack_usage;
+        vm->max_insts = max_insts;
+    }
+
+    return 0;
+}
+
 ubpf_jit_fn
 ubpf_compile(struct ubpf_vm* vm, char** errmsg)
 {

@@ -253,7 +253,7 @@ extern "C"
      *
      * See ubpf_register_stack_usage_calculator for additional information.
      */
-    typedef int (*stack_usage_calculator_t)(const struct ubpf_vm* vm, uint16_t pc, void* cookie);
+    typedef int (*stack_usage_calculator_t)(const struct ubpf_vm* vm, uint32_t pc, void* cookie);
 
     /**
      * @brief Register a function that will be called during eBPF program validation
@@ -597,6 +597,19 @@ extern "C"
      */
     int
     ubpf_set_jit_code_size(struct ubpf_vm* vm, size_t code_size);
+
+    /**
+     * @brief Set the maximum number of instructions allowed in a program.
+     * This sets the upper limit for instruction count validation. The default is UBPF_MAX_INSTS (65536),
+     * which can be overridden at compile time. This function allows runtime configuration.
+     *
+     * @param[in] vm The VM to set the maximum instruction count for.
+     * @param[in] max_insts Maximum instruction count (0 = use compile-time default UBPF_MAX_INSTS).
+     * @retval 0 Success.
+     * @retval -1 Failure (e.g., if code is already loaded).
+     */
+    int
+    ubpf_set_max_instructions(struct ubpf_vm* vm, uint32_t max_insts);
 
     /**
      * @brief Set the instruction limit for the VM. This is the maximum number
