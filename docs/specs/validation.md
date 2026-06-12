@@ -267,7 +267,7 @@ uBPF uses a multi-layered testing strategy:
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
-| REQ-SAFE-001 | Additive safe execution profile | TC-SAFE-001 | **High** — safe-profile opt-in, immutability-after-load, interpreter-only execution, and legacy-vs-safe conformance parity on the default v3 interpreter matrix are covered |
+| REQ-SAFE-001 | Additive safe execution profile | TC-SAFE-001 | **High** — safe-profile opt-in, immutability-after-load, interpreter-only execution, and legacy-vs-safe interpreter parity are covered in both local conformance runs and generated CTest cases |
 | REQ-SAFE-002 | Tagged register provenance model | TC-SAFE-002 | **Medium** — stack-root and no-input-memory behavior are exercised indirectly, but explicit entry-state checks for R0/R3-R9 and R1-without-mem remain open |
 | REQ-SAFE-003 | Provenance-checked memory access choke points | TC-SAFE-003 | **Medium** — pointer-backed loads/stores and opaque-handle rejection are covered; atomic-result scalar classification still needs direct coverage |
 | REQ-SAFE-004 | Pointer arithmetic and tag propagation | TC-SAFE-004 | **High** — pointer add/subtract success and failure matrix, ALU32 tag clearing, and the common stack-frame address-computation idiom are covered |
@@ -1018,9 +1018,9 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-SAFE-001
 - **Level:** Integration
 - **Confidence:** Medium
-- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`; `ubpf_plugin/ubpf_plugin.cc` exercised against `external/bpf_conformance/tests` with `--profile legacy --interpret` and `--profile safe --interpret`
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`; `ubpf_plugin/CMakeLists.txt`; `ubpf_plugin/ubpf_plugin.cc` exercised against `external/bpf_conformance/tests` with `--profile legacy --interpret` and `--profile safe --interpret`
 - **Pass criteria:** `ubpf_set_execution_profile()` opts a VM into safe mode before load, rejects profile changes after load, and leaves interpreter execution available while JIT remains rejected.
-- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`; local `bpf_conformance_runner` comparison over `external/bpf_conformance/tests`
+- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`; per-file `*-Interpreter` and `*-Safe-Interpreter` CTest cases generated from `external/bpf_conformance/tests/*.data` and `tests/*.data`
 - **Remaining gap:** Extend parity coverage beyond the default v3 interpreter matrix to typed-pointer helper scenarios that require region descriptors.
 
 #### TC-SAFE-002: Root Provenance Initialization
