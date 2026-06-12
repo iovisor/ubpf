@@ -1,6 +1,6 @@
 # uBPF Validation Plan
 
-**Document Version:** 1.1.0
+**Document Version:** 1.2.0
 **Date:** 2026-06-12
 **Status:** Draft — Refreshed from current test inventory
 
@@ -262,6 +262,19 @@ uBPF uses a multi-layered testing strategy:
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
 | REQ-CONST-001 | System constants | TC-CONST-001 | **Medium** — constants used throughout tests but not boundary-tested |
+
+### 4.13 Safe Interpreter Profile
+
+| REQ-ID | Requirement | Test Cases | Coverage |
+|--------|-------------|------------|----------|
+| REQ-SAFE-001 | Additive safe execution profile | TC-SAFE-001 | **Medium** — safe-profile opt-in, immutability-after-load, and interpreter-only execution are covered; dedicated legacy-vs-safe behavior comparison remains open |
+| REQ-SAFE-002 | Tagged register provenance model | TC-SAFE-002 | **Medium** — stack-root and no-input-memory behavior are exercised indirectly, but explicit entry-state checks for R0/R3-R9 and R1-without-mem remain open |
+| REQ-SAFE-003 | Provenance-checked memory access choke points | TC-SAFE-003 | **Medium** — pointer-backed loads/stores and opaque-handle rejection are covered; atomic-result scalar classification still needs direct coverage |
+| REQ-SAFE-004 | Pointer arithmetic and tag propagation | TC-SAFE-004 | **Medium** — pointer add/subtract success and failure matrix, including direct ALU32 tag clearing, is covered; additional edge cases are still possible |
+| REQ-SAFE-005 | Typed helper metadata and return provenance | TC-SAFE-005 | **Medium** — typed pointer return success and missing-metadata rejection are covered; scalar-return and out-of-bounds return cases remain open |
+| REQ-SAFE-006 | Descriptor-based external region metadata | TC-SAFE-006 | **Low** — single-region descriptor resolution is covered, but multi-region distinction and legacy-bounds-callback insufficiency are still gaps |
+| REQ-SAFE-007 | Spill and call-frame provenance preservation | TC-SAFE-007 | **Medium** — spill restore, spill invalidation, and caller-saved reclassification are covered; direct callee-saved provenance restoration remains open |
+| REQ-SAFE-008 | Initial safe-profile JIT unavailability | TC-SAFE-008 | **High** — explicit compile rejection is covered by a dedicated custom test |
 
 ---
 
@@ -999,6 +1012,78 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** System constants are correctly defined and enforced at boundaries
 - **Existing tests:** All tests (indirect usage)
 
+### TC-SAFE — Safe Interpreter Profile
+
+#### TC-SAFE-001: Safe-Profile Compatibility Gate
+- **Traces to:** REQ-SAFE-001
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`
+- **Pass criteria:** `ubpf_set_execution_profile()` opts a VM into safe mode before load, rejects profile changes after load, and leaves interpreter execution available while JIT remains rejected.
+- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`
+- **Remaining gap:** Add a paired legacy-vs-safe regression that runs equivalent programs through both profiles and confirms unchanged legacy behavior.
+
+#### TC-SAFE-002: Root Provenance Initialization
+- **Traces to:** REQ-SAFE-002
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`, `custom_tests/srcs/ubpf_test_safe_profile_pointer_arithmetic.cc`
+- **Pass criteria:** Safe-profile entry initializes stack-root provenance correctly, rejects use of reclassified scalars as pointers, and preserves only explicit provenance-bearing values.
+- **Existing tests:** `ubpf_test_safe_profile_spills_and_local_calls-Custom`, `ubpf_test_safe_profile_pointer_arithmetic-Custom`
+- **Remaining gap:** Add explicit checks for R0/R3-R9 scalar entry state and for R1 being scalar when `mem == NULL`.
+
+#### TC-SAFE-003: Safe Dereference Choke Points
+- **Traces to:** REQ-SAFE-003
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_helpers.cc`, `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`
+- **Pass criteria:** Safe-mode dereferences succeed only through pointer-tagged registers within region bounds; dereference through handles or reclassified scalars fails before host access.
+- **Existing tests:** `ubpf_test_safe_profile_helpers-Custom`, `ubpf_test_safe_profile_spills_and_local_calls-Custom`
+- **Remaining gap:** Add direct atomic coverage showing fetch-result registers are classified as scalars.
+
+#### TC-SAFE-004: Pointer Arithmetic Matrix
+- **Traces to:** REQ-SAFE-004
+- **Level:** Unit
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_pointer_arithmetic.cc`, `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`
+- **Pass criteria:** Pointer-plus-pointer and scalar-minus-pointer fail, same-region pointer subtraction produces a scalar, different-region pointer subtraction fails, and pointer-plus-scalar / pointer-minus-scalar remain usable for valid stack access.
+- **Existing tests:** `ubpf_test_safe_profile_pointer_arithmetic-Custom`, `ubpf_test_safe_profile_spills_and_local_calls-Custom`
+
+#### TC-SAFE-005: Typed Helper Return Validation
+- **Traces to:** REQ-SAFE-005
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_helpers.cc`
+- **Pass criteria:** Helpers with safe descriptors can return typed pointers or handles, and helper calls without safe metadata fail before dispatch.
+- **Existing tests:** `ubpf_test_safe_profile_helpers-Custom`
+- **Remaining gap:** Add scalar-return and out-of-bounds-pointer negative cases.
+
+#### TC-SAFE-006: External Region Descriptor Resolution
+- **Traces to:** REQ-SAFE-006
+- **Level:** Integration
+- **Confidence:** Low
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_helpers.cc`
+- **Pass criteria:** Safe helper metadata resolves to registered region descriptors, and returned pointers remain constrained to their registered region.
+- **Existing tests:** `ubpf_test_safe_profile_helpers-Custom`
+- **Remaining gap:** Add two-disjoint-region coverage and a regression proving the legacy bool bounds callback alone does not establish provenance.
+
+#### TC-SAFE-007: Spill and Local-Call Provenance
+- **Traces to:** REQ-SAFE-007
+- **Level:** Integration
+- **Confidence:** Medium
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`
+- **Pass criteria:** Full-width stack spills restore provenance, partial writes invalidate it, and caller-saved registers lose provenance on local-call return.
+- **Existing tests:** `ubpf_test_safe_profile_spills_and_local_calls-Custom`
+- **Remaining gap:** Add a direct callee-saved provenance-preservation case using R6-R9 across a local call.
+
+#### TC-SAFE-008: Safe-Profile Compile Rejection
+- **Traces to:** REQ-SAFE-008
+- **Level:** Unit
+- **Confidence:** High
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`
+- **Pass criteria:** `ubpf_compile*()` and `ubpf_translate*()` reject safe-profile VMs with an explicit interpreter-only error.
+- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`
+
 ### TC-FUZZ — Fuzzing
 
 #### TC-FUZZ-001: Differential Interpreter/JIT Testing
@@ -1034,11 +1119,13 @@ uBPF uses a multi-layered testing strategy:
 | R7 | Helper function parameter corruption | **Medium** — incorrect helper behavior | Low | **P3** |
 | R8 | Stack overflow in local calls | **Medium** — program crash | Low | **P3** |
 | R9 | Configuration API misuse | **Low** — unexpected behavior | Medium | **P3** |
+| R10 | Safe-profile provenance bypass | **Critical** — verifier-like memory safety defeated | Medium | **P1** |
 
 ### 6.2 Prioritization Rationale
 
-**P1 (Must test):** JIT correctness, bounds checking, memory safety — these are the core security and correctness guarantees.
+**P1 (Must test):** JIT correctness, bounds checking, memory safety, and safe-profile provenance enforcement — these are the core security and correctness guarantees.
 - **Covered by:** Differential fuzzing (TC-FUZZ-001), error tests (TC-SEC-001), sanitizers (ASan/UBSan), Valgrind
+- **Gap:** Safe-profile provenance coverage exists, but direct regressions for null-input root state, multi-region descriptors, and legacy-vs-safe side-by-side behavior remain open
 
 **P2 (Should test):** ELF robustness, constant blinding effectiveness, platform parity — important but lower likelihood.
 - **Covered by:** CI matrix (TC-PLAT-*), constant blinding tests (TC-SEC-003), some ELF tests
@@ -1102,6 +1189,9 @@ Test suite passes when:
 | No translate/copy_jit tests | REQ-JIT-007, REQ-JIT-006 | Low | Add tests for these less-used APIs |
 | No JIT caching verification | REQ-JIT-003 | Low | Verify compile returns same pointer on second call |
 | No XOR encoding verification | REQ-LOAD-006, REQ-SEC-006 | Medium | Verify instructions are XOR-encoded in memory |
+| No direct safe-profile entry-state regression for null input memory | REQ-SAFE-002 | Medium | Add a test that dereferences R1 with `mem == NULL` and proves safe mode treats it as a scalar |
+| No multi-region safe descriptor regression | REQ-SAFE-006 | Medium | Add two disjoint safe regions plus helper returns that prove provenance remains region-specific |
+| No legacy/safe side-by-side regression | REQ-SAFE-001, REQ-SAFE-008 | Medium | Add a paired test showing legacy execution and JIT behavior remain unchanged unless safe mode is explicitly selected |
 
 ### 8.3 Structural Gaps
 
@@ -1119,5 +1209,6 @@ Test suite passes when:
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.2.0 | 2026-06-12 | Evolve refresh | Added validation scope for the additive safe-interpreter profile, including planned coverage for provenance enforcement and safe-mode JIT rejection. |
 | 1.1.0 | 2026-06-12 | Bootstrap refresh | Reconciled current test inventory counts, credited indirect `ubpf_copy_jit()` coverage via `ubpf_plugin`, and downgraded overstated RNG coverage claims. |
 | 1.0.0 | 2026-03-31 | Extracted by AI | Initial draft — mapped existing tests to requirements, identified gaps |

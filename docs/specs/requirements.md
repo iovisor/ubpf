@@ -1,6 +1,6 @@
 # uBPF Requirements Specification
 
-**Document Version:** 1.1.0
+**Document Version:** 1.2.0
 **Date:** 2026-06-12
 **Status:** Draft — Refreshed from source and test inventory
 
@@ -14,7 +14,7 @@ This document captures the formal functional and non-functional requirements for
 - An eBPF interpreter available on all supported platforms.
 - JIT compilers for x86-64 and ARM64 architectures.
 - ELF object file loading with relocation support.
-- Security hardening features including bounds checking, constant blinding, and read-only bytecode.
+- Security hardening features including bounds checking, constant blinding, read-only bytecode, and an additive safe-interpreter profile.
 
 Requirements in this document are extracted directly from the existing codebase. Every requirement cites source evidence and is tagged with a confidence level.
 
@@ -31,6 +31,7 @@ Requirements in this document are extracted directly from the existing codebase.
 - Interpreter-based execution on all platforms.
 - JIT compilation for x86-64 and ARM64.
 - Security features: bounds checking, undefined-behavior detection, constant blinding, read-only bytecode, pointer secrets.
+- Optional safe-interpreter execution with tagged register provenance and typed helper/region metadata.
 - Extensibility: external helper functions, dispatchers, callbacks, debug hooks.
 - Configuration: error output, JIT buffer sizing, instruction limits, register state access.
 - Platform support: Windows (MSVC), Linux (GCC/Clang), macOS (Clang).
@@ -42,6 +43,7 @@ Requirements in this document are extracted directly from the existing codebase.
 - Network packet processing infrastructure (uBPF is a generic VM).
 - Static verification / formal analysis of eBPF programs (handled by external tools such as prevail).
 - eBPF BTF (BPF Type Format) support.
+- Transparent replacement of the legacy execution path; any stronger safety model MUST be additive.
 
 ---
 
@@ -778,7 +780,7 @@ The EXIT instruction MUST terminate program execution. The return value is taken
 
 #### REQ-SEC-001: Bounds Checking
 
-When bounds checking is enabled (default), the interpreter MUST validate all memory loads and stores against:
+In the legacy execution profile, when bounds checking is enabled (default), the interpreter MUST validate all memory loads and stores against:
 
 1. The input memory region (`mem`, `mem_len`).
 2. The stack region.
@@ -794,7 +796,7 @@ Out-of-bounds accesses MUST cause execution to fail.
 
 #### REQ-SEC-002: Bounds Check Toggle
 
-`ubpf_toggle_bounds_check(vm, enable)` MUST return the previous state and set the new state. Default is `true` (enabled).
+For the legacy execution profile, `ubpf_toggle_bounds_check(vm, enable)` MUST return the previous state and set the new state. Default is `true` (enabled).
 
 - **Source:** `vm/ubpf_vm.c:54-60`
 - **Confidence:** **High**
@@ -874,7 +876,7 @@ The JIT MUST never have memory that is simultaneously writable and executable. T
 
 #### REQ-SEC-009: Custom Bounds Check Callback
 
-`ubpf_register_data_bounds_check(vm, context, callback)` MUST allow users to register a custom bounds-checking function for non-standard memory regions. The callback receives `(context, addr, size)` and returns `bool`.
+For the legacy execution profile, `ubpf_register_data_bounds_check(vm, context, callback)` MUST allow users to register a custom bounds-checking function for non-standard memory regions. The callback receives `(context, addr, size)` and returns `bool`. This callback extends allow/deny policy only; safe-profile provenance requirements are specified separately under `REQ-SAFE-*`.
 
 - **Source:** `vm/inc/ubpf.h:572-584`
 - **Confidence:** **High**
@@ -1158,6 +1160,142 @@ The following constants MUST be defined and used consistently throughout the imp
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: Each constant has the specified value at compile time.
+
+---
+
+### 4.13 Safe Interpreter Profile (REQ-SAFE) — Cross-Cutting
+
+#### REQ-SAFE-001: Additive Safe Execution Profile
+
+uBPF MUST provide a safe-interpreter execution profile through an explicit, additive API surface. Enabling the safe profile MUST NOT change the behavior of existing legacy APIs or legacy-created VMs.
+
+The profile-selection surface is:
+
+```c
+enum ubpf_execution_profile {
+    UBPF_EXECUTION_PROFILE_LEGACY = 0,
+    UBPF_EXECUTION_PROFILE_SAFE = 1,
+};
+
+int ubpf_set_execution_profile(struct ubpf_vm* vm, enum ubpf_execution_profile profile);
+```
+
+- **Source:** Discovery outcome approved on 2026-06-12; compatibility constraints from `vm/inc/ubpf.h`, `vm/ubpf_vm.c`, `docs/specs/design.md`
+- **Confidence:** **Medium** — design intent approved before implementation
+- **Acceptance Criteria:**
+  - AC-1: Legacy `ubpf_exec*` behavior is unchanged for callers that do not opt into the safe profile.
+  - AC-2: Entering the safe profile requires an explicit successful call to `ubpf_set_execution_profile(vm, UBPF_EXECUTION_PROFILE_SAFE)`.
+  - AC-3: Freshly created VMs default to `UBPF_EXECUTION_PROFILE_LEGACY`.
+  - AC-4: Calling `ubpf_set_execution_profile()` after code is loaded, after JIT compilation, or after execution has begun fails and leaves the profile unchanged.
+
+#### REQ-SAFE-002: Tagged Register Provenance Model
+
+In the safe profile, interpreter-visible register state MUST carry both the architectural 64-bit value and provenance metadata describing whether the value is:
+
+1. A scalar (not dereferenceable),
+2. A dereferenceable pointer into a specific region with explicit bounds, or
+3. An opaque handle that may be passed to helpers but MUST NOT be dereferenced.
+
+The safe-profile interpreter MUST initialize root provenance for the input memory region, the stack region, and any embedder-declared external regions used by the program.
+
+- **Source:** Approved discovery scope; comparison against `vm/ubpf_vm.c:825-830`, sonde safe-interpreter requirements/design
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: At safe-profile entry, R1 is tagged as a pointer to the input region when input memory is present.
+  - AC-2: At safe-profile entry, R2 is a scalar length value.
+  - AC-3: At safe-profile entry, R10 is tagged as a pointer to the stack region.
+  - AC-4: At safe-profile entry, R0 and R3–R9 are tagged as scalars.
+  - AC-5: When no input memory is supplied, R1 is tagged as a scalar and R2 is a scalar with value `0`.
+  - AC-6: No safe-profile instruction leaves a register in an unclassified fourth state.
+
+#### REQ-SAFE-003: Provenance-Checked Memory Access Choke Points
+
+In the safe profile, all interpreter memory loads, stores, and atomic operations MUST flow through centralized helper logic that:
+
+1. Verifies the base register's provenance,
+2. Rejects scalar and opaque-handle dereferences, and
+3. Validates `[addr, addr + size)` against the specific region bounds carried by the register metadata.
+
+The legacy `bounds_check()` scan-based policy MAY remain for legacy execution, but it MUST NOT be the sole safety mechanism for safe-profile dereferences.
+
+- **Source:** `vm/ubpf_vm.c:1246-1325,2102-2205` (legacy bounds checks), sonde choke-point design
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: A safe-profile dereference through a scalar register fails before any host memory access occurs.
+  - AC-2: A safe-profile dereference through an opaque handle fails before any host memory access occurs.
+  - AC-3: All safe-profile memory widths (8/16/32/64 and sign-extending loads) use the centralized provenance-and-bounds path.
+  - AC-4: Registers receiving values produced by safe-profile atomic memory operations are classified as scalars unless provenance is restored through the explicit spill-tracking path.
+
+#### REQ-SAFE-004: Pointer Arithmetic and Tag Propagation
+
+In the safe profile, the interpreter MUST enforce explicit provenance rules for ALU operations:
+
+- Valid pointer arithmetic is limited to operations that either preserve a single region's identity or reduce two pointers from the same region to a scalar distance.
+- Operations that destroy provenance MUST clear the destination tag to scalar.
+- Operations combining incompatible pointer/handle values MUST fail deterministically.
+- All ALU32 operations MUST clear pointer/handle provenance on the destination register.
+
+- **Source:** RFC 9669 ALU semantics + safe-interpreter design analysis; current uBPF lacks provenance enforcement in `vm/ubpf_vm.c`
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: `pointer + scalar` may remain a pointer to the same region.
+  - AC-2: `pointer - scalar` may remain a pointer to the same region.
+  - AC-3: `pointer + pointer` fails.
+  - AC-4: `scalar - pointer` fails.
+  - AC-5: `pointer - pointer` where both operands identify the same region yields a scalar distance.
+  - AC-6: `pointer - pointer` across different regions fails.
+  - AC-7: ALU32 writes always produce a scalar destination value in safe mode.
+
+#### REQ-SAFE-005: Typed Helper Metadata and Return Provenance
+
+The safe profile MUST use helper registrations that include type/provenance metadata sufficient to classify helper return values. Scalar-returning helpers MUST yield scalar R0 results. Pointer-returning helpers MUST supply enough metadata for the interpreter to validate and tag the returned region before subsequent dereference.
+
+Legacy untyped helper registration APIs MAY remain available for legacy execution, but they are insufficient by themselves for safe-profile pointer provenance.
+
+- **Source:** `vm/inc/ubpf.h:182-249`, `vm/ubpf_vm.c:1617-1622`; discovery comparison with sonde helper descriptors
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: Missing or untyped safe-profile helper metadata causes the VM to halt helper dispatch with an explicit error before the helper is invoked.
+  - AC-2: A scalar-returning helper leaves R0 classified as scalar.
+  - AC-3: A pointer-returning helper result is not tagged dereferenceable until the interpreter validates it against embedder-supplied region metadata.
+
+#### REQ-SAFE-006: Descriptor-Based External Region Metadata
+
+The safe profile MUST use descriptor-based metadata for non-standard regions (for example, data relocations, map-like storage, or helper-owned buffers). A boolean allow/deny callback is not sufficient because the interpreter must know which region a pointer belongs to, its bounds, and whether it is dereferenceable or opaque.
+
+- **Source:** `vm/inc/ubpf.h:535-584`, `vm/ubpf_vm.c:2186-2191`; approved discovery conclusion
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: The safe-profile interpreter can distinguish at least two different external regions with disjoint bounds and preserve that distinction after valid pointer arithmetic.
+  - AC-2: The legacy bounds-check callback alone cannot authorize a safe-profile pointer without accompanying descriptor metadata.
+  - AC-3: Descriptor metadata supports both relocated root pointers and helper-return validation.
+
+#### REQ-SAFE-007: Spill and Call-Frame Provenance Preservation
+
+The safe profile MUST preserve provenance across interpreter-managed state transitions:
+
+1. Pointer spills to the BPF stack MUST be tracked so valid reloads can restore provenance.
+2. Overlapping stack writes MUST invalidate stale spill metadata.
+3. Local-call frames MUST preserve any callee-saved register provenance required by the calling convention.
+
+- **Source:** `vm/ubpf_vm.c:803-805,823-830,1286,1602-1606,1640-1646`; safe-interpreter spill/call-frame design
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: Spilling a pointer to the stack and reloading it restores dereferenceable provenance when no overlapping write invalidates the slot.
+  - AC-2: A partial overwrite of a spilled pointer slot invalidates restored provenance.
+  - AC-3: Safe-profile local calls preserve callee-saved register provenance consistently with the raw register values.
+  - AC-4: On return from a local call, caller-saved registers R1–R5 are reclassified as scalars.
+
+#### REQ-SAFE-008: Initial Safe-Profile JIT Unavailability
+
+Until uBPF has a JIT implementation that preserves the approved safe-profile provenance semantics, JIT compilation MUST be unavailable for safe-profile VMs. Attempts to compile such a VM MUST fail with an explicit unsupported-mode error rather than producing legacy JIT code with weaker safety semantics.
+
+- **Source:** Current JIT/legacy parity requirements (`vm/ubpf_vm.c`, `docs/specs/design.md`), approved discovery scope
+- **Confidence:** **Medium**
+- **Acceptance Criteria:**
+  - AC-1: Safe-profile `ubpf_compile*` attempts fail deterministically with an error explaining that safe-profile JIT is not yet supported.
+  - AC-2: Legacy VMs retain existing JIT availability rules.
+  - AC-3: No backend-specific JIT document claims safe-profile support until equivalent semantics are specified and implemented.
 
 ---
 

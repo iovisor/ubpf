@@ -45,6 +45,7 @@ add_library("ubpf"
   ubpf_jit_support.c
   ubpf_jit_support.h
   ubpf_jit_x86_64.c
+  ubpf_safe.c
   ubpf_loader.c
   ubpf_vm.c
 )

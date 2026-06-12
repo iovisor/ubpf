@@ -33,6 +33,11 @@
 int
 ubpf_translate_ex(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, char** errmsg, enum JitMode jit_mode)
 {
+    if (vm->execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+        *errmsg = ubpf_error("safe execution profile is interpreter-only");
+        return -1;
+    }
+
     struct ubpf_jit_result jit_result = vm->jit_translate(vm, buffer, size, jit_mode);
     vm->jitted_result = jit_result;
     if (jit_result.errmsg) {
@@ -112,6 +117,11 @@ ubpf_compile_ex(struct ubpf_vm* vm, char** errmsg, enum JitMode mode)
     void* jitted = NULL;
     uint8_t* buffer = NULL;
     size_t jitted_size;
+
+    if (vm->execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+        *errmsg = ubpf_error("safe execution profile is interpreter-only");
+        return NULL;
+    }
 
     if (vm->jitted && vm->jitted_result.compile_result == UBPF_JIT_COMPILE_SUCCESS &&
         vm->jitted_result.jit_mode == mode) {

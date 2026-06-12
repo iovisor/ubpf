@@ -1,6 +1,6 @@
 # uBPF ISA Unified Requirements — Reconciliation with RFC 9669
 
-**Document Version:** 1.1.0
+**Document Version:** 1.2.0
 **Date:** 2026-06-12
 **Status:** Draft — Refreshed against current validator and RFC text
 
@@ -12,8 +12,10 @@ This document reconciles the uBPF implementation's Instruction Set Architecture 
 
 The goal is to produce a unified "most compatible" specification that tells uBPF maintainers exactly where the implementation conforms to RFC 9669, where it extends beyond it, and where it diverges. Both sources are treated as equal inputs — divergences are documented, not judged.
 
+The additive safe-interpreter profile introduced in `docs/specs/requirements.md` is treated here as an **execution-profile extension**, not as a change to the reconciled base ISA. Its provenance checks may reject programs that rely on behavior outside verifier-style pointer discipline, but RFC 9669 intentionally leaves such runtime safety policy outside the ISA core.
+
 **Sources consulted:**
-- **Source 1 — uBPF Implementation Specification** (`docs/specs/requirements.md`): A requirements document reverse-engineered from the uBPF source code (v1.1.0, 2026-06-12). ISA requirements are in Section 4.6 (REQ-ISA-001 through REQ-ISA-012) with ISA-adjacent requirements in Sections 4.3, 4.7, and 4.8.
+- **Source 1 — uBPF Implementation Specification** (`docs/specs/requirements.md`): A requirements document reverse-engineered from the uBPF source code (v1.2.0, 2026-06-12). ISA requirements are in Section 4.6 (REQ-ISA-001 through REQ-ISA-012) with ISA-adjacent requirements in Sections 4.3, 4.7, 4.8, and 4.13.
 - **Source 2 — RFC 9669** (October 2024): IETF Standards Track specification of the BPF ISA, covering instruction encoding, arithmetic/jump/load/store operations, atomics, byte swaps, 64-bit immediates, conformance groups, and legacy packet access.
 - **Implementation verification**: Key behaviors verified against `vm/ubpf_vm.c`, `vm/ebpf.h`, and `vm/ubpf_instruction_valid.c`.
 
@@ -48,8 +50,18 @@ The goal is to produce a unified "most compatible" specification that tells uBPF
 - ELF loading and relocation — a loading concern, not an ISA concern.
 - Security features (bounds checking, constant blinding, pointer secrets) — runtime policy, not ISA definition.
 - Helper function API signatures — platform-specific, outside RFC 9669 scope.
+- Safe-interpreter provenance policy and descriptor metadata — execution-profile policy layered above the ISA.
 - BPF map semantics — explicitly deferred by RFC 9669.
 - BPF Type Format (BTF) details — explicitly deferred by RFC 9669.
+
+### 2.3 Execution-Profile Note
+
+uBPF now defines two execution profiles:
+
+1. **Legacy profile** — the existing raw-register interpreter/JIT behavior reconciled in the tables below.
+2. **Safe profile** — an additive interpreter-only mode that layers register provenance, typed helper metadata, and descriptor-backed external regions on top of the same base instruction semantics.
+
+The safe profile does **not** claim new RFC 9669 semantics. Instead, it narrows which host executions are permitted once the embedder opts into stronger runtime safety guarantees. For reconciliation purposes, that makes it an implementation policy extension rather than a new ISA divergence category.
 
 ---
 
