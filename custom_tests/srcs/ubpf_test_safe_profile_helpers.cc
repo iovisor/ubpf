@@ -149,5 +149,55 @@ main()
         }
     }
 
+    {
+        std::unique_ptr<ubpf_vm, decltype(&ubpf_destroy)> vm(ubpf_create(), ubpf_destroy);
+        if (!vm) {
+            std::cerr << "Failed to create VM" << std::endl;
+            return 1;
+        }
+
+        if (ubpf_set_execution_profile(vm.get(), UBPF_EXECUTION_PROFILE_SAFE) != 0) {
+            std::cerr << "Failed to enable safe profile for registration checks" << std::endl;
+            return 1;
+        }
+
+        const ubpf_safe_region reserved_region = {
+            .id = 0xffffffffu,
+            .base = &helper_region,
+            .size = sizeof(helper_region),
+            .kind = UBPF_SAFE_REGION_POINTER,
+            .permissions = UBPF_SAFE_REGION_READ,
+        };
+        if (ubpf_register_safe_region(vm.get(), &reserved_region) == 0) {
+            std::cerr << "Reserved safe region ID unexpectedly succeeded" << std::endl;
+            return 1;
+        }
+
+        const ubpf_safe_region invalid_permissions_region = {
+            .id = 3,
+            .base = &helper_region,
+            .size = sizeof(helper_region),
+            .kind = UBPF_SAFE_REGION_POINTER,
+            .permissions = 8,
+        };
+        if (ubpf_register_safe_region(vm.get(), &invalid_permissions_region) == 0) {
+            std::cerr << "Invalid safe region permissions unexpectedly succeeded" << std::endl;
+            return 1;
+        }
+
+        const ubpf_safe_helper_descriptor reserved_helper = {
+            .index = 7,
+            .name = "reserved_helper_region",
+            .fn = return_helper_region,
+            .result_kind = UBPF_SAFE_HELPER_RESULT_POINTER,
+            .region_id = 0xfffffffeu,
+            .region_size = sizeof(helper_region),
+        };
+        if (ubpf_register_safe_helper(vm.get(), &reserved_helper) == 0) {
+            std::cerr << "Reserved safe helper region ID unexpectedly succeeded" << std::endl;
+            return 1;
+        }
+    }
+
     return 0;
 }

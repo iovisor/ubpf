@@ -18,6 +18,7 @@
 #define SHIFT_MASK_64_BIT(X) ((X) & 0x3f)
 #define UBPF_SAFE_REGION_ID_INPUT ((uint32_t)0xfffffffeu)
 #define UBPF_SAFE_REGION_ID_STACK ((uint32_t)0xffffffffu)
+#define UBPF_SAFE_REGION_PERMISSIONS_MASK (UBPF_SAFE_REGION_READ | UBPF_SAFE_REGION_WRITE | UBPF_SAFE_REGION_ATOMIC)
 #define UBPF_SAFE_STACK_ADDRESS_SLACK ((uint64_t)INT16_MAX)
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a) - 1)) == 0)
 #define REGISTER_TO_SHADOW_MASK(reg) (1 << (reg))
@@ -399,6 +400,7 @@ ubpf_safe_compute_access(
     uint32_t required_permissions,
     uint64_t* effective_address)
 {
+    uint64_t region_end;
     uint64_t offset_u64;
 
     if (tag->kind != UBPF_SAFE_VALUE_POINTER) {
@@ -426,12 +428,18 @@ ubpf_safe_compute_access(
         *effective_address = current_address - offset_u64;
     }
 
-    if (*effective_address < tag->base || *effective_address > tag->base + tag->size) {
+    if (tag->base > UINT64_MAX - tag->size) {
+        vm->error_printf(stderr, "uBPF safe mode error: invalid region metadata in %s at PC %u\n", access_type, cur_pc);
+        return false;
+    }
+
+    region_end = tag->base + tag->size;
+    if (*effective_address < tag->base || *effective_address > region_end) {
         vm->error_printf(stderr, "uBPF safe mode error: %s is out of bounds at PC %u\n", access_type, cur_pc);
         return false;
     }
 
-    if (access_size > tag->size || *effective_address > tag->base + tag->size - access_size) {
+    if (access_size > tag->size || *effective_address > region_end - access_size) {
         vm->error_printf(stderr, "uBPF safe mode error: %s overruns region at PC %u\n", access_type, cur_pc);
         return false;
     }
@@ -622,6 +630,12 @@ ubpf_register_safe_helper_impl(struct ubpf_vm* vm, const struct ubpf_safe_helper
         return -1;
     }
 
+    if ((descriptor->result_kind == UBPF_SAFE_HELPER_RESULT_POINTER ||
+         descriptor->result_kind == UBPF_SAFE_HELPER_RESULT_HANDLE) &&
+        (descriptor->region_id == UBPF_SAFE_REGION_ID_INPUT || descriptor->region_id == UBPF_SAFE_REGION_ID_STACK)) {
+        return -1;
+    }
+
     if (ubpf_register(vm, descriptor->index, descriptor->name, descriptor->fn) != 0) {
         return -1;
     }
@@ -647,7 +661,15 @@ ubpf_register_safe_region_impl(struct ubpf_vm* vm, const struct ubpf_safe_region
         return -1;
     }
 
+    if (region->id == UBPF_SAFE_REGION_ID_INPUT || region->id == UBPF_SAFE_REGION_ID_STACK) {
+        return -1;
+    }
+
     if (region->size == 0 || region->base == NULL) {
+        return -1;
+    }
+
+    if ((region->permissions & ~UBPF_SAFE_REGION_PERMISSIONS_MASK) != 0) {
         return -1;
     }
 
@@ -697,6 +719,7 @@ ubpf_exec_ex_safe(
     void* external_dispatcher_cookie = mem;
     void* shadow_stack = NULL;
     struct ubpf_safe_tag safe_tags[16];
+    size_t shadow_stack_size = (stack_length + 7) / 8;
     size_t spill_slot_count = (stack_length + sizeof(uint64_t) - 1) / sizeof(uint64_t);
     struct ubpf_safe_spill_slot* safe_spill_slots = NULL;
     struct ubpf_safe_frame_state safe_frames[UBPF_MAX_CALL_DEPTH] = {0};
@@ -724,7 +747,7 @@ ubpf_exec_ex_safe(
     struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {0};
 
     if (vm->undefined_behavior_check_enabled) {
-        shadow_stack = calloc(stack_length / 8, 1);
+        shadow_stack = calloc(shadow_stack_size == 0 ? 1 : shadow_stack_size, 1);
         if (!shadow_stack) {
             return_value = -1;
             goto cleanup;
@@ -1471,8 +1494,8 @@ ubpf_exec_ex_safe(
                     }
                     safe_tags[0] =
                         helper->result_kind == UBPF_SAFE_HELPER_RESULT_POINTER
-                            ? ubpf_safe_pointer_tag(helper->region_id, region->permissions, region->base, region->end - region->base)
-                            : ubpf_safe_handle_tag(helper->region_id, region->permissions, region->base, region->end - region->base);
+                            ? ubpf_safe_pointer_tag(helper->region_id, region->permissions, reg[0], helper->region_size)
+                            : ubpf_safe_handle_tag(helper->region_id, region->permissions, reg[0], helper->region_size);
                     break;
                 }
                 default:

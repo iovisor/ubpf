@@ -328,9 +328,9 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            uint64_t* external_stack = (uint64_t*)calloc(512, 1);
+            uint8_t* external_stack = (uint8_t*)calloc(512, 1);
             if (!external_stack) {
-                return -1;
+                return 1;
             }
 
             usable_program_memory = memory;
@@ -345,7 +345,7 @@ int main(int argc, char **argv)
                     usable_program_memory_pointer,
                     usable_program_memory.size(),
                     &external_memory_result,
-                    (uint8_t*)external_stack,
+                    external_stack,
                     512) != 0) {
                 free(external_stack);
                 std::cerr << "Failed to execute program" << std::endl;
