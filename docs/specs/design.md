@@ -669,7 +669,7 @@ Core resource limits are centralized in public headers so validation, interprete
 
 | Constant | Value | Design role |
 |----------|-------|-------------|
-| `UBPF_MAX_INSTS` | 65536 | Upper bound for loaded instructions and local-function metadata allocation |
+| `UBPF_MAX_INSTS` | 65536 | Exclusive loader bound: programs must contain fewer than this many instructions; also sizes local-function metadata allocation |
 | `UBPF_MAX_CALL_DEPTH` | 8 | Maximum local call nesting depth |
 | `UBPF_EBPF_STACK_SIZE` | 4096 | Total interpreter stack budget (`8 * 512`) |
 | `UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE` | 256 | Default per-local-function stack reservation |

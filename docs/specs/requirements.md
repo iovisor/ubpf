@@ -820,12 +820,12 @@ Reading an uninitialized register or stack location MUST cause execution to fail
 
 #### REQ-SEC-004: Constant Blinding (JIT)
 
-When enabled, the JIT compiler MUST blind the immediate forms supported by the active backend using cryptographically random constants, loading a blinded value and recovering the original at runtime via XOR-equivalent native sequences.
+When enabled, the JIT compiler MUST blind the immediate forms supported by the active backend using best-effort cryptographically secure random constants when platform RNG support is available, and otherwise fall back to non-cryptographic `rand()`-derived constants, loading a blinded value and recovering the original at runtime via XOR-equivalent native sequences.
 
 - On x86-64, the implementation blinds the immediate forms covered by the x86-64 emitter.
 - On ARM64, the implementation applies blinding to a narrower subset of immediate-loading sequences than x86-64.
 
-- **Source:** `vm/ubpf_jit_x86_64.c:462-492` (x86-64), `vm/ubpf_jit_arm64.c:544-564` (ARM64)
+- **Source:** `vm/ubpf_jit_support.c:160-204`, `vm/ubpf_jit_x86_64.c:462-492` (x86-64), `vm/ubpf_jit_arm64.c:544-564` (ARM64)
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: With constant blinding enabled, no eBPF immediate values appear in the JIT output as literal constants.
