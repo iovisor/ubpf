@@ -18,6 +18,7 @@
 #define SHIFT_MASK_64_BIT(X) ((X) & 0x3f)
 #define UBPF_SAFE_REGION_ID_INPUT ((uint32_t)0xfffffffeu)
 #define UBPF_SAFE_REGION_ID_STACK ((uint32_t)0xffffffffu)
+#define UBPF_SAFE_STACK_ADDRESS_SLACK ((uint64_t)INT16_MAX)
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a) - 1)) == 0)
 #define REGISTER_TO_SHADOW_MASK(reg) (1 << (reg))
 
@@ -466,8 +467,15 @@ ubpf_safe_apply_pointer_offset(
     struct ubpf_safe_tag* result_tag)
 {
     uint64_t region_end = pointer_tag->base + pointer_tag->size;
+    uint64_t lower_bound = pointer_tag->base;
+    uint64_t upper_bound = region_end;
 
-    if (result < pointer_tag->base || result > region_end) {
+    if (pointer_tag->region_id == UBPF_SAFE_REGION_ID_STACK) {
+        lower_bound = pointer_tag->base > UBPF_SAFE_STACK_ADDRESS_SLACK ? pointer_tag->base - UBPF_SAFE_STACK_ADDRESS_SLACK : 0;
+        upper_bound = region_end > UINT64_MAX - UBPF_SAFE_STACK_ADDRESS_SLACK ? UINT64_MAX : region_end + UBPF_SAFE_STACK_ADDRESS_SLACK;
+    }
+
+    if (result < lower_bound || result > upper_bound) {
         vm->error_printf(stderr, "uBPF safe mode error: pointer arithmetic escaped its region at PC %u\n", cur_pc);
         return false;
     }

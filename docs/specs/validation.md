@@ -267,10 +267,10 @@ uBPF uses a multi-layered testing strategy:
 
 | REQ-ID | Requirement | Test Cases | Coverage |
 |--------|-------------|------------|----------|
-| REQ-SAFE-001 | Additive safe execution profile | TC-SAFE-001 | **Medium** — safe-profile opt-in, immutability-after-load, and interpreter-only execution are covered; dedicated legacy-vs-safe behavior comparison remains open |
+| REQ-SAFE-001 | Additive safe execution profile | TC-SAFE-001 | **High** — safe-profile opt-in, immutability-after-load, interpreter-only execution, and legacy-vs-safe conformance parity on the default v3 interpreter matrix are covered |
 | REQ-SAFE-002 | Tagged register provenance model | TC-SAFE-002 | **Medium** — stack-root and no-input-memory behavior are exercised indirectly, but explicit entry-state checks for R0/R3-R9 and R1-without-mem remain open |
 | REQ-SAFE-003 | Provenance-checked memory access choke points | TC-SAFE-003 | **Medium** — pointer-backed loads/stores and opaque-handle rejection are covered; atomic-result scalar classification still needs direct coverage |
-| REQ-SAFE-004 | Pointer arithmetic and tag propagation | TC-SAFE-004 | **Medium** — pointer add/subtract success and failure matrix, including direct ALU32 tag clearing, is covered; additional edge cases are still possible |
+| REQ-SAFE-004 | Pointer arithmetic and tag propagation | TC-SAFE-004 | **High** — pointer add/subtract success and failure matrix, ALU32 tag clearing, and the common stack-frame address-computation idiom are covered |
 | REQ-SAFE-005 | Typed helper metadata and return provenance | TC-SAFE-005 | **Medium** — typed pointer return success and missing-metadata rejection are covered; scalar-return and out-of-bounds return cases remain open |
 | REQ-SAFE-006 | Descriptor-based external region metadata | TC-SAFE-006 | **Low** — single-region descriptor resolution is covered, but multi-region distinction and legacy-bounds-callback insufficiency are still gaps |
 | REQ-SAFE-007 | Spill and call-frame provenance preservation | TC-SAFE-007 | **Medium** — spill restore, spill invalidation, and caller-saved reclassification are covered; direct callee-saved provenance restoration remains open |
@@ -1018,10 +1018,10 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-SAFE-001
 - **Level:** Integration
 - **Confidence:** Medium
-- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_compile_rejection.cc`; `ubpf_plugin/ubpf_plugin.cc` exercised against `external/bpf_conformance/tests` with `--profile legacy --interpret` and `--profile safe --interpret`
 - **Pass criteria:** `ubpf_set_execution_profile()` opts a VM into safe mode before load, rejects profile changes after load, and leaves interpreter execution available while JIT remains rejected.
-- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`
-- **Remaining gap:** Add a paired legacy-vs-safe regression that runs equivalent programs through both profiles and confirms unchanged legacy behavior.
+- **Existing tests:** `ubpf_test_safe_profile_compile_rejection-Custom`; local `bpf_conformance_runner` comparison over `external/bpf_conformance/tests`
+- **Remaining gap:** Extend parity coverage beyond the default v3 interpreter matrix to typed-pointer helper scenarios that require region descriptors.
 
 #### TC-SAFE-002: Root Provenance Initialization
 - **Traces to:** REQ-SAFE-002
@@ -1045,9 +1045,9 @@ uBPF uses a multi-layered testing strategy:
 - **Traces to:** REQ-SAFE-004
 - **Level:** Unit
 - **Confidence:** Medium
-- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_pointer_arithmetic.cc`, `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`
+- **Evidence:** `custom_tests/srcs/ubpf_test_safe_profile_pointer_arithmetic.cc`, `custom_tests/srcs/ubpf_test_safe_profile_spills_and_local_calls.cc`, `external/bpf_conformance/tests/stack.data`
 - **Pass criteria:** Pointer-plus-pointer and scalar-minus-pointer fail, same-region pointer subtraction produces a scalar, different-region pointer subtraction fails, and pointer-plus-scalar / pointer-minus-scalar remain usable for valid stack access.
-- **Existing tests:** `ubpf_test_safe_profile_pointer_arithmetic-Custom`, `ubpf_test_safe_profile_spills_and_local_calls-Custom`
+- **Existing tests:** `ubpf_test_safe_profile_pointer_arithmetic-Custom`, `ubpf_test_safe_profile_spills_and_local_calls-Custom`; local `bpf_conformance_runner` execution of `stack.data` with `--profile safe --interpret`
 
 #### TC-SAFE-005: Typed Helper Return Validation
 - **Traces to:** REQ-SAFE-005
@@ -1191,7 +1191,6 @@ Test suite passes when:
 | No XOR encoding verification | REQ-LOAD-006, REQ-SEC-006 | Medium | Verify instructions are XOR-encoded in memory |
 | No direct safe-profile entry-state regression for null input memory | REQ-SAFE-002 | Medium | Add a test that dereferences R1 with `mem == NULL` and proves safe mode treats it as a scalar |
 | No multi-region safe descriptor regression | REQ-SAFE-006 | Medium | Add two disjoint safe regions plus helper returns that prove provenance remains region-specific |
-| No legacy/safe side-by-side regression | REQ-SAFE-001, REQ-SAFE-008 | Medium | Add a paired test showing legacy execution and JIT behavior remain unchanged unless safe mode is explicitly selected |
 
 ### 8.3 Structural Gaps
 

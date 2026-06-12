@@ -46,13 +46,17 @@ void
 ubpf_set_register_offset(int x);
 static void*
 readfile(const char* path, size_t maxlen, size_t* len);
-static void
-register_functions(struct ubpf_vm* vm);
+static int
+register_functions(struct ubpf_vm* vm, enum ubpf_execution_profile execution_profile);
+static bool
+parse_execution_profile(const char* value, enum ubpf_execution_profile* execution_profile);
+static int
+register_safe_scalar_helper(struct ubpf_vm* vm, unsigned int index, const char* name, external_function_t fn);
 
 static void
 usage(const char* name)
 {
-    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] BINARY\n", name);
+    fprintf(stderr, "usage: %s [-h] [-j|--jit] [-m|--mem PATH] [-p|--profile PROFILE] BINARY\n", name);
     fprintf(stderr, "\nExecutes the eBPF code in BINARY and prints the result to stdout.\n");
     fprintf(
         stderr, "If --mem is given then the specified file will be read and a pointer\nto its data passed in r1.\n");
@@ -77,7 +81,8 @@ usage(const char* name)
     fprintf(stderr, "  -U, --unload: unload the code and reload it (for testing only)\n");
     fprintf(
         stderr, "  -R, --reload: reload the code, without unloading it first (for testing only, this should fail)\n");
-    fprintf(stderr, "  -s, --main-function NAME: Consider the symbol NAME to be the eBPF program's entry point");
+    fprintf(stderr, "  -s, --main-function NAME: Consider the symbol NAME to be the eBPF program's entry point\n");
+    fprintf(stderr, "  -p, --profile PROFILE: Select execution profile (legacy or safe)\n");
 }
 
 typedef struct _map_entry
@@ -223,10 +228,12 @@ main(int argc, char** argv)
         {.name = "unload", .val = 'U'}, /* for unit test only */
         {.name = "reload", .val = 'R'}, /* for unit test only */
         {.name = "main-function", .val = 's', .has_arg = 1},
+        {.name = "profile", .val = 'p', .has_arg = 1},
         {0}};
 
     const char* mem_filename = NULL;
     const char* main_function_name = NULL;
+    enum ubpf_execution_profile execution_profile = UBPF_EXECUTION_PROFILE_LEGACY;
     bool jit = false;
     bool unload = false;
     bool reload = false;
@@ -235,13 +242,19 @@ main(int argc, char** argv)
     uint64_t secret = (uint64_t)rand() << 32 | (uint64_t)rand();
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hm:jdr:URs:", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hm:jdr:URs:p:", longopts, NULL)) != -1) {
         switch (opt) {
         case 'm':
             mem_filename = optarg;
             break;
         case 's':
             main_function_name = optarg;
+            break;
+        case 'p':
+            if (!parse_execution_profile(optarg, &execution_profile)) {
+                fprintf(stderr, "Unknown execution profile: %s\n", optarg);
+                return 1;
+            }
             break;
         case 'j':
             jit = true;
@@ -318,7 +331,21 @@ main(int argc, char** argv)
         return 1;
     }
 
-    register_functions(vm);
+    if (ubpf_set_execution_profile(vm, execution_profile) != 0) {
+        fprintf(stderr, "Failed to set execution profile\n");
+        ubpf_destroy(vm);
+        free(mem);
+        free(code);
+        return 1;
+    }
+
+    if (register_functions(vm, execution_profile) != 0) {
+        fprintf(stderr, "Failed to register helper functions for selected profile\n");
+        ubpf_destroy(vm);
+        free(mem);
+        free(code);
+        return 1;
+    }
 
     ubpf_register_stack_usage_calculator(vm, stack_usage_calculator, NULL);
     /*
@@ -551,29 +578,79 @@ bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
     }
 }
 
-static void
-register_functions(struct ubpf_vm* vm)
+static bool
+parse_execution_profile(const char* value, enum ubpf_execution_profile* execution_profile)
 {
-    ubpf_register(vm, 0, "gather_bytes", as_external_function_t(gather_bytes));
-    ubpf_register(vm, 1, "memfrob", as_external_function_t(memfrob));
-    ubpf_register(vm, 2, "trash_registers", as_external_function_t(trash_registers));
-    ubpf_register(vm, 3, "sqrti", as_external_function_t(sqrti));
-    ubpf_register(vm, 4, "strcmp_ext", as_external_function_t(strcmp));
-    ubpf_register(vm, 5, "unwind", as_external_function_t(unwind));
+    if (strcmp(value, "legacy") == 0) {
+        *execution_profile = UBPF_EXECUTION_PROFILE_LEGACY;
+        return true;
+    }
+
+    if (strcmp(value, "safe") == 0) {
+        *execution_profile = UBPF_EXECUTION_PROFILE_SAFE;
+        return true;
+    }
+
+    return false;
+}
+
+static int
+register_safe_scalar_helper(struct ubpf_vm* vm, unsigned int index, const char* name, external_function_t fn)
+{
+    const struct ubpf_safe_helper_descriptor helper = {
+        .index = index,
+        .name = name,
+        .fn = fn,
+        .result_kind = UBPF_SAFE_HELPER_RESULT_SCALAR,
+        .region_id = 0,
+        .region_size = 0,
+    };
+
+    return ubpf_register_safe_helper(vm, &helper);
+}
+
+static int
+register_functions(struct ubpf_vm* vm, enum ubpf_execution_profile execution_profile)
+{
+    if (execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+        if (register_safe_scalar_helper(vm, 0, "gather_bytes", as_external_function_t(gather_bytes)) != 0 ||
+            register_safe_scalar_helper(vm, 1, "memfrob", as_external_function_t(memfrob)) != 0 ||
+            register_safe_scalar_helper(vm, 2, "trash_registers", as_external_function_t(trash_registers)) != 0 ||
+            register_safe_scalar_helper(vm, 3, "sqrti", as_external_function_t(sqrti)) != 0 ||
+            register_safe_scalar_helper(vm, 4, "strcmp_ext", as_external_function_t(strcmp)) != 0 ||
+            register_safe_scalar_helper(vm, 5, "unwind", as_external_function_t(unwind)) != 0) {
+            return -1;
+        }
+    } else {
+        if (ubpf_register(vm, 0, "gather_bytes", as_external_function_t(gather_bytes)) != 0 ||
+            ubpf_register(vm, 1, "memfrob", as_external_function_t(memfrob)) != 0 ||
+            ubpf_register(vm, 2, "trash_registers", as_external_function_t(trash_registers)) != 0 ||
+            ubpf_register(vm, 3, "sqrti", as_external_function_t(sqrti)) != 0 ||
+            ubpf_register(vm, 4, "strcmp_ext", as_external_function_t(strcmp)) != 0 ||
+            ubpf_register(vm, 5, "unwind", as_external_function_t(unwind)) != 0) {
+            return -1;
+        }
+    }
+
     ubpf_set_unwind_function_index(vm, 5);
-    ubpf_register(
-        vm,
-        (unsigned int)(uintptr_t)bpf_map_lookup_elem,
-        "bpf_map_lookup_elem",
-        as_external_function_t(bpf_map_lookup_elem_impl));
-    ubpf_register(
-        vm,
-        (unsigned int)(uintptr_t)bpf_map_update_elem,
-        "bpf_map_update_elem",
-        as_external_function_t(bpf_map_update_elem_impl));
-    ubpf_register(
-        vm,
-        (unsigned int)(uintptr_t)bpf_map_delete_elem,
-        "bpf_map_delete_elem",
-        as_external_function_t(bpf_map_delete_elem_impl));
+
+    if (ubpf_register(
+            vm,
+            (unsigned int)(uintptr_t)bpf_map_lookup_elem,
+            "bpf_map_lookup_elem",
+            as_external_function_t(bpf_map_lookup_elem_impl)) != 0 ||
+        ubpf_register(
+            vm,
+            (unsigned int)(uintptr_t)bpf_map_update_elem,
+            "bpf_map_update_elem",
+            as_external_function_t(bpf_map_update_elem_impl)) != 0 ||
+        ubpf_register(
+            vm,
+            (unsigned int)(uintptr_t)bpf_map_delete_elem,
+            "bpf_map_delete_elem",
+            as_external_function_t(bpf_map_delete_elem_impl)) != 0) {
+        return -1;
+    }
+
+    return 0;
 }

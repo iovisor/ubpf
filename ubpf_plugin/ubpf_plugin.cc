@@ -33,6 +33,27 @@ bool test_helpers_validater(unsigned int idx, const struct ubpf_vm *vm) {
     return helper_functions.contains(idx);
 }
 
+static int
+register_safe_helpers(ubpf_vm* vm)
+{
+    for (const auto& [key, value] : helper_functions) {
+        const ubpf_safe_helper_descriptor descriptor{
+            .index = key,
+            .name = "unnamed",
+            .fn = value,
+            .result_kind = UBPF_SAFE_HELPER_RESULT_SCALAR,
+            .region_id = 0,
+            .region_size = 0,
+        };
+
+        if (ubpf_register_safe_helper(vm, &descriptor) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 /**
  * @brief Read in a string of hex bytes and return a vector of bytes.
  *
@@ -82,6 +103,7 @@ bytes_to_ebpf_inst(std::vector<uint8_t> bytes)
 int main(int argc, char **argv)
 {
     bool jit = false; // JIT == true, interpreter == false
+    enum ubpf_execution_profile execution_profile = UBPF_EXECUTION_PROFILE_LEGACY;
     std::vector<std::string> args(argv, argv + argc);
     std::string program_string;
     std::string memory_string;
@@ -95,24 +117,53 @@ int main(int argc, char **argv)
         memory_string = args[0];
         args.erase(args.begin());
     }
-    if (args.size() > 0 && args[0] == "--program")
+    while (args.size() > 0 && args[0].starts_with("--"))
     {
-        args.erase(args.begin());
-        if (args.size() > 0)
+        if (args[0] == "--program")
         {
+            args.erase(args.begin());
+            if (args.size() == 0)
+            {
+                std::cerr << "Missing program argument" << std::endl;
+                return 1;
+            }
+
             program_string = args[0];
             args.erase(args.begin());
         }
-    }
-    if (args.size() > 0 && args[0] == "--jit")
-    {
-        jit = true;
-        args.erase(args.begin());
-    }
-    if (args.size() > 0 && args[0] == "--interpret")
-    {
-        jit = false;
-        args.erase(args.begin());
+        else if (args[0] == "--jit")
+        {
+            jit = true;
+            args.erase(args.begin());
+        }
+        else if (args[0] == "--interpret")
+        {
+            jit = false;
+            args.erase(args.begin());
+        }
+        else if (args[0] == "--profile")
+        {
+            if (args.size() < 2) {
+                std::cerr << "Missing profile argument" << std::endl;
+                return 1;
+            }
+
+            if (args[1] == "safe") {
+                execution_profile = UBPF_EXECUTION_PROFILE_SAFE;
+            } else if (args[1] != "legacy") {
+                std::cerr << "Invalid profile: " << args[1] << std::endl;
+                return 1;
+            }
+            args.erase(args.begin(), args.begin() + 2);
+        }
+        else if (args[0] == "--debug")
+        {
+            args.erase(args.begin());
+        }
+        else
+        {
+            break;
+        }
     }
 
     if (args.size() > 0 && args[0].size() > 0)
@@ -137,7 +188,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
+    if (ubpf_set_execution_profile(vm.get(), execution_profile) != 0)
+    {
+        std::cerr << "Failed to set execution profile" << std::endl;
+        return 1;
+    }
+
+    if (execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+        if (register_safe_helpers(vm.get()) != 0) {
+            std::cerr << "Failed to register safe helper metadata" << std::endl;
+            return 1;
+        }
+    } else {
+        ubpf_register_external_dispatcher(vm.get(), test_helpers_dispatcher, test_helpers_validater);
+    }
 
     // Check environment variable for constant blinding
     const char* enable_blinding_env = std::getenv("UBPF_ENABLE_CONSTANT_BLINDING");
@@ -251,6 +315,52 @@ int main(int argc, char **argv)
     }
     else
     {
+        if (execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+            std::vector<uint8_t> usable_program_memory{memory};
+            uint8_t *usable_program_memory_pointer{nullptr};
+            if (usable_program_memory.size() != 0) {
+                usable_program_memory_pointer = usable_program_memory.data();
+            }
+
+            if (ubpf_exec(vm.get(), usable_program_memory_pointer, usable_program_memory.size(), &external_dispatcher_result) != 0)
+            {
+                std::cerr << "Failed to execute program" << std::endl;
+                return 1;
+            }
+
+            uint64_t* external_stack = (uint64_t*)calloc(512, 1);
+            if (!external_stack) {
+                return -1;
+            }
+
+            usable_program_memory = memory;
+            usable_program_memory_pointer = nullptr;
+            if (usable_program_memory.size() != 0) {
+                usable_program_memory_pointer = usable_program_memory.data();
+            }
+
+            uint64_t external_memory_result;
+            if (ubpf_exec_ex(
+                    vm.get(),
+                    usable_program_memory_pointer,
+                    usable_program_memory.size(),
+                    &external_memory_result,
+                    (uint8_t*)external_stack,
+                    512) != 0) {
+                free(external_stack);
+                std::cerr << "Failed to execute program" << std::endl;
+                return 1;
+            }
+
+            free(external_stack);
+
+            if (external_dispatcher_result != external_memory_result) {
+                std::cerr << "Execution of safe-profile interpreter entry points gave different results: 0x"
+                          << std::hex << external_dispatcher_result << " vs 0x" << external_memory_result << "."
+                          << std::endl;
+                return 1;
+            }
+        } else {
         // Keep the original program memory safe from being trashed by test program so that
         // it can be run again ...
         std::vector<uint8_t> usable_program_memory{memory};
@@ -324,7 +434,7 @@ int main(int argc, char **argv)
                       << " vs 0x" << std::hex << index_helper_result << "." << std::endl;
             return 1;
         }
-
+        }
     }
     std::cout << std::hex << external_dispatcher_result << std::endl;
     return 0;
