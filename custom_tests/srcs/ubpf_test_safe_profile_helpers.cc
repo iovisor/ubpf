@@ -47,6 +47,11 @@ main()
         {.opcode = EBPF_OP_LDXDW, .dst = 0, .src = 0, .offset = 0, .imm = 0},
         {.opcode = EBPF_OP_EXIT, .dst = 0, .src = 0, .offset = 0, .imm = 0},
     };
+    const ebpf_inst pointer_handle_mismatch_program[] = {
+        {.opcode = EBPF_OP_CALL, .dst = 0, .src = 0, .offset = 0, .imm = 3},
+        {.opcode = EBPF_OP_LDXDW, .dst = 0, .src = 0, .offset = 0, .imm = 0},
+        {.opcode = EBPF_OP_EXIT, .dst = 0, .src = 0, .offset = 0, .imm = 0},
+    };
 
     helper_region = 0;
 
@@ -100,6 +105,31 @@ main()
             return 1;
         }
 
+        const ubpf_safe_region handle_region = {
+            .id = 2,
+            .base = &helper_region,
+            .size = sizeof(helper_region),
+            .kind = UBPF_SAFE_REGION_HANDLE,
+            .permissions = UBPF_SAFE_REGION_READ,
+        };
+        if (ubpf_register_safe_region(vm.get(), &handle_region) != 0) {
+            std::cerr << "Failed to register safe handle region" << std::endl;
+            return 1;
+        }
+
+        const ubpf_safe_helper_descriptor pointer_handle_mismatch_helper = {
+            .index = 3,
+            .name = "return_pointer_from_handle_region",
+            .fn = return_helper_region,
+            .result_kind = UBPF_SAFE_HELPER_RESULT_POINTER,
+            .region_id = 2,
+            .region_size = sizeof(helper_region),
+        };
+        if (ubpf_register_safe_helper(vm.get(), &pointer_handle_mismatch_helper) != 0) {
+            std::cerr << "Failed to register mismatched safe helper" << std::endl;
+            return 1;
+        }
+
         if (!load_program(vm.get(), program, sizeof(program))) {
             return 1;
         }
@@ -117,6 +147,16 @@ main()
 
         if (ubpf_exec(vm.get(), nullptr, 0, &return_value) == 0) {
             std::cerr << "Handle dereference unexpectedly succeeded" << std::endl;
+            return 1;
+        }
+
+        ubpf_unload_code(vm.get());
+        if (!load_program(vm.get(), pointer_handle_mismatch_program, sizeof(pointer_handle_mismatch_program))) {
+            return 1;
+        }
+
+        if (ubpf_exec(vm.get(), nullptr, 0, &return_value) == 0) {
+            std::cerr << "Pointer/helper region kind mismatch unexpectedly succeeded" << std::endl;
             return 1;
         }
     }

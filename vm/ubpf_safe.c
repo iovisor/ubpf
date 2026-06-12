@@ -474,6 +474,11 @@ ubpf_safe_apply_pointer_offset(
     uint16_t cur_pc,
     struct ubpf_safe_tag* result_tag)
 {
+    if (pointer_tag->base > UINT64_MAX - pointer_tag->size) {
+        vm->error_printf(stderr, "uBPF safe mode error: invalid region metadata in pointer arithmetic at PC %u\n", cur_pc);
+        return false;
+    }
+
     uint64_t region_end = pointer_tag->base + pointer_tag->size;
     uint64_t lower_bound = pointer_tag->base;
     uint64_t upper_bound = region_end;
@@ -1480,6 +1485,17 @@ ubpf_exec_ex_safe(
                         vm->error_printf(
                             stderr,
                             "uBPF safe mode error: helper %d references unknown region %u at PC %u\n",
+                            inst.imm,
+                            helper->region_id,
+                            cur_pc);
+                        return_value = -1;
+                        goto cleanup;
+                    }
+                    if ((helper->result_kind == UBPF_SAFE_HELPER_RESULT_POINTER && region->kind != UBPF_SAFE_REGION_POINTER) ||
+                        (helper->result_kind == UBPF_SAFE_HELPER_RESULT_HANDLE && region->kind != UBPF_SAFE_REGION_HANDLE)) {
+                        vm->error_printf(
+                            stderr,
+                            "uBPF safe mode error: helper %d result kind does not match region %u at PC %u\n",
                             inst.imm,
                             helper->region_id,
                             cur_pc);
