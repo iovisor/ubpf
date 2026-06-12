@@ -634,6 +634,7 @@ The VM exposes configuration APIs that primarily mutate policy fields on `struct
 | `ubpf_set_jit_code_size` | `vm->jitter_buffer_size` | Bound temporary JIT working memory independently of final executable size |
 | `ubpf_set_instruction_limit` | `vm->instruction_limit` | Bound interpreter work for potentially looping programs |
 | `ubpf_toggle_bounds_check` | `vm->bounds_check_enabled` | Relax or enforce default memory safety policy |
+| `ubpf_register_data_bounds_check` | `vm->bounds_check_function`, `vm->bounds_check_user_data` | Extend memory validation to non-standard regions under embedder control |
 | `ubpf_toggle_undefined_behavior_check` | `vm->undefined_behavior_check_enabled` | Enable shadow-stack/register diagnostics |
 | `ubpf_toggle_readonly_bytecode` | `vm->readonly_bytecode_enabled` | Choose immutable vs writable bytecode storage before load |
 | `ubpf_set_pointer_secret` | `vm->pointer_secret` | Seed XOR obfuscation for stored instructions before load |
