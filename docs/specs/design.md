@@ -1,8 +1,8 @@
 # uBPF Design Specification
 
-**Document Version:** 1.0.0
-**Date:** 2026-03-31
-**Status:** Draft — Extracted from source code
+**Document Version:** 1.1.0
+**Date:** 2026-06-12
+**Status:** Draft — Refreshed from source and test inventory
 
 ---
 
@@ -42,6 +42,8 @@ This design addresses the following requirement categories (see `docs/specs/requ
 | Extensibility | REQ-EXT-001 – 007 | Helpers, dispatchers, debug hooks, callbacks |
 | Configuration | REQ-CFG-001 – 004 | Error output, buffer sizing, limits |
 | Platform | REQ-PLAT-001 – 006 | Windows, Linux, macOS, x86-64, ARM64 |
+| Error Handling | REQ-ERR-001 – 003 | Error allocation, API failure conventions, runtime diagnostics |
+| Constants and Limits | REQ-CONST-001 | Instruction, helper, and stack limits |
 
 ---
 
@@ -292,7 +294,7 @@ ubpf_load(vm, code, code_len, errmsg)
 
 ### 4.5 Interpreter Execution
 
-*Implements: REQ-EXEC-001 through REQ-EXEC-009*
+*Implements: REQ-EXEC-001 through REQ-EXEC-009, REQ-ISA-003 through REQ-ISA-012*
 
 #### Register Initialization
 
@@ -563,6 +565,7 @@ Required ELF properties:
 | ROP gadget harvesting from bytecode | XOR encoding with pointer secret | Enabled | REQ-SEC-006 |
 | Spectre v2 (branch target injection) | Retpolines for indirect calls | Enabled | REQ-SEC-007 |
 | Executable memory modification | W⊕X (separate R|W and R|X phases) | Always | REQ-SEC-008 |
+| Non-standard memory regions bypassing default checks | Application-supplied bounds callback extends mem/stack policy | Optional | REQ-SEC-009 |
 
 #### Bounds Checking Detail
 
@@ -616,6 +619,67 @@ Two models:
 
 **Confidence:** High
 **Source:** `vm/ubpf_vm.c`, `vm/inc/ubpf.h`
+
+### 4.12 Configuration and Diagnostics
+
+*Implements: REQ-CFG-001 through REQ-CFG-004, REQ-ERR-001 through REQ-ERR-003*
+
+#### Configuration Surface
+
+The VM exposes configuration APIs that primarily mutate policy fields on `struct ubpf_vm` before load, compile, or execution:
+
+| API | Primary state | Design intent |
+|-----|---------------|---------------|
+| `ubpf_set_error_print` | `vm->error_printf` | Redirect runtime diagnostics without changing control flow |
+| `ubpf_set_jit_code_size` | `vm->jitter_buffer_size` | Bound temporary JIT working memory independently of final executable size |
+| `ubpf_set_instruction_limit` | `vm->instruction_limit` | Bound interpreter work for potentially looping programs |
+| `ubpf_toggle_bounds_check` | `vm->bounds_check_enabled` | Relax or enforce default memory safety policy |
+| `ubpf_toggle_undefined_behavior_check` | `vm->undefined_behavior_check_enabled` | Enable shadow-stack/register diagnostics |
+| `ubpf_toggle_readonly_bytecode` | `vm->readonly_bytecode_enabled` | Choose immutable vs writable bytecode storage before load |
+| `ubpf_set_pointer_secret` | `vm->pointer_secret` | Seed XOR obfuscation for stored instructions before load |
+| `ubpf_set_unwind_function_index` | `vm->unwind_stack_extension_index` | Designate helper-triggered early exit semantics |
+
+The design intentionally separates interpreter-only policy (`instruction_limit`, debug hooks, UB checks) from policies that affect both interpreter and JIT (`readonly_bytecode_enabled`, helper registration, pointer secrets during storage, error routing).
+
+#### Diagnostic Model
+
+uBPF uses two complementary error channels:
+
+1. **Synchronous API failures** return `-1` or `NULL` and allocate descriptive strings via `ubpf_error(...)`.
+2. **Runtime execution diagnostics** call `vm->error_printf(stderr, ...)` for interpreter-detected faults such as instruction-limit exhaustion, invalid shadow-register state, and out-of-bounds memory access.
+
+This split keeps API failure ownership explicit while allowing embedders to redirect runtime diagnostics.
+
+#### Debug Register Exposure
+
+Register exposure is a debug-only capability:
+
+- In `DEBUG` builds, `ubpf_set_registers` overrides the active register storage used by the interpreter and `ubpf_get_registers` returns the active register array.
+- In non-`DEBUG` builds, both APIs degrade to diagnostics-only behavior and do not expose mutable register state.
+
+**Confidence:** High
+**Source:** `vm/inc/ubpf.h:178-179,502-644`, `vm/ubpf_vm.c:2230-2269`, `vm/ubpf_vm.c:2337-2345`
+
+### 4.13 Constants and Limits
+
+*Implements: REQ-CONST-001*
+
+Core resource limits are centralized in public headers so validation, interpreter execution, and helper registration share the same numeric boundaries:
+
+| Constant | Value | Design role |
+|----------|-------|-------------|
+| `UBPF_MAX_INSTS` | 65536 | Upper bound for loaded instructions and local-function metadata allocation |
+| `UBPF_MAX_CALL_DEPTH` | 8 | Maximum local call nesting depth |
+| `UBPF_EBPF_STACK_SIZE` | 4096 | Total interpreter stack budget (`8 * 512`) |
+| `UBPF_EBPF_LOCAL_FUNCTION_STACK_SIZE` | 256 | Default per-local-function stack reservation |
+| `UBPF_MAX_EXT_FUNCS` | 64 | Size of the static helper table |
+| `UBPF_EBPF_NONVOLATILE_SIZE` | 40 | Size of the nonvolatile-register spill area used by JIT conventions |
+| `DEFAULT_JITTER_BUFFER_SIZE` | 65536 | Default temporary JIT translation buffer size |
+
+The design depends on these values in several places: allocation sizing during `ubpf_create`, validation rejection at `num_insts >= UBPF_MAX_INSTS`, stack-frame bookkeeping for local calls, and helper-table layout in JIT code.
+
+**Confidence:** High
+**Source:** `vm/inc/ubpf.h:38-75`, `vm/ubpf_int.h:64-126`, `vm/ubpf_vm.c:96-145`, `vm/ubpf_vm.c:1786-1790`
 
 ---
 
@@ -756,4 +820,5 @@ OS services (mmap, RNG)    │  Control flow
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.1.0 | 2026-06-12 | Bootstrap refresh | Added explicit design traceability for ISA execution semantics, security callback coverage, configuration/error-handling design, and constants/limits. |
 | 1.0.0 | 2026-03-31 | Extracted by AI | Initial draft — extracted from uBPF source code analysis |

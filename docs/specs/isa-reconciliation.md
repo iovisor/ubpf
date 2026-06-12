@@ -1,8 +1,8 @@
 # uBPF ISA Unified Requirements — Reconciliation with RFC 9669
 
-**Document Version:** 1.0.0
-**Date:** 2026-03-31
-**Status:** Draft — Reconciled from implementation specification and IETF standard
+**Document Version:** 1.1.0
+**Date:** 2026-06-12
+**Status:** Draft — Refreshed against current validator and RFC text
 
 ---
 
@@ -13,7 +13,7 @@ This document reconciles the uBPF implementation's Instruction Set Architecture 
 The goal is to produce a unified "most compatible" specification that tells uBPF maintainers exactly where the implementation conforms to RFC 9669, where it extends beyond it, and where it diverges. Both sources are treated as equal inputs — divergences are documented, not judged.
 
 **Sources consulted:**
-- **Source 1 — uBPF Implementation Specification** (`docs/specs/requirements.md`): A requirements document reverse-engineered from the uBPF source code (v1.0.0, 2026-03-31). ISA requirements are in Section 4.6 (REQ-ISA-001 through REQ-ISA-012) with ISA-adjacent requirements in Sections 4.3, 4.7, and 4.8.
+- **Source 1 — uBPF Implementation Specification** (`docs/specs/requirements.md`): A requirements document reverse-engineered from the uBPF source code (v1.1.0, 2026-06-12). ISA requirements are in Section 4.6 (REQ-ISA-001 through REQ-ISA-012) with ISA-adjacent requirements in Sections 4.3, 4.7, and 4.8.
 - **Source 2 — RFC 9669** (October 2024): IETF Standards Track specification of the BPF ISA, covering instruction encoding, arithmetic/jump/load/store operations, atomics, byte swaps, 64-bit immediates, conformance groups, and legacy packet access.
 - **Implementation verification**: Key behaviors verified against `vm/ubpf_vm.c`, `vm/ebpf.h`, and `vm/ubpf_instruction_valid.c`.
 
@@ -82,9 +82,9 @@ The goal is to produce a unified "most compatible" specification that tells uBPF
 | Metric | Count |
 |--------|-------|
 | Total unified requirements | 47 |
-| UNIVERSAL | 29 |
+| UNIVERSAL | 30 |
 | MAJORITY | 4 |
-| DIVERGENT | 6 |
+| DIVERGENT | 5 |
 | EXTENSION (uBPF-only) | 5 |
 | EXTENSION (RFC 9669-only) | 3 |
 
@@ -234,18 +234,14 @@ Arithmetic overflow and underflow MUST be allowed — values wrap at 64-bit or 3
 
 The NEG instruction negates the destination register (`dst = -dst`).
 
-- **Compatibility:** DIVERGENT
+- **Compatibility:** UNIVERSAL
 - **Source mapping:** uBPF REQ-ISA-003 (NEG) ↔ RFC 9669 §4.1 ("The NEG instruction is only defined when the source bit is clear (K)")
-- **uBPF behavior:** NEG accepts any `src_reg` value — the src field is ignored at runtime (`vm/ubpf_vm.c:958-960`). Validation does not constrain `src_reg` for NEG (`vm/ubpf_instruction_valid.c`).
-- **RFC 9669 behavior:** NEG is only defined for source=K (source bit = 0). NEG with source=X is undefined.
-- **Interoperability impact:** A program with NEG and source=X would execute on uBPF but is technically undefined per RFC 9669. A strict RFC-conforming validator would reject it.
-- **Resolution options:**
-  - Conservative: Reject NEG with source=X during validation (match RFC 9669).
-  - Permissive: Accept any src value and ignore it (current uBPF behavior).
-  - Most interoperable: Reject NEG with source=X to ensure programs are portable.
+- **uBPF behavior:** NEG and NEG64 are validated with `src == 0` before load (`vm/ubpf_vm.c:1827-1832`, `vm/ubpf_vm.c:1870-1875`). The runtime then applies `dst = -dst` (`vm/ubpf_vm.c:958-960`, `vm/ubpf_vm.c:1149-1151`).
+- **RFC 9669 behavior:** NEG is only defined for source=K (source bit = 0).
+- **Interoperability impact:** None identified for accepted programs; uBPF rejects the same non-zero-source NEG encodings that RFC 9669 leaves undefined.
 - **Acceptance Criteria:**
   - AC-1: `NEG dst` produces `dst = -dst`.
-  - AC-2: [DIVERGENT] Whether NEG with source=X is accepted or rejected depends on resolution.
+  - AC-2: `NEG` with source=X is rejected during validation.
 
 ---
 
@@ -832,7 +828,6 @@ The interpreter MAY enforce a runtime instruction execution limit.
 |---------|------|-------------|------------|--------|------------|
 | RISK-001 | LDDW subtypes | Programs using LDDW src_reg 1–6 (map references) cannot run on uBPF without ELF relocation preprocessing. Raw bytecode loading of such programs will fail. | High | High | Document that LDDW map references require ELF loading with a data relocation callback. Consider implementing a raw-bytecode LDDW callback. |
 | RISK-002 | BTF calls | Programs compiled with BTF-based CALL (src_reg=2) — increasingly common in modern toolchains — will be rejected. | Medium | High | Monitor BTF adoption in target ecosystems. Implement src_reg=2 dispatch via callback if needed. |
-| RISK-003 | NEG source field | uBPF accepts NEG with any src field value. Programs written for uBPF might use non-zero src on NEG and fail on strict implementations. | Low | Low | Add validation to reject NEG with source=X for portability. |
 | RISK-004 | Big-endian programs | Programs compiled for big-endian BPF targets cannot load on uBPF. | Low | Medium | Document limitation. Big-endian BPF is rare in practice. |
 | RISK-005 | Conformance declaration | uBPF does not formally declare which RFC 9669 conformance groups it supports. Tools cannot auto-discover capabilities. | Medium | Medium | Add API or metadata to declare supported conformance groups: base32, base64, atomic32, atomic64, divmul32, divmul64. |
 | RISK-006 | Unused field strictness | uBPF's unused-field validation may differ from RFC 9669's SHALL requirement. Some programs with non-zero unused fields might be accepted by uBPF but rejected by strict implementations, or vice versa. | Low | Low | Audit validation filter table against RFC 9669's per-instruction field constraints. |
@@ -840,9 +835,9 @@ The interpreter MAY enforce a runtime instruction execution limit.
 
 ### 7.2 Compatibility Score
 
-- **UNIVERSAL requirements:** 29 / 47 = **61.7%**
-- **UNIVERSAL + MAJORITY:** 33 / 47 = **70.2%**
-- **DIVERGENT requirements:** 6 / 47 = **12.8%**
+- **UNIVERSAL requirements:** 30 / 47 = **63.8%**
+- **UNIVERSAL + MAJORITY:** 34 / 47 = **72.3%**
+- **DIVERGENT requirements:** 5 / 47 = **10.6%**
 - **EXTENSION requirements:** 8 / 47 = **17.0%**
 
 ### 7.3 Risk Summary by Functional Area
@@ -851,7 +846,7 @@ The interpreter MAY enforce a runtime instruction execution limit.
 |------|-----------|----------|-----------|-----------|------------|
 | Encoding | 2 | 2 | 0 | 0 | Low |
 | Registers | 1 | 0 | 0 | 0 | Low |
-| ALU | 4 | 0 | 1 | 0 | Low (NEG only) |
+| ALU | 5 | 0 | 0 | 0 | Low |
 | Division/Modulo | 5 | 0 | 0 | 1 | Low |
 | Byte Swap | 1 | 0 | 0 | 1 | Low |
 | Jump | 3 | 0 | 0 | 1 | Low |
@@ -867,14 +862,13 @@ The interpreter MAY enforce a runtime instruction execution limit.
 1. **RISK-001 (LDDW subtypes)** — Highest priority. Document the ELF-loader-based workaround prominently. Consider a callback mechanism for raw bytecode loading.
 2. **RISK-005 (Conformance declaration)** — Medium priority. Adding conformance group metadata would improve toolchain integration.
 3. **RISK-002 (BTF calls)** — Medium priority. Monitor and plan for BTF adoption.
-4. **RISK-003 (NEG source field)** — Low priority but easy fix. Tighten validation.
-
 ---
 
 ## 8. Revision History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2026-06-12 | Bootstrap refresh | Reconciled NEG source-field handling with the current validator, updated compatibility counts, and refreshed the source requirements version/date. |
 | 1.0.0 | 2026-03-31 | Generated via reconciliation workflow | Initial reconciliation of uBPF requirements (v1.0.0) against RFC 9669 (October 2024). |
 
 ---
@@ -892,7 +886,7 @@ The interpreter MAY enforce a runtime instruction execution limit.
 | REQ-UBPF-ISA-ALU-001 | UNIVERSAL | REQ-ISA-003 | §4.1 |
 | REQ-UBPF-ISA-ALU-002 | UNIVERSAL | REQ-ISA-003 AC-2 | §4.1 |
 | REQ-UBPF-ISA-ALU-003 | UNIVERSAL | (implicit) | §4.1 |
-| REQ-UBPF-ISA-ALU-004 | DIVERGENT | REQ-ISA-003 | §4.1 |
+| REQ-UBPF-ISA-ALU-004 | UNIVERSAL | REQ-ISA-003 | §4.1 |
 | REQ-UBPF-ISA-ALU-005 | UNIVERSAL | ubpf_vm.c:36-37 | §4.1 |
 | REQ-UBPF-ISA-ALU-006 | UNIVERSAL | REQ-ISA-005 | §4.1 |
 | REQ-UBPF-ISA-ALU-007 | UNIVERSAL | (implicit) | §4.1 |

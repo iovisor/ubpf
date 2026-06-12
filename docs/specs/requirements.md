@@ -1,8 +1,8 @@
 # uBPF Requirements Specification
 
-**Document Version:** 1.0.0
-**Date:** 2026-03-31
-**Status:** Draft — Extracted from source code
+**Document Version:** 1.1.0
+**Date:** 2026-06-12
+**Status:** Draft — Refreshed from source and test inventory
 
 ---
 
@@ -495,16 +495,18 @@ The x86-64 JIT MUST support both System V ABI (Linux/macOS) and Win64 ABI (Windo
   - AC-1: JIT-compiled code executes correctly on Linux with System V ABI.
   - AC-2: JIT-compiled code executes correctly on Windows with Win64 ABI.
 
-#### REQ-JIT-010: ARM64 Atomic Operations
+#### REQ-JIT-010: ARM64 Backend Support
 
-The ARM64 JIT MUST implement atomic operations using Load-Exclusive/Store-Exclusive (LDXR/STXR) instruction pairs with retry loops. Supported operations: ADD, OR, AND, XOR, XCHG, CMPXCHG (both 32-bit and 64-bit).
+The ARM64 JIT MUST generate executable code that follows the platform calling convention and correctly realizes the supported eBPF semantics on ARM64 targets.
 
-- **Source:** `vm/ubpf_jit_arm64.c:266-273, 753-909`
+- The backend maps eBPF argument registers to `x0`-`x4`, keeps the return value in `x5`, preserves callee-saved state in `x19`-`x23`, and uses ARM64-specific lowering such as exclusive-access loops for atomic instructions.
+
+- **Source:** `vm/ubpf_jit_arm64.c:89-101,650-709,1890-1912`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
-  - AC-1: Atomic ADD on ARM64 produces correct results under contention.
-  - AC-2: CMPXCHG compares with R0 and conditionally stores, returning the loaded value.
-  - AC-3: The LDXR/STXR loop retries on exclusive store failure.
+  - AC-1: JIT compilation succeeds on ARM64-supported builds.
+  - AC-2: JIT-compiled programs execute correctly on ARM64 in both native and emulated CI environments.
+  - AC-3: Helper and dispatcher calls preserve the expected register/stack conventions on ARM64.
 
 #### REQ-JIT-011: Post-Compilation Helper Update
 
@@ -649,11 +651,12 @@ The VM MUST support the following ALU operations in both 32-bit (`EBPF_CLS_ALU`)
 
 ADD, SUB, MUL, DIV, MOD, OR, AND, XOR, LSH, RSH, NEG, ARSH, MOV.
 
-- **Source:** `vm/ebpf.h:87-155`
+- **Source:** `vm/ebpf.h:87-155`, `vm/ubpf_vm.c:871-1210`, `vm/ubpf_vm.c:1786-2099`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: Each operation produces the correct result for representative test inputs.
   - AC-2: 32-bit operations zero-extend the result to 64 bits.
+  - AC-3: `NEG` and `NEG64` are only accepted when the source field is clear (`src == 0`).
 
 #### REQ-ISA-004: Signed Division and Modulo
 
@@ -667,14 +670,18 @@ The VM MUST support signed variants of DIV (`SDIV`) and MOD (`SMOD`). Signed ope
 
 #### REQ-ISA-005: MOV with Sign-Extension (MOVSX)
 
-The VM MUST support MOV with sign-extension. The offset field (8, 16, or 32) specifies the source width for sign-extension.
+The VM MUST support MOV with sign-extension.
 
-- **Source:** `vm/ebpf.h:98` (ALU_OP_MOV), `vm/ubpf_instruction_valid.c` (MOVSX filter entries)
+- For `EBPF_OP_MOV_REG` (32-bit ALU class), the offset field MAY be `8` or `16` to sign-extend into a 32-bit result, or `0` for a normal MOV.
+- For `EBPF_OP_MOV64_REG` (64-bit ALU class), the offset field MAY be `8`, `16`, or `32` to sign-extend into a 64-bit result, or `0` for a normal MOV.
+
+- **Source:** `vm/ebpf.h:98` (ALU_OP_MOV), `vm/ubpf_instruction_valid.c:41-45,416`, `vm/ubpf_vm.c:1006-1018,1191-1205`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: MOVSX with offset=8 sign-extends the low 8 bits.
   - AC-2: MOVSX with offset=16 sign-extends the low 16 bits.
-  - AC-3: MOVSX with offset=32 sign-extends the low 32 bits.
+  - AC-3: MOVSX with offset=32 sign-extends the low 32 bits for `EBPF_OP_MOV64_REG`.
+  - AC-4: `EBPF_OP_MOV_REG` rejects offset=32.
 
 #### REQ-ISA-006: Byte Swap Operations
 
@@ -813,7 +820,10 @@ Reading an uninitialized register or stack location MUST cause execution to fail
 
 #### REQ-SEC-004: Constant Blinding (JIT)
 
-When enabled, the JIT compiler MUST XOR all immediate values with cryptographically random constants, loading the blinded value and recovering the original at runtime via XOR.
+When enabled, the JIT compiler MUST blind the immediate forms supported by the active backend using cryptographically random constants, loading a blinded value and recovering the original at runtime via XOR-equivalent native sequences.
+
+- On x86-64, the implementation blinds the immediate forms covered by the x86-64 emitter.
+- On ARM64, the implementation applies blinding to a narrower subset of immediate-loading sequences than x86-64.
 
 - **Source:** `vm/ubpf_jit_x86_64.c:462-492` (x86-64), `vm/ubpf_jit_arm64.c:544-564` (ARM64)
 - **Confidence:** **High**
@@ -985,12 +995,12 @@ When a dispatcher is registered, it takes precedence over individually registere
 
 #### REQ-CFG-004: Register State Access
 
-`int ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)` and `uint64_t* ubpf_get_registers(const struct ubpf_vm* vm)` provide access to the VM's register state for debugging.
+`void ubpf_set_registers(struct ubpf_vm* vm, uint64_t* regs)` and `uint64_t* ubpf_get_registers(const struct ubpf_vm* vm)` provide access to the VM's register state for debugging.
 
 - In DEBUG builds, `ubpf_set_registers()` MUST override the VM's internal register storage with the user-provided array, and `ubpf_get_registers()` MUST return a pointer to the current register storage (user-provided or internal).
 - In non-DEBUG builds, both functions MUST emit a diagnostic warning indicating that register access is not available, `ubpf_get_registers()` MUST return `NULL`, and `ubpf_set_registers()` MUST NOT modify the VM's register state.
 
-- **Source:** `vm/inc/ubpf.h:510-520`, `vm/ubpf_vm.c:815-822`
+- **Source:** `vm/inc/ubpf.h:510-520`, `vm/ubpf_vm.c:2241-2269`, `vm/ubpf_vm.c:815-822`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
   - AC-1: In a DEBUG build, after `ubpf_set_registers()`, the interpreter uses the provided register array for execution, and `ubpf_get_registers()` returns the same active register array.
@@ -1124,7 +1134,7 @@ Runtime errors during execution MUST be reported via `vm->error_printf`, which d
 - **Source:** `vm/ubpf_vm.c:86-93, 125`
 - **Confidence:** **High**
 - **Acceptance Criteria:**
-  - AC-1: Division by zero in the interpreter produces an error message on stderr (default).
+  - AC-1: An execution failure such as instruction-limit exhaustion, invalid shadow-register state, or out-of-bounds memory access produces an error message on stderr by default.
   - AC-2: With a custom error function, the message is routed to that function instead.
 
 ---
@@ -1278,4 +1288,5 @@ The JIT compiler generates native code without formal verification of equivalenc
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.1.0 | 2026-06-12 | Bootstrap refresh | Refined ISA and configuration requirements to match current validator and interpreter behavior, clarified partial ARM64 constant blinding, corrected register-access API signatures, realigned ARM64 JIT requirements with actual backend scope, and tightened runtime error-reporting language. |
 | 1.0.0 | 2026-03-31 | Extracted from source | Initial requirements extraction from uBPF codebase. All requirements derived from source code analysis of the public API (`vm/inc/ubpf.h`), VM implementation (`vm/ubpf_vm.c`), instruction validator (`vm/ubpf_instruction_valid.c`), ELF loader (`vm/ubpf_loader.c`), JIT compilers (`vm/ubpf_jit_x86_64.c`, `vm/ubpf_jit_arm64.c`, `vm/ubpf_jit.c`), internal headers (`vm/ubpf_int.h`, `vm/ebpf.h`), and build configuration (`CMakeLists.txt`, `cmake/`). |

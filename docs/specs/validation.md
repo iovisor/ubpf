@@ -1,8 +1,8 @@
 # uBPF Validation Plan
 
-**Document Version:** 1.0.0
-**Date:** 2026-03-31
-**Status:** Draft — Extracted from existing test infrastructure
+**Document Version:** 1.1.0
+**Date:** 2026-06-12
+**Status:** Draft — Refreshed from current test inventory
 
 ---
 
@@ -106,6 +106,7 @@ uBPF uses a multi-layered testing strategy:
 **Conformance Suite (`external/bpf_conformance/`):**
 - 313 `.data` files for standard eBPF instruction semantics
 - Executed via `ubpf_plugin` for both interpreter and JIT
+- The uBPF CTest wiring also routes the repository's 104 local `.data` files through the same plugin contract
 
 **Fuzzer (`libfuzzer/libfuzz_harness.cc`):**
 - Differential testing: interpreter vs. JIT
@@ -166,11 +167,11 @@ uBPF uses a multi-layered testing strategy:
 | REQ-JIT-003 | Code caching | TC-JIT-005 | **Low** — `[GAP: no explicit caching test]` |
 | REQ-JIT-004 | Executable memory (W⊕X) | TC-JIT-006 | **Medium** — implicitly tested; ASan would catch violations |
 | REQ-JIT-005 | JIT buffer sizing | TC-JIT-011 | **High** — jit_buffer_too_small custom test |
-| REQ-JIT-006 | copy_jit API | TC-JIT-008 | **Low** — `[GAP: no direct copy_jit test]` |
+| REQ-JIT-006 | copy_jit API | TC-JIT-008 | **Medium** — indirectly exercised by `ubpf_plugin`; `[GAP: no dedicated API-focused unit test]` |
 | REQ-JIT-007 | translate API | TC-JIT-007 | **Low** — `[GAP: no direct translate API test]` |
 | REQ-JIT-008 | Instruction limit non-applicability | TC-JIT-012 | **Low** — `[GAP: no test verifying JIT ignores instruction limit]` |
 | REQ-JIT-009 | x86-64 calling conventions | TC-JIT-009 | **High** — CI tests on Windows + Linux (different ABIs) |
-| REQ-JIT-010 | ARM64 ABI | TC-JIT-010 | **High** — CI tests on ARM64 (native + QEMU) |
+| REQ-JIT-010 | ARM64 backend support | TC-JIT-010 | **High** — CI tests on ARM64 (native + QEMU) |
 | REQ-JIT-011 | Post-compilation helper update | TC-JIT-013 | **High** — update_helpers, update_dispatcher custom tests |
 
 ### 4.5 ELF Loading
@@ -245,7 +246,7 @@ uBPF uses a multi-layered testing strategy:
 | REQ-PLAT-002 | Linux support | TC-PLAT-002 | **High** — CI: ubuntu-latest, coverage + sanitizers |
 | REQ-PLAT-003 | macOS support | TC-PLAT-003 | **High** — CI: macos-latest |
 | REQ-PLAT-004 | JIT architecture support (x86-64) | TC-PLAT-004 | **High** — CI on all x86-64 platforms |
-| REQ-PLAT-005 | Cryptographic random generation | TC-PLAT-007 | **High** — CI covers all 3 platforms (BCryptGenRandom, getrandom, arc4random_buf) |
+| REQ-PLAT-005 | Cryptographic random generation | TC-PLAT-007 | **Low** — `[GAP: no dedicated test verifies RNG output or fallback behavior]` |
 | REQ-PLAT-006 | Platform atomic operations | TC-PLAT-008 | **Medium** — atomic_validate custom test; `[GAP: no cross-platform atomic correctness test]` |
 
 ### 4.11 Error Handling
@@ -458,7 +459,7 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** High
 - **Evidence:** `test_framework/test_vm.py` — runs every `.data` file through interpreter
 - **Pass criteria:** Return value matches `-- result` section; errors match `-- error` section
-- **Existing tests:** ~47 root .data + 313 conformance tests = ~360 test cases
+- **Existing tests:** 104 repository `.data` files via `test_vm.py`, plus 417 plugin-driven interpreter runs (104 local + 313 conformance)
 
 #### TC-EXEC-002: Extended Interpreter Entry Point
 - **Traces to:** REQ-EXEC-002
@@ -472,7 +473,7 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** High
 - **Evidence:** Memory and result comparison in all data-driven tests validates correct r1/r2 initialization
 - **Pass criteria:** r1 points to memory input, r2 contains memory length, r0 returns correct result
-- **Existing tests:** All ~360 data-driven tests
+- **Existing tests:** All local `test_vm.py` data-driven tests plus plugin-driven interpreter coverage
 
 #### TC-EXEC-004: Code-Not-Loaded Guard and XOR-Decoded Fetch
 - **Traces to:** REQ-EXEC-004, REQ-EXEC-007
@@ -536,7 +537,7 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** High
 - **Evidence:** Assembler/raw comparison in all `.data` tests validates instruction encoding
 - **Pass criteria:** Instructions are correctly encoded and decoded in the 8-byte format
-- **Existing tests:** All ~360 data-driven tests
+- **Existing tests:** 104 local data-driven tests plus plugin-driven coverage over the 313-test conformance suite
 
 #### TC-ISA-002: Register Model
 - **Traces to:** REQ-ISA-002
@@ -659,7 +660,7 @@ uBPF uses a multi-layered testing strategy:
 - **Confidence:** High
 - **Evidence:** `test_framework/test_jit.py` — runs every `.data` file through JIT with 20 register-offset variants
 - **Pass criteria:** JIT output matches interpreter output for all tests
-- **Existing tests:** ~360 x 20 = ~7200 JIT test executions
+- **Existing tests:** 104 local `.data` files with up to 20 register-offset variants, plus 417 plugin-driven JIT runs (104 local + 313 conformance)
 
 #### TC-JIT-002: compile_ex API
 - **Traces to:** REQ-JIT-002
@@ -708,8 +709,10 @@ uBPF uses a multi-layered testing strategy:
 #### TC-JIT-008: copy_jit API
 - **Traces to:** REQ-JIT-006
 - **Level:** Unit
-- **Confidence:** Low
-- **`[GAP]`:** No direct test of the `ubpf_copy_jit()` API for copying JIT-compiled code.
+- **Confidence:** Medium
+- **Evidence:** `ubpf_plugin/ubpf_plugin.cc` copies JIT output into an executable mapping and executes the copy, comparing it with the original JIT result.
+- **Pass criteria:** Copied JIT code executes independently and matches the original JIT result.
+- **`[GAP]`:** No dedicated unit test isolates `ubpf_copy_jit()` failure modes beyond the plugin path.
 
 #### TC-JIT-009: x86-64 Dual ABI
 - **Traces to:** REQ-JIT-009
@@ -719,7 +722,7 @@ uBPF uses a multi-layered testing strategy:
 - **Pass criteria:** Same tests pass on both platforms
 - **Existing tests:** CI matrix covers both ABIs
 
-#### TC-JIT-010: ARM64 ABI
+#### TC-JIT-010: ARM64 Backend Support
 - **Traces to:** REQ-JIT-010
 - **Level:** System
 - **Confidence:** High
@@ -950,10 +953,9 @@ uBPF uses a multi-layered testing strategy:
 #### TC-PLAT-007: Crypto RNG
 - **Traces to:** REQ-PLAT-005
 - **Level:** System
-- **Confidence:** High
-- **Evidence:** CI covers all 3 platforms (Windows, Linux, macOS)
-- **Pass criteria:** Platform-specific cryptographic RNG produces non-deterministic values
-- **Existing tests:** CI matrix (all platforms)
+- **Confidence:** Low
+- **Evidence:** Source inspection shows platform branches in `vm/ubpf_jit_support.c`, but no dedicated runtime assertion validates RNG output or fallback selection.
+- **`[GAP]`:** No test verifies `BCryptGenRandom`, `getrandom`, `arc4random_buf`, or the `rand()` fallback behavior.
 
 #### TC-PLAT-008: Platform Atomics
 - **Traces to:** REQ-PLAT-006
@@ -1117,4 +1119,5 @@ Test suite passes when:
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.1.0 | 2026-06-12 | Bootstrap refresh | Reconciled current test inventory counts, credited indirect `ubpf_copy_jit()` coverage via `ubpf_plugin`, and downgraded overstated RNG coverage claims. |
 | 1.0.0 | 2026-03-31 | Extracted by AI | Initial draft — mapped existing tests to requirements, identified gaps |
