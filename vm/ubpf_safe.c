@@ -754,7 +754,7 @@ ubpf_exec_ex_safe(
         }
     }
 
-    safe_spill_slots = calloc(spill_slot_count, sizeof(*safe_spill_slots));
+    safe_spill_slots = calloc(spill_slot_count == 0 ? 1 : spill_slot_count, sizeof(*safe_spill_slots));
     if (!safe_spill_slots) {
         return_value = -1;
         goto cleanup;
