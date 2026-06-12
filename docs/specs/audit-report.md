@@ -1,7 +1,7 @@
 # uBPF Specification Consistency Audit Report
 
-**Report Version:** 1.1.0
-**Date:** 2026-03-31
+**Report Version:** 1.2.0
+**Date:** 2026-06-12
 **Auditor:** Adversarial Consistency Audit (Automated)
 **Verdict:** **PASS** (after remediation)
 
@@ -9,19 +9,20 @@
 
 ## 1. Executive Summary
 
-This adversarial consistency audit of the uBPF specification suite initially revealed a **critical systemic defect**: the three specification documents used incompatible REQ-ID numbering schemes across 10 of 12 requirement categories. Additionally, a numeric boundary contradiction for `UBPF_MAX_INSTS` was found, along with 18 further findings (19 total) including missing design sections and requirements lost in downstream mapping.
+This adversarial consistency audit of the uBPF specification suite initially revealed a **critical systemic defect**: the three core specification documents used incompatible REQ-ID numbering schemes across 10 of 12 requirement categories. Additionally, a numeric boundary contradiction for `UBPF_MAX_INSTS` was found, along with 18 further findings (19 total) including missing design sections and requirements lost in downstream mapping.
 
-All critical and high-severity findings have been remediated: REQ-ID numbering has been aligned across all three documents using the requirements document as the canonical registry, the `UBPF_MAX_INSTS` boundary has been corrected to 65535 (matching the `uint16_t` storage and `>= 65536` source code check), and cross-document traceability has been re-validated. Some medium-severity findings (e.g., F-005) are partially resolved with remaining work tracked. The remaining findings are medium/low severity items documented for future improvement. The verdict is **PASS**: the specification suite is now internally consistent and suitable for approval.
+All critical and high-severity findings remain remediated, and this refresh closes four additional medium-severity design-traceability findings: F-006 (REQ-SEC-009 design trace), F-009 (REQ-ERR/REQ-CFG/REQ-CONST design sections), F-010 (explicit ISA design traces), and F-019 (security threat-model coverage for REQ-SEC-008/009). The ISA reconciliation artifact was also re-checked against current validator behavior, resolving the prior NEG-source divergence in that artifact. The remaining findings are medium/low severity items documented for future improvement, primarily test gaps and unresolved intent questions. The verdict remains **PASS**: the specification suite is internally consistent enough to serve as the baseline package.
 
 ---
 
 ## 2. Problem Statement
 
-The uBPF project maintains three specification documents that together form a requirements-design-validation traceability chain:
+The uBPF project maintains three core specification documents that form a requirements-design-validation traceability chain, plus an ISA reconciliation artifact used for RFC-facing alignment:
 
 1. **Requirements Specification** — 86 formal requirements derived from source code analysis.
 2. **Design Specification** — architectural and detailed design addressing those requirements.
 3. **Validation Plan** — test cases and coverage assessment mapped to requirements.
+4. **ISA Reconciliation** — compatibility analysis against RFC 9669.
 
 For this traceability chain to function, all three documents must agree on what each REQ-ID means. If REQ-SEC-003 means "Undefined Behavior Detection" in the requirements but "Constant Blinding" in the design, then a design section claiming to implement REQ-SEC-003 is actually implementing the wrong requirement — or rather, it implements the right feature but labels it with the wrong identifier, making the traceability link silently incorrect.
 
@@ -35,9 +36,10 @@ This audit was commissioned to adversarially test whether the three documents ar
 
 | Document | Path | Version | Date | Size |
 |----------|------|---------|------|------|
-| Requirements Specification | `docs/specs/requirements.md` | 1.0.0 | 2026-03-31 | 55.8 KB |
-| Design Specification | `docs/specs/design.md` | 1.0.0 | 2026-03-31 | 32.7 KB |
-| Validation Plan | `docs/specs/validation.md` | 1.0.0 | 2026-03-31 | 27.7 KB |
+| Requirements Specification | `docs/specs/requirements.md` | 1.1.0 | 2026-06-12 | 58.2 KB |
+| Design Specification | `docs/specs/design.md` | 1.1.0 | 2026-06-12 | 37.0 KB |
+| Validation Plan | `docs/specs/validation.md` | 1.1.0 | 2026-06-12 | 52.1 KB |
+| ISA Reconciliation | `docs/specs/isa-reconciliation.md` | 1.1.0 | 2026-06-12 | 45.1 KB |
 
 ### 3.2 Audit Checks Performed
 
@@ -141,11 +143,11 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
-**Description:** REQ-SEC-009 "Custom Bounds Check Callback" exists in requirements and now has a validation entry (TC-EXT-005) but still lacks a dedicated design section. The design's threat model covers only 7 entries despite claiming REQ-SEC-001–009.
+**Description:** REQ-SEC-009 "Custom Bounds Check Callback" now has explicit design coverage in the security architecture and the new configuration/diagnostics section.
 
-**Remaining work:** Add custom bounds check callback to design's security architecture section.
+**Remediation applied:** Design section 4.10 now includes a threat-model row for REQ-SEC-009, and section 4.12 documents the configuration surface for `ubpf_register_data_bounds_check()`.
 
 ---
 
@@ -180,16 +182,16 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
-**Description:** The design document has no dedicated sections for Error Handling (REQ-ERR-001–003), Constants (REQ-CONST-001), or Configuration (REQ-CFG-001–004). These 8 requirements are only mentioned tangentially within other sections. No `*Implements:*` annotation traces to any REQ-ERR, REQ-CFG, or REQ-CONST ID.
+**Description:** This finding is resolved. The design now has explicit coverage for configuration/error-handling behavior and for constants/limits.
 
-**Evidence:**
-- Design section 2 requirements summary table lists REQ-CFG-001–004 but no design section has an `*Implements: REQ-CFG-*` annotation.
-- REQ-ERR and REQ-CONST are not listed in the design's requirements summary table at all.
-- Error handling is mentioned in callbacks table (section 4.11), constants appear in struct definitions, but neither is treated as a dedicated design element.
+**Evidence (current state):**
+- Design section 2 requirements summary now lists Error Handling and Constants and Limits.
+- Design section 4.12 declares `*Implements: REQ-CFG-001 through REQ-CFG-004, REQ-ERR-001 through REQ-ERR-003*`.
+- Design section 4.13 declares `*Implements: REQ-CONST-001*`.
 
-**Remediation:** Add design subsections for error handling strategy, configuration API design, and system constants table. Add `*Implements:*` annotations linking to the specific REQ-IDs.
+**Status:** Resolved.
 
 ---
 
@@ -198,16 +200,15 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** Medium
-- **Status:** Open
+- **Status:** Resolved
 
-**Description:** The design document's `*Implements:*` annotations for ISA only cover REQ-ISA-001 and REQ-ISA-002 (instruction encoding and register file). REQ-ISA-003 through REQ-ISA-012 (ALU, memory, jumps, atomics, calls, exit) are covered implicitly within the interpreter execution section (4.5) but have no explicit trace annotations.
+**Description:** The design interpreter section now explicitly traces ISA execution semantics.
 
-**Evidence:**
-- Design section 4.2: `*Implements: REQ-ISA-001, REQ-ISA-002*`
-- Design section 4.5: `*Implements: REQ-EXEC-001 through REQ-EXEC-009*` — covers execution but doesn't claim ISA requirements.
-- Component inventory (section 3.3): Lists REQ-ISA-001–012 against "Instruction Defs" (ebpf.h), which defines opcodes but doesn't describe their semantic behavior.
+**Evidence (current state):**
+- Design section 4.5 now declares `*Implements: REQ-EXEC-001 through REQ-EXEC-009, REQ-ISA-003 through REQ-ISA-012*`.
+- The execution-loop description remains the authoritative design explanation for ALU, memory, jump, call, atomic, and exit semantics.
 
-**Remediation:** Add `*Implements: REQ-ISA-003 through REQ-ISA-012*` to the interpreter execution section (4.5) where ALU, memory, jump, and call semantics are described in the execution loop switch statement.
+**Status:** Resolved.
 
 ---
 
@@ -315,12 +316,13 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Confidence:** High
 - **Status:** Resolved
 
-**Description:** All three documents are now dated 2026-03-31 and share version 1.0.0. This finding has been resolved.
+**Description:** The refreshed artifact set now shares a consistent 2026-06-12 date stamp and 1.1.0 document version across requirements, design, validation, and ISA reconciliation.
 
 **Evidence (current state):**
-- Requirements: "Date: 2026-03-31"
-- Design: "Date: 2026-03-31"
-- Validation: "Date: 2026-03-31"
+- Requirements: "Date: 2026-06-12", version 1.1.0
+- Design: "Date: 2026-06-12", version 1.1.0
+- Validation: "Date: 2026-06-12", version 1.1.0
+- ISA reconciliation: "Date: 2026-06-12", version 1.1.0
 
 **Status:** Resolved.
 
@@ -344,16 +346,15 @@ This audit was commissioned to adversarially test whether the three documents ar
 - **Classification:** D1_UNTRACED_REQUIREMENT
 - **Severity:** Medium
 - **Confidence:** High
-- **Status:** Open
+- **Status:** Resolved
 
-**Description:** The design security architecture section (4.10) claims `*Implements: REQ-SEC-001 through REQ-SEC-009*` but the threat model table only contains 7 rows covering REQ-SEC-001 through REQ-SEC-007 (in design numbering). REQ-SEC-008 and REQ-SEC-009 (in requirements numbering: W⊕X for JIT Code and Custom Bounds Check Callback) are not detailed.
+**Description:** The threat model table now includes explicit rows for both W⊕X enforcement (REQ-SEC-008) and the custom bounds check callback (REQ-SEC-009).
 
-**Evidence:**
-- Design section 4.10 header: `*Implements: REQ-SEC-001 through REQ-SEC-009*`
-- Threat model table: 7 entries (lines 557–566).
-- Even using the design's numbering, there is no SEC-008 or SEC-009 defined.
+**Evidence (current state):**
+- Design section 4.10 header still claims `*Implements: REQ-SEC-001 through REQ-SEC-009*`.
+- The threat model table now includes rows for executable-memory modification / W⊕X and non-standard memory-region validation / custom bounds callback.
 
-**Remediation:** Add threat model entries for the remaining security requirements (W⊕X enforcement, custom bounds check callback) to substantiate the "through REQ-SEC-009" claim.
+**Status:** Resolved.
 
 ---
 
@@ -390,18 +391,14 @@ No automated or manual consistency check exists between documents. A simple scri
 | Action | Findings | Effort |
 |--------|----------|--------|
 | Resolve UBPF_MAX_INSTS boundary condition by checking source code | F-002 | Small |
-| Add design sections for REQ-ERR, REQ-CFG, REQ-CONST | F-009 | Small |
-| Add ISA Implements annotations to interpreter section | F-010 | Small |
 | Add test cases for REQ-SEC-002 (toggle), REQ-EXT-002 (limit), REQ-LOAD-011 (LDDW) | F-005, F-007, F-018 | Medium |
 
 ### Priority 3 — Medium (Fix Before Final Release)
 
 | Action | Findings | Effort |
 |--------|----------|--------|
-| Add design entries for REQ-SEC-008/009 in threat model | F-006, F-019 | Small |
-| Clarify helper function signature in requirements | F-011 | Small |
 | Resolve thread safety open question | F-015 | Medium |
-| Add PLAT-005/006 validation entries | F-008 | Small |
+| Add executable tests for REQ-PLAT-005/006 | F-008 | Medium |
 
 ### Priority 4 — Low (Track as Improvements)
 
@@ -419,11 +416,11 @@ No automated or manual consistency check exists between documents. A simple scri
 
 ### 7.1 Process Recommendations
 
-1. **Canonical REQ-ID Registry:** Maintain a single `req-ids.csv` or YAML file that authoritatively maps each REQ-ID to its topic. All three documents should reference (or be generated from) this registry. Changes to REQ-IDs must be made in the registry first.
+1. **Canonical REQ-ID Registry:** Maintain a single `req-ids.csv` or YAML file that authoritatively maps each REQ-ID to its topic. All core spec documents should reference (or be generated from) this registry. Changes to REQ-IDs must be made in the registry first.
 
 2. **Automated Consistency Checks:** Add a CI script that:
    - Extracts all REQ-IDs and their topics from requirements.md.
-   - Extracts all REQ-ID references from design.md and validation.md.
+   - Extracts all REQ-ID references from design.md, validation.md, and isa-reconciliation.md.
    - Verifies every REQ-ID exists in the registry and maps to the same topic.
    - Flags orphaned design elements and untested requirements.
 
@@ -431,7 +428,7 @@ No automated or manual consistency check exists between documents. A simple scri
 
 4. **Cross-Document Review Gate:** Before any specification document is updated, require a diff-based review that checks whether REQ-ID references in other documents are affected.
 
-5. **Version Coupling:** Each document header should reference the exact version of the other two documents it is consistent with. Version bumps in one document should trigger consistency review of the others.
+5. **Version Coupling:** Each document header should reference the exact version of the peer artifacts it is consistent with. Version bumps in one document should trigger consistency review of the others, including ISA reconciliation.
 
 ### 7.2 Tooling Suggestions
 
@@ -453,13 +450,15 @@ No automated or manual consistency check exists between documents. A simple scri
 
 ### Verdict: **PASS** (after remediation)
 
-The specification suite's critical systemic defect (F-001: REQ-ID numbering misalignment) and the `UBPF_MAX_INSTS` boundary contradiction (F-002) have been resolved. Cross-document traceability has been re-validated. Remaining findings are medium/low severity and documented for future improvement.
+The specification suite's critical systemic defect (F-001: REQ-ID numbering misalignment) and the `UBPF_MAX_INSTS` boundary contradiction (F-002) remain resolved. This refresh also resolves the major remaining design-traceability defects (F-006, F-009, F-010, F-019) and re-checks ISA reconciliation against current validator behavior. Remaining findings are medium/low severity and documented for future improvement.
 
 **Resolved items:**
 1. ✅ OQ-A1: Requirements document chosen as canonical registry.
 2. ✅ Design and validation documents re-numbered to match requirements.
 3. ✅ All cross-references re-validated after re-numbering.
 4. ✅ UBPF_MAX_INSTS boundary corrected (65535 max valid).
+5. ✅ Design traceability restored for REQ-SEC-009, REQ-CFG-*, REQ-ERR-*, REQ-CONST-001, and REQ-ISA-003–012.
+6. ✅ ISA reconciliation updated to reflect validator-enforced NEG source restrictions.
 
 ---
 
@@ -467,5 +466,6 @@ The specification suite's critical systemic defect (F-001: REQ-ID numbering misa
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.2.0 | 2026-06-12 | Bootstrap refresh audit | Re-audited the refreshed 1.1.0 baseline, resolved F-006/F-009/F-010/F-019, incorporated the ISA reconciliation artifact into the examined set, and confirmed PASS with remaining medium/low issues tracked. |
 | 1.1.0 | 2026-03-31 | Post-remediation update | F-001 and F-002 resolved. REQ-ID alignment corrected. Verdict updated to PASS. |
 | 1.0.0 | 2026-03-31 | Adversarial Consistency Audit | Initial audit of requirements.md v1.0.0, design.md v1.0.0, validation.md v1.0.0. 19 findings across 7 defect classifications. Verdict: REVISE. |
