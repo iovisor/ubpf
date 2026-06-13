@@ -83,6 +83,12 @@ ubpf_toggle_readonly_bytecode(struct ubpf_vm* vm, bool enable)
     return old;
 }
 
+int
+ubpf_set_execution_profile(struct ubpf_vm* vm, enum ubpf_execution_profile profile)
+{
+    return ubpf_set_execution_profile_impl(vm, profile);
+}
+
 void
 ubpf_set_error_print(struct ubpf_vm* vm, int (*error_printf)(FILE* stream, const char* format, ...))
 {
@@ -122,6 +128,7 @@ ubpf_create(void)
     vm->undefined_behavior_check_enabled = false;
     vm->readonly_bytecode_enabled = true;  // Enable read-only bytecode by default
     vm->constant_blinding_enabled = false;
+    vm->execution_profile = UBPF_EXECUTION_PROFILE_LEGACY;
     vm->error_printf = fprintf;
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -198,6 +205,12 @@ ubpf_register(struct ubpf_vm* vm, unsigned int idx, const char* name, external_f
 }
 
 int
+ubpf_register_safe_helper(struct ubpf_vm* vm, const struct ubpf_safe_helper_descriptor* descriptor)
+{
+    return ubpf_register_safe_helper_impl(vm, descriptor);
+}
+
+int
 ubpf_register_external_dispatcher(
     struct ubpf_vm* vm, external_function_dispatcher_t dispatcher, external_function_validate_t validater)
 {
@@ -234,6 +247,12 @@ ubpf_set_unwind_function_index(struct ubpf_vm* vm, unsigned int idx)
 
     vm->unwind_stack_extension_index = idx;
     return 0;
+}
+
+int
+ubpf_register_safe_region(struct ubpf_vm* vm, const struct ubpf_safe_region* region)
+{
+    return ubpf_register_safe_region_impl(vm, region);
 }
 
 unsigned int
@@ -764,6 +783,10 @@ ubpf_exec_ex(
     uint8_t* stack_start,
     size_t stack_length)
 {
+    if (vm->execution_profile == UBPF_EXECUTION_PROFILE_SAFE) {
+        return ubpf_exec_ex_safe(vm, mem, mem_len, bpf_return_value, stack_start, stack_length);
+    }
+
     uint16_t pc = 0;
     const struct ebpf_inst* insts = vm->insts;
     uint64_t* reg;
@@ -799,6 +822,8 @@ ubpf_exec_ex(
         /* Code must be loaded before we can execute */
         return -1;
     }
+
+    ((struct ubpf_vm*)vm)->execution_started = true;
 
     struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
         0,
@@ -848,7 +873,6 @@ ubpf_exec_ex(
         }
 
         struct ebpf_inst inst = ubpf_fetch_instruction(vm, pc++);
-
         if (!ubpf_validate_shadow_register(vm, cur_pc, &shadow_registers, inst)) {
             vm->error_printf(stderr, "Error: Invalid register state at pc %d.\n", cur_pc);
             return_value = -1;

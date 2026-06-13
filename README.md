@@ -20,6 +20,32 @@ This project aims to create an Apache-licensed library for executing eBPF progra
 This project includes an eBPF assembler, disassembler, interpreter (for all platforms),
 and JIT compiler (for x86-64 and Arm64 targets).
 
+## Safe Execution Profile
+
+uBPF now supports two execution profiles:
+
+- **Legacy** — the default profile. This preserves the existing interpreter/JIT behavior and compatibility surface.
+- **Safe** — an explicit, interpreter-only profile that adds register provenance tracking, centralized checked dereferences, typed helper metadata, and descriptor-backed external regions.
+
+The safe profile is meant for embedders that want stronger runtime safety guarantees without relying solely on an external verifier. In safe mode:
+
+- only pointer-classified registers may be dereferenced
+- each pointer carries one specific region identity, bounds, and permissions
+- ambiguous pointer arithmetic is rejected instead of being recovered later by range scanning
+- helper calls that return pointers or handles must be registered with safe metadata
+- JIT compilation is intentionally unavailable in the first revision
+
+Select the profile before loading code:
+
+```c
+struct ubpf_vm* vm = ubpf_create();
+ubpf_set_execution_profile(vm, UBPF_EXECUTION_PROFILE_SAFE);
+```
+
+If the program uses helpers that return pointers or opaque handles, register them with
+`ubpf_register_safe_helper()`. If the program needs additional dereferenceable regions
+beyond the input buffer and stack, register them with `ubpf_register_safe_region()`.
+
 ## Using Verified Programs
 
 If you're using external eBPF verifiers like [PREVAIL](https://github.com/vbpf/ebpf-verifier) with uBPF, please read [Using Verified eBPF Programs with uBPF](docs/VerifiedPrograms.md) for important information about context pointer requirements and how to avoid runtime crashes.

@@ -52,6 +52,7 @@ endif()
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64 AND (NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL aarch64))
     set(PLUGIN_JIT --plugin_path ${CMAKE_BINARY_DIR}/bin/run-jit.sh)
     set(PLUGIN_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/run-interpret.sh)
+    set(PLUGIN_SAFE_INTERPRET --plugin_path ${CMAKE_BINARY_DIR}/bin/run-interpret.sh --plugin_options "--profile safe")
 else()
     if(PLATFORM_WINDOWS)
         set(PLATFORM_EXECUTABLE_EXTENSION ".exe")
@@ -62,6 +63,7 @@ else()
     endif()
     set(PLUGIN_JIT --plugin_path ${PLUGIN_PATH} --plugin_options --jit)
     set(PLUGIN_INTERPRET --plugin_path ${PLUGIN_PATH} --plugin_options --interpret)
+    set(PLUGIN_SAFE_INTERPRET --plugin_path ${PLUGIN_PATH} --plugin_options "--profile safe --interpret")
 endif()
 
 # Add all names of tests that are expected to fail to the TESTS_EXPECTED_TO_FAIL list
@@ -123,5 +125,14 @@ foreach(file ${files})
 
     if(EXPECT_FAILURE OR EXPECT_FAILURE_INTERPRET)
         set_tests_properties(${file}-Interpreter PROPERTIES WILL_FAIL TRUE)
+    endif()
+
+    add_test(
+        NAME ${file}-Safe-Interpreter
+        COMMAND ${BPF_CONFORMANCE_RUNNER} --test_file_path ${file} ${PLUGIN_SAFE_INTERPRET} ${CPU_VERSION_ARG}
+    )
+
+    if(EXPECT_FAILURE OR EXPECT_FAILURE_INTERPRET)
+        set_tests_properties(${file}-Safe-Interpreter PROPERTIES WILL_FAIL TRUE)
     endif()
 endforeach()

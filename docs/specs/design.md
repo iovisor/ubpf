@@ -1,6 +1,6 @@
 # uBPF Design Specification
 
-**Document Version:** 1.1.0
+**Document Version:** 1.2.0
 **Date:** 2026-06-12
 **Status:** Draft — Refreshed from source and test inventory
 
@@ -44,6 +44,7 @@ This design addresses the following requirement categories (see `docs/specs/requ
 | Platform | REQ-PLAT-001 – 006 | Windows, Linux, macOS, x86-64, ARM64 |
 | Error Handling | REQ-ERR-001 – 003 | Error allocation, API failure conventions, runtime diagnostics |
 | Constants and Limits | REQ-CONST-001 | Instruction, helper, and stack limits |
+| Safe Interpreter Profile | REQ-SAFE-001 – 008 | Additive tagged-provenance execution profile |
 
 ---
 
@@ -373,6 +374,8 @@ CALL src==0, imm=index:
 ubpf_compile_ex(vm, errmsg, mode)
     │
     ├── Check: code loaded?
+    ├── Check: safe-profile enabled?
+    │   └── if yes, fail with explicit "unsupported profile" error
     ├── Check: cached? (same mode → return cached)
     │
     ├── Allocate working buffer (jitter_buffer_size bytes, heap)
@@ -569,12 +572,14 @@ Required ELF properties:
 
 #### Bounds Checking Detail
 
-Memory access validation checks:
+Legacy-profile memory access validation checks:
 1. Compute effective address: `base_reg + offset`
 2. Check for address computation overflow
 3. Verify: `addr >= mem_start && addr + size <= mem_end` (for context memory)
 4. Verify: `addr >= stack_start && addr + size <= stack_end` (for stack)
 5. If custom bounds_check_function registered, also call it
+
+The additive safe profile replaces this region-scan approach with per-register provenance and centralized safe dereference helpers. The legacy boolean callback remains useful for the legacy execution path but is insufficient to preserve provenance in the safe profile.
 
 **Confidence:** High
 **Source:** `vm/ubpf_vm.c` (BOUNDS_CHECK_LOAD/BOUNDS_CHECK_STORE macros)
@@ -631,6 +636,7 @@ The VM exposes configuration APIs that primarily mutate policy fields on `struct
 | API | Primary state | Design intent |
 |-----|---------------|---------------|
 | `ubpf_set_error_print` | `vm->error_printf` | Redirect runtime diagnostics without changing control flow |
+| `ubpf_set_execution_profile` | `vm->execution_profile` | Select legacy vs safe interpreter semantics before load/compile/execute |
 | `ubpf_set_jit_code_size` | `vm->jitter_buffer_size` | Bound temporary JIT working memory independently of final executable size |
 | `ubpf_set_instruction_limit` | `vm->instruction_limit` | Bound interpreter work for potentially looping programs |
 | `ubpf_toggle_bounds_check` | `vm->bounds_check_enabled` | Relax or enforce default memory safety policy |
@@ -641,6 +647,8 @@ The VM exposes configuration APIs that primarily mutate policy fields on `struct
 | `ubpf_set_unwind_function_index` | `vm->unwind_stack_extension_index` | Designate helper-triggered early exit semantics |
 
 The design intentionally separates interpreter-only policy (`instruction_limit`, debug hooks, UB checks) from policies that affect both interpreter and JIT (`readonly_bytecode_enabled`, helper registration, pointer secrets during storage, error routing).
+
+The safe interpreter profile adds a third class of configuration: additive safety metadata surfaces that coexist with the legacy API rather than overloading it. These include safe-profile selection, typed helper descriptors, and descriptor-based external region metadata.
 
 #### Diagnostic Model
 
@@ -682,6 +690,106 @@ The design depends on these values in several places: allocation sizing during `
 **Confidence:** High
 **Source:** `vm/inc/ubpf.h:38-75`, `vm/ubpf_int.h:64-126`, `vm/ubpf_vm.c:96-145`, `vm/ubpf_vm.c:1786-1790`
 
+### 4.14 Safe Interpreter Profile
+
+*Implements: REQ-SAFE-001 through REQ-SAFE-008*
+
+The safe interpreter profile is an additive execution mode that strengthens runtime memory-safety semantics without changing the legacy uBPF path. The core rule is that callers only get the stronger behavior by opting into a distinct safe-profile surface; existing APIs keep their current semantics.
+
+The concrete selection API is:
+
+```c
+enum ubpf_execution_profile {
+    UBPF_EXECUTION_PROFILE_LEGACY = 0,
+    UBPF_EXECUTION_PROFILE_SAFE = 1,
+};
+
+int ubpf_set_execution_profile(struct ubpf_vm* vm, enum ubpf_execution_profile profile);
+```
+
+Fresh VMs start in `UBPF_EXECUTION_PROFILE_LEGACY`. The profile is fixed before load/compile/execute so callers cannot silently cross the compatibility boundary mid-lifecycle.
+
+#### Execution Profiles
+
+| Profile | Opt-in | Register Representation | Region Policy | JIT |
+|---------|--------|-------------------------|---------------|-----|
+| Legacy | Default | Raw `uint64_t[11]` | Scan `{mem, stack}` plus optional bool callback | Supported on x86-64 / ARM64 |
+| Safe | Explicit additive API/profile selection | Architectural value + provenance metadata | Per-register region identity with descriptor-backed external regions | Rejected until parity exists |
+
+#### Tagged Register Model
+
+The safe-profile interpreter carries metadata alongside each architectural register value:
+
+```
+safe_reg {
+    value: uint64_t
+    class: SCALAR | POINTER | OPAQUE_HANDLE
+    region_id: uint32_t        // identifies the specific region, not just "some valid memory"
+    base: uint64_t             // inclusive lower bound when dereferenceable
+    end: uint64_t              // exclusive upper bound when dereferenceable
+    permissions: READ | WRITE | ATOMIC
+}
+```
+
+Design intent:
+
+1. **Scalar** values are arithmetic-only and cannot be dereferenced.
+2. **Pointer** values identify one concrete region whose bounds are preserved across valid arithmetic.
+3. **Opaque handles** represent helper-visible objects (for example, relocated descriptors) that may be passed to helpers but are never directly dereferenceable.
+
+Root provenance is assigned at safe-profile entry:
+
+- `R0` and `R3`–`R9` → scalars.
+- `R1` → pointer to the input region when input memory is present.
+- `R1` → scalar when no input memory is supplied.
+- `R2` → scalar length (`0` when no input memory is supplied).
+- `R10` → pointer to the stack region.
+- Additional root regions are introduced only through safe-profile descriptor metadata supplied by the embedder.
+
+#### Centralized Safe Dereference Path
+
+Safe-profile loads, stores, and atomics use centralized helper logic instead of scattering raw host-memory dereferences through individual opcode cases:
+
+1. Compute effective address from the register value plus signed offset.
+2. Reject SCALAR and OPAQUE_HANDLE bases.
+3. Validate `[addr, addr + size)` against the base/end bounds of the specific region carried by the register.
+4. Check access permissions for the operation class.
+5. Perform the host-memory access only after the preceding checks pass.
+
+Any register result produced by an atomic memory operation is classified as SCALAR unless provenance is later reintroduced through the explicit spill-tracking mechanism.
+
+This design preserves the existing legacy interpreter for compatibility while making the safe-profile dereference surface auditable and uniform.
+
+#### Pointer Arithmetic Rules
+
+The safe profile adopts verifier-like runtime provenance rules:
+
+- `pointer + scalar` and `pointer - scalar` preserve the same region identity.
+- `pointer - pointer` is only valid when both operands identify the same region; the result becomes a scalar distance.
+- `pointer + pointer`, `scalar - pointer`, `pointer - pointer` across different regions, and ALU operations on opaque handles fail deterministically.
+- Operations that destroy provenance (`MUL`, `DIV`, `MOD`, bitwise ops, `NEG`, and all ALU32 writes) clear the destination classification to SCALAR.
+
+These rules are intentionally stricter than the legacy interpreter because the safe profile is designed to reject ambiguous pointer evolution rather than recover it from later range scans.
+
+#### Helper and Region Metadata
+
+Legacy helper registration remains available for legacy execution. The safe profile instead requires helper descriptors that carry enough metadata to classify returns and validate region-bearing results before use. If safe-profile helper metadata is missing, helper dispatch fails before the helper is invoked.
+
+The same principle applies to external memory:
+
+- The legacy bool-returning bounds callback extends allow/deny policy for the legacy interpreter.
+- The safe profile requires descriptor-backed region metadata so the interpreter can recover **which** region a pointer belongs to, not merely whether an address range is currently allowed.
+
+This allows safe-profile helper returns and relocated root pointers to participate in the same provenance rules as `mem` and `stack`.
+
+#### Spill Tracking and Local Calls
+
+Because valid eBPF programs spill pointer values to the stack and later reload them, the safe profile tracks provenance for stack slots that contain spilled pointers. Any overlapping write invalidates the saved provenance. Local call frames also preserve callee-saved provenance alongside the raw R6–R9 register values so interpreter-managed state transitions do not silently strip safety metadata. On return from a local call, caller-saved registers R1–R5 are reclassified as SCALAR to match the calling convention and prevent stale provenance leakage.
+
+#### JIT Boundary
+
+The safe profile is intentionally interpreter-only in the first revision. `ubpf_compile*()` checks the execution profile before backend dispatch; if the VM is configured for safe execution, compilation stops with an explicit unsupported-mode error. This keeps the approved safety semantics and the documented interpreter/JIT parity claim from drifting apart.
+
 ---
 
 ## 5. Tradeoff Analysis
@@ -692,12 +800,12 @@ The design depends on these values in several places: allocation sizing during `
 |--------|-------------|-----|
 | Portability | All platforms | x86-64 and ARM64 only |
 | Performance | Slower (switch dispatch) | Faster (native code) |
-| Security features | All (bounds, UB, debug) | Partial (no UB detection, no debug hooks) |
+| Security features | All (bounds, UB, debug, safe profile) | Partial (no UB detection, no debug hooks, no safe profile) |
 | Attack surface | Smaller (no code generation) | Larger (executable memory, code gen bugs) |
 | Determinism | Fully deterministic | Platform-dependent behavior possible |
 
-**Decision:** Provide both. Interpreter is reference; JIT is optional performance optimization.
-`[ASSUMPTION]` The JIT is assumed to produce semantically identical results to the interpreter for all valid programs. This is enforced by fuzzing (differential testing).
+**Decision:** Provide both. Interpreter is reference; JIT is optional performance optimization. The additive safe profile is interpreter-only until a backend can implement identical provenance semantics.
+`[ASSUMPTION]` The JIT is assumed to produce semantically identical results to the **legacy interpreter profile** for all valid programs where JIT is available. This is enforced by fuzzing (differential testing).
 
 **Confidence:** High
 **Source:** `libfuzzer/libfuzz_harness.cc` (interpreter vs JIT comparison)
@@ -758,10 +866,12 @@ OS services (mmap, RNG)    │  Control flow
 ### 6.2 Security Invariants
 
 1. **No eBPF instruction can access memory outside designated regions** (when bounds checking enabled)
-2. **No JIT output contains attacker-controlled byte sequences** (when constant blinding enabled)
-3. **Bytecode cannot be modified after validation** (when read-only mode enabled)
-4. **JIT code pages are never simultaneously writable and executable** (W⊕X always enforced)
-5. **Instruction pointers stored in memory are obfuscated** (when pointer secret is set)
+2. **In the safe profile, every dereferenceable pointer identifies one specific region with explicit bounds**
+3. **The legacy execution profile remains source- and behavior-compatible unless the embedder explicitly opts into the safe profile**
+4. **No JIT output contains attacker-controlled byte sequences** (when constant blinding enabled)
+5. **Bytecode cannot be modified after validation** (when read-only mode enabled)
+6. **JIT code pages are never simultaneously writable and executable** (W⊕X always enforced)
+7. **Instruction pointers stored in memory are obfuscated** (when pointer secret is set)
 
 ### 6.3 Known Limitations
 

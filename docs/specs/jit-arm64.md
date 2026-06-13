@@ -1,6 +1,6 @@
 # uBPF JIT Backend Specification: BPF ISA → ARM64
 
-**Document Version:** 1.0.0
+**Document Version:** 1.1.0
 **Date:** 2026-04-01
 **Status:** Draft — Extracted from implementation source code
 **Source:** `vm/ubpf_jit_arm64.c` (primary), with supporting files listed below
@@ -14,6 +14,8 @@ This document specifies the complete mapping from the BPF Instruction Set Archit
 - Understanding the ARM64 JIT's code generation strategy
 - Auditing correctness and security properties
 - Serving as a template for future RISC-V and MIPS backends
+
+> **Profile boundary:** This document applies to the legacy uBPF execution profile only. The additive safe-interpreter profile defined in `docs/specs/requirements.md` / `docs/specs/design.md` is intentionally interpreter-only in its first revision; safe-profile compilation is rejected before ARM64 backend translation and is therefore out of scope here.
 
 **Source files consulted:**
 

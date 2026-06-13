@@ -2,11 +2,43 @@ import os
 import tempfile
 import struct
 import re
+import sys
+import traceback
 from subprocess import Popen, PIPE
-from nose.plugins.skip import Skip, SkipTest
+try:
+    from nose.plugins.skip import Skip, SkipTest
+except Exception:
+    class SkipTest(Exception):
+        pass
+
+    Skip = SkipTest
 import ubpf.assembler
 import testdata
-VM = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "vm", "test")
+PROFILE = os.environ.get("UBPF_VM_PROFILE", "legacy").strip().lower()
+
+if PROFILE not in ("legacy", "safe"):
+    raise RuntimeError("UBPF_VM_PROFILE must be 'legacy' or 'safe'")
+
+def _find_vm_binary():
+    env_vm = os.environ.get("UBPF_VM_BINARY")
+    if env_vm:
+        return env_vm
+
+    repo_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
+    candidates = [
+        os.path.join(repo_root, "build", "bin", "Debug", "ubpf_test.exe"),
+        os.path.join(repo_root, "build", "bin", "Release", "ubpf_test.exe"),
+        os.path.join(repo_root, "build", "bin", "ubpf_test"),
+        os.path.join(repo_root, "vm", "test"),
+    ]
+
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+
+    return candidates[0]
+
+VM = _find_vm_binary()
 
 def check_datafile(filename):
     """
@@ -28,7 +60,7 @@ def check_datafile(filename):
 
     memfile = None
 
-    cmd = [VM]
+    cmd = [VM, '--profile', PROFILE]
     if 'mem' in data:
         memfile = tempfile.NamedTemporaryFile()
         memfile.write(data['mem'])
@@ -77,3 +109,36 @@ def test_datafiles():
     # Creates a testcase for each datafile
     for filename in testdata.list_files():
         yield check_datafile, filename
+
+def run_all_datafiles():
+    total = 0
+    passed = 0
+    skipped = []
+    failures = []
+
+    for filename in testdata.list_files():
+        total += 1
+        try:
+            check_datafile(filename)
+            passed += 1
+        except SkipTest as ex:
+            skipped.append((filename, str(ex)))
+        except Exception as ex:
+            failures.append((filename, ex, traceback.format_exc()))
+
+    for filename, reason in skipped:
+        print("SKIP %s: %s" % (filename, reason), file=sys.stderr)
+
+    for filename, _, details in failures:
+        print("FAIL %s" % filename, file=sys.stderr)
+        print(details, file=sys.stderr)
+
+    print(
+        "Profile %s: %d passed, %d skipped, %d failed out of %d"
+        % (PROFILE, passed, len(skipped), len(failures), total)
+    )
+
+    return 0 if not failures else 1
+
+if __name__ == "__main__":
+    sys.exit(run_all_datafiles())

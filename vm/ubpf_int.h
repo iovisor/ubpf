@@ -63,6 +63,25 @@ struct ubpf_stack_usage
 
 // Use public definition for consistency
 #define MAX_EXT_FUNCS UBPF_MAX_EXT_FUNCS
+#define UBPF_MAX_SAFE_REGIONS 64
+
+struct ubpf_safe_region_internal
+{
+    bool in_use;
+    uint32_t id;
+    uint64_t base;
+    uint64_t end;
+    enum ubpf_safe_region_kind kind;
+    uint32_t permissions;
+};
+
+struct ubpf_safe_helper_metadata
+{
+    bool in_use;
+    enum ubpf_safe_helper_result_kind result_kind;
+    uint32_t region_id;
+    uint64_t region_size;
+};
 
 struct ubpf_vm
 {
@@ -89,6 +108,8 @@ struct ubpf_vm
     bool bounds_check_enabled;
     bool undefined_behavior_check_enabled;
     bool constant_blinding_enabled;
+    enum ubpf_execution_profile execution_profile;
+    bool execution_started;
     int (*error_printf)(FILE* stream, const char* format, ...);
     struct ubpf_jit_result (*jit_translate)(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum JitMode jit_mode);
     bool (*jit_update_dispatcher)(
@@ -110,6 +131,8 @@ struct ubpf_vm
     void* data_relocation_user_data;
     ubpf_bounds_check bounds_check_function;
     void* bounds_check_user_data;
+    struct ubpf_safe_region_internal safe_regions[UBPF_MAX_SAFE_REGIONS];
+    struct ubpf_safe_helper_metadata safe_helpers[MAX_EXT_FUNCS];
     int instruction_limit;
     void* debug_function_context; ///< Context pointer that is passed to the debug function.
     ubpf_debug_fn debug_function; ///< Debug function that is called before each instruction.
@@ -216,6 +239,24 @@ ubpf_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc);
 
 bool
 ubpf_calculate_stack_usage_for_local_func(const struct ubpf_vm* vm, uint16_t pc, char** errmsg);
+
+int
+ubpf_set_execution_profile_impl(struct ubpf_vm* vm, enum ubpf_execution_profile profile);
+
+int
+ubpf_register_safe_helper_impl(struct ubpf_vm* vm, const struct ubpf_safe_helper_descriptor* descriptor);
+
+int
+ubpf_register_safe_region_impl(struct ubpf_vm* vm, const struct ubpf_safe_region* region);
+
+int
+ubpf_exec_ex_safe(
+    const struct ubpf_vm* vm,
+    void* mem,
+    size_t mem_len,
+    uint64_t* bpf_return_value,
+    uint8_t* stack_start,
+    size_t stack_length);
 
 /**
  * @brief Determine whether an eBPF instruction has a fallthrough
