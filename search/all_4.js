@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['jitmode_0',['JitMode',['../ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd',1,'ubpf.h']]]
+  ['id_0',['id',['../structubpf__safe__region.html#a72e47b6b34d247814ddaeafe8e61d204',1,'ubpf_safe_region']]],
+  ['index_1',['index',['../structubpf__safe__helper__descriptor.html#a18104398d1aeb9de47f93169458eeb13',1,'ubpf_safe_helper_descriptor']]],
+  ['introduction_2',['Introduction',['../index.html#intro',1,'']]]
 ];

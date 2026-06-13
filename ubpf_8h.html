@@ -74,6 +74,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
@@ -89,6 +90,15 @@ $(function() {
 </div>
 <p><a href="ubpf_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structubpf__safe__region.html">ubpf_safe_region</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Descriptor for an external region known to the safe execution profile.  <a href="structubpf__safe__region.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structubpf__safe__helper__descriptor.html">ubpf_safe_helper_descriptor</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Safe-profile metadata describing a helper and the shape of its return value.  <a href="structubpf__safe__helper__descriptor.html#details">More...</a><br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a7b029668bfe717c5d7b33fba3847a00f" id="r_a7b029668bfe717c5d7b33fba3847a00f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a7b029668bfe717c5d7b33fba3847a00f">UBPF_MAX_INSTS</a>&#160;&#160;&#160;65536</td></tr>
@@ -146,6 +156,28 @@ Enumerations</h2></td></tr>
  }</td></tr>
 <tr class="memdesc:a4be1055c33e64a9f81abf25f8b5ddedd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enum to describe JIT mode.  <a href="ubpf_8h.html#a4be1055c33e64a9f81abf25f8b5ddedd">More...</a><br /></td></tr>
 <tr class="separator:a4be1055c33e64a9f81abf25f8b5ddedd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a68f8417e92e452a62a41ffe4376b6453" id="r_a68f8417e92e452a62a41ffe4376b6453"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453">ubpf_execution_profile</a> { <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453a4b19645b8b97b72a7c7059d73d4e4d8b">UBPF_EXECUTION_PROFILE_LEGACY</a> = 0
+, <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453a8d498fd3db4a44245d80054e232340dd">UBPF_EXECUTION_PROFILE_SAFE</a> = 1
+ }</td></tr>
+<tr class="memdesc:a68f8417e92e452a62a41ffe4376b6453"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execution profile for a VM instance.  <a href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453">More...</a><br /></td></tr>
+<tr class="separator:a68f8417e92e452a62a41ffe4376b6453"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa44cda0c9e8175a308d0f4a7d5e48410" id="r_aa44cda0c9e8175a308d0f4a7d5e48410"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#aa44cda0c9e8175a308d0f4a7d5e48410">ubpf_safe_region_kind</a> { <a class="el" href="ubpf_8h.html#aa44cda0c9e8175a308d0f4a7d5e48410aa5c13d81524d0fda1a1a59dafacc39cb">UBPF_SAFE_REGION_POINTER</a> = 0
+, <a class="el" href="ubpf_8h.html#aa44cda0c9e8175a308d0f4a7d5e48410a1f740d646a51bb664a28b4e46698ba47">UBPF_SAFE_REGION_HANDLE</a> = 1
+ }</td></tr>
+<tr class="memdesc:aa44cda0c9e8175a308d0f4a7d5e48410"><td class="mdescLeft">&#160;</td><td class="mdescRight">Classification for a region exposed to the safe execution profile.  <a href="ubpf_8h.html#aa44cda0c9e8175a308d0f4a7d5e48410">More...</a><br /></td></tr>
+<tr class="separator:aa44cda0c9e8175a308d0f4a7d5e48410"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab4ccb2646dab5fc6565c7f9ee34bd491" id="r_ab4ccb2646dab5fc6565c7f9ee34bd491"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491">ubpf_safe_region_permissions</a> { <a class="el" href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491a716ca6210b84ab5ca03cb896dd8c5eb7">UBPF_SAFE_REGION_READ</a> = 1
+, <a class="el" href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491acc256a135d44bed34d6b4a8727121213">UBPF_SAFE_REGION_WRITE</a> = 2
+, <a class="el" href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491a98ea752daa5c68de8e07b286d14a8ce9">UBPF_SAFE_REGION_ATOMIC</a> = 4
+ }</td></tr>
+<tr class="memdesc:ab4ccb2646dab5fc6565c7f9ee34bd491"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allowed operations for a safe-profile region.  <a href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491">More...</a><br /></td></tr>
+<tr class="separator:ab4ccb2646dab5fc6565c7f9ee34bd491"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1a94309f165327045a2c1878d8203dba" id="r_a1a94309f165327045a2c1878d8203dba"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dba">ubpf_safe_helper_result_kind</a> { <a class="el" href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dbaa505b2d1842a6f529ac945014d1413c55">UBPF_SAFE_HELPER_RESULT_SCALAR</a> = 0
+, <a class="el" href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dbaaf339eca6763ff9fdead53d3222a05313">UBPF_SAFE_HELPER_RESULT_POINTER</a> = 1
+, <a class="el" href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dbaacda16e194e677f623102c9c794962c0a">UBPF_SAFE_HELPER_RESULT_HANDLE</a> = 2
+ }</td></tr>
+<tr class="memdesc:a1a94309f165327045a2c1878d8203dba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Classification for a helper's return value in the safe profile.  <a href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dba">More...</a><br /></td></tr>
+<tr class="separator:a1a94309f165327045a2c1878d8203dba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -161,6 +193,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a02964b59e2e59ae6662c6a767efa9086" id="r_a02964b59e2e59ae6662c6a767efa9086"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a02964b59e2e59ae6662c6a767efa9086">ubpf_toggle_constant_blinding</a> (struct ubpf_vm *vm, bool enable)</td></tr>
 <tr class="memdesc:a02964b59e2e59ae6662c6a767efa9086"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable / disable constant blinding in the JIT compiler. Constant blinding is a security hardening technique that prevents JIT spray attacks by XORing immediate values with random values before emitting them. This ensures that attacker-controlled immediate values cannot be used to embed malicious instruction sequences in the JIT-compiled code. Constant blinding is disabled by default for backward compatibility and performance reasons.  <br /></td></tr>
 <tr class="separator:a02964b59e2e59ae6662c6a767efa9086"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a70ba8480468506ce6734a73fdb67f9e4" id="r_a70ba8480468506ce6734a73fdb67f9e4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a70ba8480468506ce6734a73fdb67f9e4">ubpf_set_execution_profile</a> (struct ubpf_vm *vm, enum <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453">ubpf_execution_profile</a> profile)</td></tr>
+<tr class="memdesc:a70ba8480468506ce6734a73fdb67f9e4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Select the execution profile for the VM.  <br /></td></tr>
+<tr class="separator:a70ba8480468506ce6734a73fdb67f9e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae7e25aeeb15d5dc04a58f99239c4774c" id="r_ae7e25aeeb15d5dc04a58f99239c4774c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae7e25aeeb15d5dc04a58f99239c4774c">ubpf_set_error_print</a> (struct ubpf_vm *vm, int(*error_printf)(FILE *stream, const char *format,...))</td></tr>
 <tr class="memdesc:ae7e25aeeb15d5dc04a58f99239c4774c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the function to be invoked if the program hits a fatal error.  <br /></td></tr>
 <tr class="separator:ae7e25aeeb15d5dc04a58f99239c4774c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -170,6 +205,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a398c1c9b6d59876005eb64bbfab7b2b4" id="r_a398c1c9b6d59876005eb64bbfab7b2b4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a398c1c9b6d59876005eb64bbfab7b2b4">ubpf_register</a> (struct ubpf_vm *vm, unsigned int index, const char *name, <a class="el" href="ubpf_8h.html#a97c06ae6f43ae6e0cbca64ac1e70bc30">external_function_t</a> fn)</td></tr>
 <tr class="memdesc:a398c1c9b6d59876005eb64bbfab7b2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an external function. The immediate field of a CALL instruction is an index into an array of functions registered by the user. This API associates a function with an index.  <br /></td></tr>
 <tr class="separator:a398c1c9b6d59876005eb64bbfab7b2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae780b99ef2a5875ee0a4c3aa7b9bbaa3" id="r_ae780b99ef2a5875ee0a4c3aa7b9bbaa3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#ae780b99ef2a5875ee0a4c3aa7b9bbaa3">ubpf_register_safe_helper</a> (struct ubpf_vm *vm, const struct <a class="el" href="structubpf__safe__helper__descriptor.html">ubpf_safe_helper_descriptor</a> *descriptor)</td></tr>
+<tr class="memdesc:ae780b99ef2a5875ee0a4c3aa7b9bbaa3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a helper together with the safe-profile metadata needed to classify its return value.  <br /></td></tr>
+<tr class="separator:ae780b99ef2a5875ee0a4c3aa7b9bbaa3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a27fbf5d30614b9c4b618209d681c3653" id="r_a27fbf5d30614b9c4b618209d681c3653"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a27fbf5d30614b9c4b618209d681c3653">ubpf_register_external_dispatcher</a> (struct ubpf_vm *vm, <a class="el" href="ubpf_8h.html#aa819644ac2adf81271cf703f9eb5614b">external_function_dispatcher_t</a> dispatcher, <a class="el" href="ubpf_8h.html#a924a4a1a3e782846945d6adbabbcbb9c">external_function_validate_t</a> validater)</td></tr>
 <tr class="memdesc:a27fbf5d30614b9c4b618209d681c3653"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a function that dispatches to external helpers The immediate field of a CALL instruction is an index of a helper function to invoke. This API sets a callback that will choose the helper function to invoke (based on the index) and then invoke it. This API also sets a callback that the validator will use to determine if a given index is a valid external function.  <br /></td></tr>
 <tr class="separator:a27fbf5d30614b9c4b618209d681c3653"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -186,6 +224,7 @@ Functions</h2></td></tr>
 <tr class="memdesc:a1ce3eb22d45ec43436758a139ffc8c95"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a BPF program in the VM using the interpreter.  <br /></td></tr>
 <tr class="separator:a1ce3eb22d45ec43436758a139ffc8c95"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6ded3ae17d5879d7c19f32fa52cbbe26" id="r_a6ded3ae17d5879d7c19f32fa52cbbe26"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a6ded3ae17d5879d7c19f32fa52cbbe26">ubpf_exec_ex</a> (const struct ubpf_vm *vm, void *mem, size_t mem_len, uint64_t *bpf_return_value, uint8_t *stack, size_t stack_len)</td></tr>
+<tr class="memdesc:a6ded3ae17d5879d7c19f32fa52cbbe26"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a BPF program in the VM using the interpreter and a caller-supplied stack.  <br /></td></tr>
 <tr class="separator:a6ded3ae17d5879d7c19f32fa52cbbe26"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a67b901bf6d169b6b28f818f15bd17cba" id="r_a67b901bf6d169b6b28f818f15bd17cba"><td class="memItemLeft" align="right" valign="top"><a class="el" href="ubpf_8h.html#a6334115c4408267ec35087ade6128fa0">ubpf_jit_fn</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a67b901bf6d169b6b28f818f15bd17cba">ubpf_compile</a> (struct ubpf_vm *vm, char **errmsg)</td></tr>
 <tr class="memdesc:a67b901bf6d169b6b28f818f15bd17cba"><td class="mdescLeft">&#160;</td><td class="mdescRight">Compile a BPF program in the VM to native code.  <br /></td></tr>
@@ -220,6 +259,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a286aa9da7688d1327756e967eafc2f03" id="r_a286aa9da7688d1327756e967eafc2f03"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a286aa9da7688d1327756e967eafc2f03">ubpf_register_data_bounds_check</a> (struct ubpf_vm *vm, void *user_context, <a class="el" href="ubpf_8h.html#a64bd2f640f675e3eeff48ea52583d699">ubpf_bounds_check</a> bounds_check)</td></tr>
 <tr class="memdesc:a286aa9da7688d1327756e967eafc2f03"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a bounds check function for the VM.  <br /></td></tr>
 <tr class="separator:a286aa9da7688d1327756e967eafc2f03"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9591f6c94925dab2a811e78e838d12d0" id="r_a9591f6c94925dab2a811e78e838d12d0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a9591f6c94925dab2a811e78e838d12d0">ubpf_register_safe_region</a> (struct ubpf_vm *vm, const struct <a class="el" href="structubpf__safe__region.html">ubpf_safe_region</a> *region)</td></tr>
+<tr class="memdesc:a9591f6c94925dab2a811e78e838d12d0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a descriptor-backed external region for the safe execution profile.  <br /></td></tr>
+<tr class="separator:a9591f6c94925dab2a811e78e838d12d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a96cdff7433769540c61a1cf41a0c241a" id="r_a96cdff7433769540c61a1cf41a0c241a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a96cdff7433769540c61a1cf41a0c241a">ubpf_set_jit_code_size</a> (struct ubpf_vm *vm, size_t code_size)</td></tr>
 <tr class="memdesc:a96cdff7433769540c61a1cf41a0c241a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a size for the buffer allocated to machine code generated during JIT compilation. The JIT compiler allocates a buffer to store the code while it is being generated. The default may be too big for some embedded platforms. Use this to customize the size of that buffer. Note: The buffer being sized here is <em>not</em> the final location of the machine code returned by ubpf_compile &ndash; that buffer is perfectly sized to match the size of the generated machine code.  <br /></td></tr>
 <tr class="separator:a96cdff7433769540c61a1cf41a0c241a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -557,6 +599,93 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a68f8417e92e452a62a41ffe4376b6453" name="a68f8417e92e452a62a41ffe4376b6453"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a68f8417e92e452a62a41ffe4376b6453">&#9670;&#160;</a></span>ubpf_execution_profile</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453">ubpf_execution_profile</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Execution profile for a VM instance. </p>
+<p>The legacy profile preserves the historical uBPF execution model. The safe profile is an additive, interpreter-only mode that tracks register provenance, restricts dereferences to descriptor-backed regions, and rejects ambiguous pointer evolution that the legacy profile may allow. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a68f8417e92e452a62a41ffe4376b6453a4b19645b8b97b72a7c7059d73d4e4d8b" name="a68f8417e92e452a62a41ffe4376b6453a4b19645b8b97b72a7c7059d73d4e4d8b"></a>UBPF_EXECUTION_PROFILE_LEGACY&#160;</td><td class="fielddoc"><p>Preserve the existing legacy interpreter/JIT behavior. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="a68f8417e92e452a62a41ffe4376b6453a8d498fd3db4a44245d80054e232340dd" name="a68f8417e92e452a62a41ffe4376b6453a8d498fd3db4a44245d80054e232340dd"></a>UBPF_EXECUTION_PROFILE_SAFE&#160;</td><td class="fielddoc"><p>Enable the additive safe interpreter profile. </p>
+</td></tr>
+</table>
+
+</div>
+</div>
+<a id="a1a94309f165327045a2c1878d8203dba" name="a1a94309f165327045a2c1878d8203dba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1a94309f165327045a2c1878d8203dba">&#9670;&#160;</a></span>ubpf_safe_helper_result_kind</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="ubpf_8h.html#a1a94309f165327045a2c1878d8203dba">ubpf_safe_helper_result_kind</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Classification for a helper's return value in the safe profile. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a1a94309f165327045a2c1878d8203dbaa505b2d1842a6f529ac945014d1413c55" name="a1a94309f165327045a2c1878d8203dbaa505b2d1842a6f529ac945014d1413c55"></a>UBPF_SAFE_HELPER_RESULT_SCALAR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a1a94309f165327045a2c1878d8203dbaaf339eca6763ff9fdead53d3222a05313" name="a1a94309f165327045a2c1878d8203dbaaf339eca6763ff9fdead53d3222a05313"></a>UBPF_SAFE_HELPER_RESULT_POINTER&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a1a94309f165327045a2c1878d8203dbaacda16e194e677f623102c9c794962c0a" name="a1a94309f165327045a2c1878d8203dbaacda16e194e677f623102c9c794962c0a"></a>UBPF_SAFE_HELPER_RESULT_HANDLE&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+</div>
+</div>
+<a id="aa44cda0c9e8175a308d0f4a7d5e48410" name="aa44cda0c9e8175a308d0f4a7d5e48410"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa44cda0c9e8175a308d0f4a7d5e48410">&#9670;&#160;</a></span>ubpf_safe_region_kind</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="ubpf_8h.html#aa44cda0c9e8175a308d0f4a7d5e48410">ubpf_safe_region_kind</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Classification for a region exposed to the safe execution profile. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aa44cda0c9e8175a308d0f4a7d5e48410aa5c13d81524d0fda1a1a59dafacc39cb" name="aa44cda0c9e8175a308d0f4a7d5e48410aa5c13d81524d0fda1a1a59dafacc39cb"></a>UBPF_SAFE_REGION_POINTER&#160;</td><td class="fielddoc"><p>Dereferenceable memory region. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aa44cda0c9e8175a308d0f4a7d5e48410a1f740d646a51bb664a28b4e46698ba47" name="aa44cda0c9e8175a308d0f4a7d5e48410a1f740d646a51bb664a28b4e46698ba47"></a>UBPF_SAFE_REGION_HANDLE&#160;</td><td class="fielddoc"><p>Opaque handle that helpers may consume but programs may not dereference. </p>
+</td></tr>
+</table>
+
+</div>
+</div>
+<a id="ab4ccb2646dab5fc6565c7f9ee34bd491" name="ab4ccb2646dab5fc6565c7f9ee34bd491"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab4ccb2646dab5fc6565c7f9ee34bd491">&#9670;&#160;</a></span>ubpf_safe_region_permissions</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="ubpf_8h.html#ab4ccb2646dab5fc6565c7f9ee34bd491">ubpf_safe_region_permissions</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Allowed operations for a safe-profile region. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ab4ccb2646dab5fc6565c7f9ee34bd491a716ca6210b84ab5ca03cb896dd8c5eb7" name="ab4ccb2646dab5fc6565c7f9ee34bd491a716ca6210b84ab5ca03cb896dd8c5eb7"></a>UBPF_SAFE_REGION_READ&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="ab4ccb2646dab5fc6565c7f9ee34bd491acc256a135d44bed34d6b4a8727121213" name="ab4ccb2646dab5fc6565c7f9ee34bd491acc256a135d44bed34d6b4a8727121213"></a>UBPF_SAFE_REGION_WRITE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="ab4ccb2646dab5fc6565c7f9ee34bd491a98ea752daa5c68de8e07b286d14a8ce9" name="ab4ccb2646dab5fc6565c7f9ee34bd491a98ea752daa5c68de8e07b286d14a8ce9"></a>UBPF_SAFE_REGION_ATOMIC&#160;</td><td class="fielddoc"></td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a53971fe3966198c6fec238d81d94bfe8" name="a53971fe3966198c6fec238d81d94bfe8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a53971fe3966198c6fec238d81d94bfe8">&#9670;&#160;</a></span>as_external_function_t()</h2>
@@ -619,7 +748,7 @@ Functions</h2></td></tr>
 
 <p>Compile a BPF program in the VM to native code. </p>
 <p>A program must be loaded into the VM and all external functions (or the external helper dispatcher) must be registered before calling this function.</p>
-<p>The JITer executes in basic mode when invoked through this function.</p>
+<p>The JITer executes in basic mode when invoked through this function. Safe-profile VMs are rejected because the first revision of the safe execution profile is interpreter-only.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to compile the program in. </td></tr>
@@ -666,6 +795,7 @@ Functions</h2></td></tr>
 <p>Compile a BPF program in the VM to native code. </p>
 <p>A program must be loaded into the VM and all external functions (or the external helper dispatcher) must be registered before calling this function.</p>
 <p>The JITer executes in the prescribed mode when invoked through this function. If jit_mode is basic, the caller will have to cast the function pointer to the appropriate type (ubpf_jit_fn).</p>
+<p>Safe-profile VMs are rejected because the first revision of the safe execution profile is interpreter-only.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to compile the program in. </td></tr>
@@ -822,10 +952,11 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to execute the program in. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>The memory to pass to the program. This pointer is passed to the program in register r1 and serves as the context pointer. If the program accesses this pointer, it must be non-null and point to valid memory. Programs verified with external verifiers like PREVAIL assume this pointer is always non-null. See docs/VerifiedPrograms.md for more information. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">mem_len</td><td>The length of the memory. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bpf_return_value</td><td>The value of the r0 register when the program exits. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bpf_return_value</td><td>The value of the r0 register when the program exits.</td></tr>
   </table>
   </dd>
 </dl>
+<p>The active execution profile controls runtime safety behavior. In the safe profile, r1 and stack-derived pointers carry provenance metadata and all dereferences are checked against that metadata before host memory is accessed.</p>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
     <tr><td class="paramname">0</td><td>Success. </td></tr>
@@ -885,6 +1016,27 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+
+<p>Execute a BPF program in the VM using the interpreter and a caller-supplied stack. </p>
+<p>This is the extended-stack variant of <a class="el" href="ubpf_8h.html#a1ce3eb22d45ec43436758a139ffc8c95">ubpf_exec</a>. The selected execution profile still applies; in the safe profile, the supplied stack becomes a tracked root region.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to execute the program in. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>The input memory passed to register r1. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mem_len</td><td>The length of the input memory. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">bpf_return_value</td><td>The value of register r0 on exit. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">stack</td><td>The stack storage to use for this invocation. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">stack_len</td><td>The size of <code>stack</code> in bytes. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -1065,6 +1217,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Set a bounds check function for the VM. </p>
+<p>This callback extends the legacy interpreter's allow/deny policy for non-standard memory regions. It does not provide enough metadata for the safe execution profile; safe mode requires <a class="el" href="ubpf_8h.html#a9591f6c94925dab2a811e78e838d12d0">ubpf_register_safe_region</a>.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to set the bounds check function for. </td></tr>
@@ -1228,6 +1381,96 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ae780b99ef2a5875ee0a4c3aa7b9bbaa3" name="ae780b99ef2a5875ee0a4c3aa7b9bbaa3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae780b99ef2a5875ee0a4c3aa7b9bbaa3">&#9670;&#160;</a></span>ubpf_register_safe_helper()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_register_safe_helper </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="structubpf__safe__helper__descriptor.html">ubpf_safe_helper_descriptor</a> *&#160;</td>
+          <td class="paramname"><em>descriptor</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a helper together with the safe-profile metadata needed to classify its return value. </p>
+<p>This is only required for the safe execution profile. The helper is also registered with the legacy helper table so that the same helper can be invoked from the legacy execution profile if desired. In safe mode, helper calls that return pointers or handles must be registered through this API or execution fails before the helper is invoked.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to register the helper on. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">descriptor</td><td>The safe helper descriptor. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a9591f6c94925dab2a811e78e838d12d0" name="a9591f6c94925dab2a811e78e838d12d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9591f6c94925dab2a811e78e838d12d0">&#9670;&#160;</a></span>ubpf_register_safe_region()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_register_safe_region </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct <a class="el" href="structubpf__safe__region.html">ubpf_safe_region</a> *&#160;</td>
+          <td class="paramname"><em>region</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a descriptor-backed external region for the safe execution profile. </p>
+<p>Use this for dereferenceable or opaque external objects that safe-mode programs may observe through helper returns or relocations. Legacy bounds-check callbacks answer only "is this access allowed?"; this API records which specific region a pointer belongs to, together with its bounds and permissions.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to register the region on. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">region</td><td>The region descriptor. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="aacb195bc0c95663214fe205613ff1c9a" name="aacb195bc0c95663214fe205613ff1c9a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aacb195bc0c95663214fe205613ff1c9a">&#9670;&#160;</a></span>ubpf_register_stack_usage_calculator()</h2>
 
@@ -1313,6 +1556,51 @@ Functions</h2></td></tr>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to set the error function on. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">error_printf</td><td>The function to be invoked on fatal error. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a70ba8480468506ce6734a73fdb67f9e4" name="a70ba8480468506ce6734a73fdb67f9e4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a70ba8480468506ce6734a73fdb67f9e4">&#9670;&#160;</a></span>ubpf_set_execution_profile()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ubpf_set_execution_profile </td>
+          <td>(</td>
+          <td class="paramtype">struct ubpf_vm *&#160;</td>
+          <td class="paramname"><em>vm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">enum <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453">ubpf_execution_profile</a>&#160;</td>
+          <td class="paramname"><em>profile</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Select the execution profile for the VM. </p>
+<p>The default profile is <a class="el" href="ubpf_8h.html#a68f8417e92e452a62a41ffe4376b6453a4b19645b8b97b72a7c7059d73d4e4d8b">UBPF_EXECUTION_PROFILE_LEGACY</a>. The safe profile strengthens runtime memory-safety semantics by tracking pointer provenance and requiring explicit metadata for helper-returned pointers and external regions. This must be selected before code is loaded, JIT compilation is attempted, or program execution begins.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM whose profile should be updated. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">profile</td><td>The execution profile to select. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>Success. </td></tr>
+    <tr><td class="paramname">-1</td><td>Failure. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1755,7 +2043,7 @@ Enabled by default for new VMs. </dd></dl>
 
 <p>Translate the eBPF byte code to machine code. </p>
 <p>A program must be loaded into the VM and all external functions must be registered before calling this function.</p>
-<p>The JITer executes in basic mode when invoked through this function.</p>
+<p>The JITer executes in basic mode when invoked through this function. Safe-profile VMs are rejected because the first revision of the safe execution profile is interpreter-only.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to translate the program in. </td></tr>
@@ -1821,7 +2109,7 @@ Enabled by default for new VMs. </dd></dl>
 
 <p>Translate the eBPF byte code to machine code. </p>
 <p>A program must be loaded into the VM and all external functions must be registered before calling this function.</p>
-<p>The JITer executes in the prescribed mode when invoked through this function.</p>
+<p>The JITer executes in the prescribed mode when invoked through this function. Safe-profile VMs are rejected because the first revision of the safe execution profile is interpreter-only.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">vm</td><td>The VM to translate the program in. </td></tr>
