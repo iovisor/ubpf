@@ -1,7 +1,7 @@
 # uBPF Requirements Specification
 
 **Document Version:** 1.2.0
-**Date:** 2026-06-12
+**Date:** 2026-06-15
 **Status:** Draft — Refreshed from source and test inventory
 
 ---
@@ -1030,6 +1030,18 @@ uBPF MUST compile and run on Windows with MSVC. Platform compatibility MUST be p
   - AC-2: `mmap`/`mprotect` emulation provides equivalent W⊕X semantics.
   - AC-3: Interpreter atomic operations function correctly on Windows.
 
+#### REQ-PLAT-007: Visual Studio Version Compatibility
+
+uBPF MUST build successfully with Visual Studio 2022 (v17, toolset v143) and Visual Studio 2026 (v18+, toolset v144+). The build system MUST NOT hardcode a specific Visual Studio generator version or Windows SDK version that restricts compatibility to a single VS release.
+
+- **Source:** `CMakePresets.json`, `cmake/settings.cmake:93`, `.github/workflows/fuzzing.yml:164-167`
+- **Confidence:** **High**
+- **Acceptance Criteria:**
+  - AC-1: `cmake --preset fuzzing-windows` succeeds on a system with only VS2022 installed.
+  - AC-2: `cmake --preset fuzzing-windows` succeeds on a system with only VS2026 installed.
+  - AC-3: The default CMake configuration (`cmake -S . -B build`) succeeds with either VS version without specifying a generator.
+  - AC-4: CI workflows dynamically discover the VS installation path and CRT redistributables rather than hardcoding version-specific paths.
+
 #### REQ-PLAT-002: Linux Support
 
 uBPF MUST compile and run on Linux with GCC or Clang. Linux-specific dependencies:
@@ -1426,5 +1438,6 @@ The JIT compiler generates native code without formal verification of equivalenc
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.2.0 | 2026-06-15 | Evolve | Added REQ-PLAT-007 (Visual Studio version compatibility) requiring the build to work with both VS2022 and VS2026 without hardcoding generator or SDK versions. |
 | 1.1.0 | 2026-06-12 | Bootstrap refresh | Refined ISA and configuration requirements to match current validator and interpreter behavior, clarified partial ARM64 constant blinding, corrected register-access API signatures, realigned ARM64 JIT requirements with actual backend scope, and tightened runtime error-reporting language. |
 | 1.0.0 | 2026-03-31 | Extracted from source | Initial requirements extraction from uBPF codebase. All requirements derived from source code analysis of the public API (`vm/inc/ubpf.h`), VM implementation (`vm/ubpf_vm.c`), instruction validator (`vm/ubpf_instruction_valid.c`), ELF loader (`vm/ubpf_loader.c`), JIT compilers (`vm/ubpf_jit_x86_64.c`, `vm/ubpf_jit_arm64.c`, `vm/ubpf_jit.c`), internal headers (`vm/ubpf_int.h`, `vm/ebpf.h`), and build configuration (`CMakeLists.txt`, `cmake/`). |

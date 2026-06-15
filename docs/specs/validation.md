@@ -1,7 +1,7 @@
 # uBPF Validation Plan
 
-**Document Version:** 1.2.0
-**Date:** 2026-06-12
+**Document Version:** 1.3.0
+**Date:** 2026-06-15
 **Status:** Draft — Refreshed from current test inventory
 
 ---
@@ -932,12 +932,23 @@ uBPF uses a multi-layered testing strategy:
 ### TC-PLAT — Platform Support
 
 #### TC-PLAT-001: Windows Support
-- **Traces to:** REQ-PLAT-001
+- **Traces to:** REQ-PLAT-001, REQ-PLAT-007
 - **Level:** System
 - **Confidence:** High
-- **Evidence:** CI: windows-2022, Debug + Release configurations
-- **Pass criteria:** All tests pass on Windows with MSVC
-- **Existing tests:** CI matrix (windows-2022)
+- **Evidence:** CI: windows-2022, Debug + Release configurations; fuzzing: windows-latest with dynamic VS discovery
+- **Pass criteria:** All tests pass on Windows with MSVC; build succeeds with both VS2022 and VS2026
+- **Existing tests:** CI matrix (windows-2022), fuzzing workflow (windows-latest)
+
+#### TC-PLAT-009: Visual Studio Version Compatibility
+- **Traces to:** REQ-PLAT-007
+- **Level:** System
+- **Confidence:** High
+- **Evidence:** `CMakePresets.json` (fuzzing-windows preset uses Ninja, no hardcoded VS generator), `cmake/settings.cmake` (no pinned SDK version), `.github/workflows/fuzzing.yml` (dynamic VS path discovery via vswhere)
+- **Pass criteria:**
+  - The `fuzzing-windows` CMake preset configures successfully on both VS2022 and VS2026 environments
+  - The CI fuzzing workflow builds and runs on `windows-latest` regardless of installed VS version
+  - No hardcoded VS2022-specific paths remain in workflow files or CMake presets
+- **Existing tests:** CI fuzzing workflow on windows-latest
 
 #### TC-PLAT-002: Linux Support
 - **Traces to:** REQ-PLAT-002
@@ -1208,6 +1219,7 @@ Test suite passes when:
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.3.0 | 2026-06-15 | Evolve | Added TC-PLAT-009 for Visual Studio version compatibility validation (REQ-PLAT-007). Updated TC-PLAT-001 to trace to new requirement. |
 | 1.2.0 | 2026-06-12 | Evolve refresh | Added validation scope for the additive safe-interpreter profile, including planned coverage for provenance enforcement and safe-mode JIT rejection. |
 | 1.1.0 | 2026-06-12 | Bootstrap refresh | Reconciled current test inventory counts, credited indirect `ubpf_copy_jit()` coverage via `ubpf_plugin`, and downgraded overstated RNG coverage claims. |
 | 1.0.0 | 2026-03-31 | Extracted by AI | Initial draft — mapped existing tests to requirements, identified gaps |

@@ -44,11 +44,14 @@ endif()
 
 if (UBPF_ENABLE_LIBFUZZER)
   if (PLATFORM_WINDOWS)
-    # Set compiler flags for libfuzzer
-    # Note: /fsanitize-coverage=inline-bool-flag causes link failures on Windows (missing _SancovBoolFlagUsed)
+    # Set compiler flags for libfuzzer.
+    # Use -fsanitize/-fsanitize-coverage (dash prefix) for compatibility with both
+    # MSVC cl.exe and clang-cl. The slash-prefix form (/fsanitize-coverage=...) is not
+    # recognized by clang-cl and gets interpreted as a file path.
+    # Note: -fsanitize-coverage=inline-bool-flag causes link failures on Windows (missing _SancovBoolFlagUsed)
     # when building non-fuzzer executables like prevail's check.exe.
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address /fsanitize-coverage=edge /fsanitize-coverage=trace-cmp /fsanitize-coverage=trace-div")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fsanitize-coverage=edge -fsanitize-coverage=trace-cmp -fsanitize-coverage=trace-div")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize-coverage=edge -fsanitize-coverage=trace-cmp -fsanitize-coverage=trace-div")
 
     # Prevail adds a custom "FuzzerDebug" multi-config configuration on MSVC.
     # Ensure the corresponding CMake cache variables exist so generation succeeds.
@@ -61,13 +64,22 @@ if (UBPF_ENABLE_LIBFUZZER)
 
   # Prevail (and its bundled libbtf) enables LTO by default on Clang/GCC. In CI this can
   # fail due to LLVM toolchain version mismatches in the binutils LTO plugin, and our
-  # fuzzing build does not need LTO.
-  if(PLATFORM_LINUX OR PLATFORM_MACOS)
-    foreach(_tgt IN ITEMS prevail libbtf)
-      if(TARGET ${_tgt})
-        set_property(TARGET ${_tgt} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+  # fuzzing build does not need LTO. On Windows with clang-cl, -flto=auto and -g3 are
+  # unsupported GCC/Clang flags that get incorrectly applied because CMake identifies
+  # clang-cl as "Clang".
+  foreach(_tgt IN ITEMS prevail libbtf)
+    if(TARGET ${_tgt})
+      set_property(TARGET ${_tgt} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+      # Strip GCC/Clang-only flags that ebpf-verifier adds as compile options.
+      # These are invalid for clang-cl on Windows.
+      get_target_property(_opts ${_tgt} COMPILE_OPTIONS)
+      if(_opts)
+        list(FILTER _opts EXCLUDE REGEX "^-flto|^-g3$")
+        set_property(TARGET ${_tgt} PROPERTY COMPILE_OPTIONS "${_opts}")
+      endif()
+      if(PLATFORM_LINUX OR PLATFORM_MACOS)
         target_compile_options(${_tgt} PRIVATE -fno-lto)
       endif()
-    endforeach()
-  endif()
+    endif()
+  endforeach()
 endif()

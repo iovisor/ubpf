@@ -1,7 +1,7 @@
 # uBPF Design Specification
 
 **Document Version:** 1.2.0
-**Date:** 2026-06-12
+**Date:** 2026-06-15
 **Status:** Draft — Refreshed from source and test inventory
 
 ---
@@ -888,20 +888,23 @@ OS services (mmap, RNG)    │  Control flow
 
 ### 7.1 Build System
 
-- **CMake 3.16+** with Ninja (preferred) or Visual Studio generators
+- **CMake 3.16+** with Ninja (preferred) or platform-default generators
 - **Presets:** `tests`, `fuzzing`, `fuzzing-windows`, `all-testing`
 - **Version:** 1.0.0 (defined in `cmake/version.cmake`)
+- **Visual Studio compatibility:** The build system MUST NOT hardcode a specific Visual Studio generator version. The `fuzzing-windows` preset uses Ninja with `clang-cl` to avoid VS version coupling. When consumers use the Visual Studio generator directly (e.g., `cmake -G "Visual Studio 17 2022"` or `cmake -G "Visual Studio 18 2026"`), the build MUST succeed with either. The Windows target platform SDK version MUST NOT be pinned to a version unavailable in newer VS releases.
 
 ### 7.2 CI/CD Pipeline
 
 7 GitHub Actions workflows providing:
-- Windows (Debug/Release, with/without retpolines)
+- Windows (Debug/Release, with/without retpolines) — pinned `windows-2022` runner for stability
 - Linux (Debug/Release, coverage, ASan/UBSan, Valgrind, scan-build, CodeQL)
 - macOS (Debug/Release)
 - ARM64 (cross-compilation + QEMU)
-- Fuzzing (1-hour daily, corpus regression)
+- Fuzzing (1-hour daily, corpus regression) — `windows-latest` runner with dynamic VS discovery
 - Documentation (Doxygen → gh-pages)
 - Security (dependency review, OSSF Scorecard)
+
+CI workflows on Windows MUST dynamically locate the Visual Studio installation and CRT redistributables using `vswhere` or environment variables set by `VsDevCmd.bat`, rather than hardcoding version-specific filesystem paths.
 
 ### 7.3 Packaging
 
@@ -931,5 +934,6 @@ OS services (mmap, RNG)    │  Control flow
 
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
+| 1.2.0 | 2026-06-15 | Evolve | Updated build system and CI/CD design to require VS-version-agnostic configuration (REQ-PLAT-007). Fuzzing-windows preset migrated to Ninja+clang-cl; CI uses dynamic VS discovery. |
 | 1.1.0 | 2026-06-12 | Bootstrap refresh | Added explicit design traceability for ISA execution semantics, security callback coverage, configuration/error-handling design, and constants/limits. |
 | 1.0.0 | 2026-03-31 | Extracted by AI | Initial draft — extracted from uBPF source code analysis |

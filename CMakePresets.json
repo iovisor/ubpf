@@ -47,10 +47,11 @@
       "displayName": "Fuzzing Configuration (Windows)",
       "description": "Build configuration for libFuzzer-based fuzzing on Windows",
       "inherits": "base",
-      "generator": "Visual Studio 17 2022",
       "cacheVariables": {
         "UBPF_ENABLE_TESTS": "OFF",
-        "UBPF_ENABLE_LIBFUZZER": "ON"
+        "UBPF_ENABLE_LIBFUZZER": "ON",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
       },
       "condition": {
         "type": "equals",
@@ -87,8 +88,7 @@
     },
     {
       "name": "fuzzing-windows",
-      "configurePreset": "fuzzing-windows",
-      "configuration": "RelWithDebInfo"
+      "configurePreset": "fuzzing-windows"
     },
     {
       "name": "all-testing",

@@ -90,8 +90,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         )
     endif()
   elseif(PLATFORM_WINDOWS)
-    set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "8.1")
-
     target_compile_options("ubpf_settings" INTERFACE
       /W4
     )

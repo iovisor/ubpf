@@ -146,33 +146,46 @@ jobs:
         path: build
         key: ${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/CMakeLists.txt') }}
 
-    - name: Configure uBPF
+    - name: Find Visual Studio with vswhere
+      id: vs
+      shell: pwsh
       run: |
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -property installationPath -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+        if (-not $vsPath) { throw "No Visual Studio installation found" }
+        echo "path=$vsPath" >> $env:GITHUB_OUTPUT
+        echo "Found Visual Studio at: $vsPath"
+
+    - name: Configure uBPF
+      shell: cmd
+      run: |
+        call "${{ steps.vs.outputs.path }}\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
         cmake --preset fuzzing-windows
 
     - name: Build uBPF
+      shell: cmd
       run: |
-        cmake --build build --config RelWithDebInfo
+        call "${{ steps.vs.outputs.path }}\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+        cmake --build build
 
     - name: Generate dictionary
       run: |
-        python ubpf\dictionary_generator.py >build\bin\RelWithDebInfo\dictionary.txt
+        python ubpf\dictionary_generator.py >build\bin\dictionary.txt
 
     - name: Gather dependencies
       shell: cmd
       run: |
-        dir "C:\Program Files\Microsoft Visual Studio\2022"
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat"
-        copy "%VCToolsInstallDir%"\bin\hostx64\x64\clang* build\bin\RelWithDebInfo
-        copy "%VCToolsRedistDir%\x64\Microsoft.VC143.CRT" build\bin\RelWithDebInfo
-        dir build\bin\RelWithDebInfo
+        call "${{ steps.vs.outputs.path }}\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+        copy "%VCToolsInstallDir%\bin\hostx64\x64\clang*" build\bin
+        for /d %%d in ("%VCToolsRedistDir%\x64\Microsoft.VC*.CRT") do copy "%%d\*" build\bin
+        dir build\bin
 
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
         path: |
-          build/bin/RelWithDebInfo
+          build/bin
 
   run_fuzzer:
     needs:
