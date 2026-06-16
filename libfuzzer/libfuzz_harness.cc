@@ -175,17 +175,10 @@ ubpf_get_map_type(uint32_t platform_specific_type)
 prevail::EbpfHelperPrototype
 ubpf_get_helper_prototype(int32_t n)
 {
-    // Once the fuzzer supports helper functions, this function should be
-    // implemented to return metadata about the helper function. Until then,
-    // throw to match the "not implemented" contract used by the sibling
-    // stubs in this file. Returning a default-constructed
-    // EbpfHelperPrototype{} would expose its null .name to the verifier,
-    // which may assign it to a std::string. PREVAIL is null-tolerant after
-    // commit 6f0384e3 ("Only Use Result From get_helper_prototype when
-    // valid"), but throwing is the correct contract for a not-implemented
-    // stub.
-    UNREFERENCED_PARAMETER(n);
-    throw std::runtime_error("get_helper_prototype not implemented");
+    // Not implemented — throw to match the sibling stubs in this file.
+    // Returning a default EbpfHelperPrototype{} would expose a null .name
+    // to the verifier.
+    throw std::runtime_error("get_helper_prototype not implemented (helper_id=" + std::to_string(n) + ")");
 }
 
 /**
