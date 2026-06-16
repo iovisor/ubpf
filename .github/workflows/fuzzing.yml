@@ -138,13 +138,19 @@ jobs:
       with:
         submodules: 'recursive'
 
+    - name: Detect Visual Studio version
+      id: vs_version
+      shell: pwsh
+      run: |
+        "major=$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion)" >> $env:GITHUB_OUTPUT
+
     - name: Cache the build folder
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
       env:
         cache-name: cache-nuget-modules
       with:
         path: build
-        key: ${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: ${{ matrix.platform }}-${{ matrix.arch }}-vs${{ steps.vs_version.outputs.major }}-${{ hashFiles('**/CMakeLists.txt') }}
 
     - name: Configure uBPF
       run: |
@@ -265,4 +271,3 @@ jobs:
       with:
         name: fuzzing-artifacts-${{ matrix.platform }}-${{ matrix.arch }}
         path: artifacts/
-
