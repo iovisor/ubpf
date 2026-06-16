@@ -138,11 +138,14 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Detect Visual Studio version
-      id: vs_version
+    - name: Select Visual Studio preset
+      id: vs_preset
       shell: pwsh
       run: |
-        "major=$(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion)" >> $env:GITHUB_OUTPUT
+        $major = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion
+        $preset = if ($major -eq "18") { "fuzzing-windows-vs2026" } else { "fuzzing-windows" }
+        "major=$major" >> $env:GITHUB_OUTPUT
+        "preset=$preset" >> $env:GITHUB_OUTPUT
 
     - name: Cache the build folder
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
@@ -150,11 +153,11 @@ jobs:
         cache-name: cache-nuget-modules
       with:
         path: build
-        key: ${{ matrix.platform }}-${{ matrix.arch }}-vs${{ steps.vs_version.outputs.major }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: ${{ matrix.platform }}-${{ matrix.arch }}-vs${{ steps.vs_preset.outputs.major }}-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
 
     - name: Configure uBPF
       run: |
-        cmake --preset fuzzing-windows
+        cmake --preset ${{ steps.vs_preset.outputs.preset }}
 
     - name: Build uBPF
       run: |
