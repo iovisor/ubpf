@@ -176,7 +176,9 @@ jobs:
       shell: cmd
       run: |
         call "${{ steps.vs.outputs.path }}\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+        for /f "delims=" %%i in ('clang-cl --print-resource-dir') do set "CLANG_RESOURCE_DIR=%%i"
         copy "%VCToolsInstallDir%\bin\hostx64\x64\clang*" build\bin
+        copy "%CLANG_RESOURCE_DIR%\lib\windows\clang_rt.asan_dynamic-x86_64.dll" build\bin
         for /d %%d in ("%VCToolsRedistDir%\x64\Microsoft.VC*.CRT") do copy "%%d\*" build\bin
         dir build\bin
 
@@ -185,7 +187,7 @@ jobs:
       with:
         name: fuzzer-${{ matrix.platform }}-${{ matrix.arch }}
         path: |
-          build/bin
+          build/bin/*
 
   run_fuzzer:
     needs:
@@ -278,4 +280,3 @@ jobs:
       with:
         name: fuzzing-artifacts-${{ matrix.platform }}-${{ matrix.arch }}
         path: artifacts/
-

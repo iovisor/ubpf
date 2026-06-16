@@ -48,8 +48,10 @@
       "description": "Build configuration for libFuzzer-based fuzzing on Windows",
       "inherits": "base",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
         "UBPF_ENABLE_TESTS": "OFF",
         "UBPF_ENABLE_LIBFUZZER": "ON",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>$<$<CONFIG:FuzzerDebug>:Debug>",
         "CMAKE_C_COMPILER": "clang-cl",
         "CMAKE_CXX_COMPILER": "clang-cl"
       },

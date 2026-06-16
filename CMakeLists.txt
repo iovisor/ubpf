@@ -74,7 +74,7 @@ if (UBPF_ENABLE_LIBFUZZER)
       # These are invalid for clang-cl on Windows.
       get_target_property(_opts ${_tgt} COMPILE_OPTIONS)
       if(_opts)
-        list(FILTER _opts EXCLUDE REGEX "^-flto|^-g3$")
+        list(FILTER _opts EXCLUDE REGEX "^-flto|^-g3$|^\\$<")
         set_property(TARGET ${_tgt} PROPERTY COMPILE_OPTIONS "${_opts}")
       endif()
       if(PLATFORM_LINUX OR PLATFORM_MACOS)

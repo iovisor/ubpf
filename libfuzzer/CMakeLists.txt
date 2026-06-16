@@ -49,8 +49,19 @@ add_executable(
 target_include_directories("ubpf_fuzzer" PRIVATE ${UBPF_FUZZER_INCLUDES})
 
 if (PLATFORM_WINDOWS)
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" --print-resource-dir
+    OUTPUT_VARIABLE CLANG_RESOURCE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  set(CLANG_RT_DIR "${CLANG_RESOURCE_DIR}/lib/windows")
   set(CMAKE_EXE_LINKER_FLAGS_FUZZERDEBUG libsancov.lib clang_rt.fuzzer_MDd-x86_64.lib)
+  target_link_libraries(ubpf_fuzzer PRIVATE
+    "${CLANG_RT_DIR}/clang_rt.fuzzer-x86_64.lib"
+    "${CLANG_RT_DIR}/clang_rt.asan_dynamic_runtime_thunk-x86_64.lib"
+    "${CLANG_RT_DIR}/clang_rt.asan_dynamic-x86_64.lib")
+else()
+  target_link_libraries(ubpf_fuzzer PRIVATE "-fsanitize=fuzzer")
 endif()
 
-target_link_libraries(ubpf_fuzzer PRIVATE "-fsanitize=fuzzer")
 target_link_libraries(ubpf_fuzzer PRIVATE ${UBPF_FUZZER_LIBS})
