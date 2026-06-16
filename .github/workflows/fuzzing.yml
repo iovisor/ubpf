@@ -173,7 +173,7 @@ jobs:
         for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSINSTALLDIR=%%I"
         call "%VSINSTALLDIR%\Common7\Tools\VsDevCmd.bat"
         copy "%VCToolsInstallDir%"\bin\hostx64\x64\clang* build\bin\RelWithDebInfo
-        copy "%VCToolsRedistDir%\x64\Microsoft.VC143.CRT\*" build\bin\RelWithDebInfo
+        for /d %%I in ("%VCToolsRedistDir%\x64\Microsoft.VC*.CRT") do copy "%%~fI\*" build\bin\RelWithDebInfo
         dir build\bin\RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
