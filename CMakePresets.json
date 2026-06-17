@@ -107,6 +107,11 @@
       "configuration": "RelWithDebInfo"
     },
     {
+      "name": "fuzzing-windows-vs2026",
+      "configurePreset": "fuzzing-windows-vs2026",
+      "configuration": "RelWithDebInfo"
+    },
+    {
       "name": "all-testing",
       "configurePreset": "all-testing"
     }
