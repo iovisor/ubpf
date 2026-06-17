@@ -142,7 +142,8 @@ jobs:
       id: vs_preset
       shell: pwsh
       run: |
-        $major = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion
+        $versionRaw = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion
+        $major = $versionRaw.Trim().Split('.')[0]
         $preset = if ($major -eq "18") { "fuzzing-windows-vs2026" } else { "fuzzing-windows" }
         "major=$major" >> $env:GITHUB_OUTPUT
         "preset=$preset" >> $env:GITHUB_OUTPUT
@@ -171,8 +172,8 @@ jobs:
       shell: pwsh
       run: |
         $vs_install_dir = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-        Copy-Item "$vs_install_dir\VC\Tools\MSVC\*\bin\Hostx64\x64\clang_rt.asan*x86_64.dll" build\bin\RelWithDebInfo
-        Copy-Item "$vs_install_dir\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT\*.dll" build\bin\RelWithDebInfo
+        Copy-Item "$vs_install_dir\VC\Tools\MSVC\*\bin\Hostx64\x64\clang_rt.asan*x86_64.dll" build\bin\RelWithDebInfo -Force
+        Copy-Item "$vs_install_dir\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT\*.dll" build\bin\RelWithDebInfo -Force
         Get-ChildItem build\bin\RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
