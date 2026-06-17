@@ -138,17 +138,27 @@ jobs:
       with:
         submodules: 'recursive'
 
+    - name: Select Visual Studio preset
+      id: vs_preset
+      shell: pwsh
+      run: |
+        $versionRaw = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productLineVersion
+        $major = $versionRaw.Trim().Split('.')[0]
+        $preset = if ($major -eq "18") { "fuzzing-windows-vs2026" } else { "fuzzing-windows" }
+        "major=$major" >> $env:GITHUB_OUTPUT
+        "preset=$preset" >> $env:GITHUB_OUTPUT
+
     - name: Cache the build folder
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7
       env:
         cache-name: cache-nuget-modules
       with:
         path: build
-        key: ${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: ${{ matrix.platform }}-${{ matrix.arch }}-vs${{ steps.vs_preset.outputs.major }}-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
 
     - name: Configure uBPF
       run: |
-        cmake --preset fuzzing-windows
+        cmake --preset ${{ steps.vs_preset.outputs.preset }}
 
     - name: Build uBPF
       run: |
@@ -159,13 +169,12 @@ jobs:
         python ubpf\dictionary_generator.py >build\bin\RelWithDebInfo\dictionary.txt
 
     - name: Gather dependencies
-      shell: cmd
+      shell: pwsh
       run: |
-        dir "C:\Program Files\Microsoft Visual Studio\2022"
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat"
-        copy "%VCToolsInstallDir%"\bin\hostx64\x64\clang* build\bin\RelWithDebInfo
-        copy "%VCToolsRedistDir%\x64\Microsoft.VC143.CRT" build\bin\RelWithDebInfo
-        dir build\bin\RelWithDebInfo
+        $vs_install_dir = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        Copy-Item "$vs_install_dir\VC\Tools\MSVC\*\bin\Hostx64\x64\clang_rt.asan*x86_64.dll" build\bin\RelWithDebInfo -Force
+        Copy-Item "$vs_install_dir\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT\*.dll" build\bin\RelWithDebInfo -Force
+        Get-ChildItem build\bin\RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -265,4 +274,3 @@ jobs:
       with:
         name: fuzzing-artifacts-${{ matrix.platform }}-${{ matrix.arch }}
         path: artifacts/
-

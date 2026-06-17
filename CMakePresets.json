@@ -59,6 +59,22 @@
       }
     },
     {
+      "name": "fuzzing-windows-vs2026",
+      "displayName": "Fuzzing Configuration (Windows, VS 2026)",
+      "description": "Build configuration for libFuzzer-based fuzzing on Windows with Visual Studio 2026",
+      "inherits": "base",
+      "generator": "Visual Studio 18 2026",
+      "cacheVariables": {
+        "UBPF_ENABLE_TESTS": "OFF",
+        "UBPF_ENABLE_LIBFUZZER": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
       "name": "all-testing",
       "displayName": "All Testing Configuration",
       "description": "Build configuration for both tests and fuzzing",
@@ -88,6 +104,11 @@
     {
       "name": "fuzzing-windows",
       "configurePreset": "fuzzing-windows",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "fuzzing-windows-vs2026",
+      "configurePreset": "fuzzing-windows-vs2026",
       "configuration": "RelWithDebInfo"
     },
     {
