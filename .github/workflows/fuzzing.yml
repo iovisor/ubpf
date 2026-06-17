@@ -168,13 +168,12 @@ jobs:
         python ubpf\dictionary_generator.py >build\bin\RelWithDebInfo\dictionary.txt
 
     - name: Gather dependencies
-      shell: cmd
+      shell: pwsh
       run: |
-        for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set "VSINSTALLDIR=%%I"
-        call "%VSINSTALLDIR%\Common7\Tools\VsDevCmd.bat"
-        copy "%VCToolsInstallDir%"\bin\hostx64\x64\clang* build\bin\RelWithDebInfo
-        for /d %%I in ("%VCToolsRedistDir%\x64\Microsoft.VC*.CRT") do copy "%%~fI\*" build\bin\RelWithDebInfo
-        dir build\bin\RelWithDebInfo
+        $vs_install_dir = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        Copy-Item "$vs_install_dir\VC\Tools\MSVC\*\bin\Hostx64\x64\clang_rt.asan*x86_64.dll" build\bin\RelWithDebInfo
+        Copy-Item "$vs_install_dir\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT\*.dll" build\bin\RelWithDebInfo
+        Get-ChildItem build\bin\RelWithDebInfo
 
     - name: Upload fuzzer as artifacts
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
