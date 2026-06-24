@@ -403,8 +403,19 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     goto error;
                 }
                 section* map = &sections[relo_sym.st_shndx];
-                if (map->shdr->sh_type != SHT_PROGBITS || map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
-                    *errmsg = ubpf_error("bad R_BPF_64_64 relocation section");
+                /* The relocation's target only needs to be an allocated PROGBITS section --
+                 * .data/.bss (SHF_ALLOC|SHF_WRITE) for maps and writable globals, and
+                 * .rodata/.rodata.* (SHF_ALLOC, often with SHF_MERGE|SHF_STRINGS) for
+                 * read-only globals and string literals. Test sh_flags with a mask rather
+                 * than equality so unrelated flags clang attaches (SHF_MERGE, SHF_STRINGS,
+                 * etc.) do not cause spurious rejection.
+                 */
+                if (map->shdr->sh_type != SHT_PROGBITS || !(map->shdr->sh_flags & SHF_ALLOC)) {
+                    *errmsg = ubpf_error(
+                        "R_BPF_64_64 target section is not an allocated PROGBITS section "
+                        "(sh_type=%u sh_flags=0x%lx)",
+                        (unsigned)map->shdr->sh_type,
+                        (unsigned long)map->shdr->sh_flags);
                     goto error;
                 }
 
