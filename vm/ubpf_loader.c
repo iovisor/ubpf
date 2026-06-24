@@ -428,12 +428,34 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     goto error;
                 }
 
+                /* The BPF psABI uses REL (not RELA) relocations, so the per-relocation
+                 * addend is not stored in the relocation entry -- it lives in the
+                 * relocand. For an LDDW that references a section symbol (e.g. clang's
+                 * merged .rodata.str*.* strings, or a section-symbol reference into
+                 * .data/.bss), the per-reference byte offset is the addend held in the
+                 * LDDW's pre-relocation imm. Fold it into symbol_offset so the callback
+                 * can resolve the exact reference; we read imm here before overwriting it
+                 * with the callback result below. For symbol references with no addend
+                 * imm is 0, so this is a no-op for those callers.
+                 *
+                 * The addend is untrusted ELF input and the size check above only bounds
+                 * st_value, so validate that st_value + imm lands within the section
+                 * before handing it to the callback. A negative imm would sign-extend to
+                 * a huge unsigned offset and is never valid for a data reference, so
+                 * reject it too.
+                 */
+                if (applies_to_inst->imm < 0 ||
+                    relo_sym.st_value + (uint64_t)applies_to_inst->imm > map->size) {
+                    *errmsg = ubpf_error("bad R_BPF_64_64 addend");
+                    goto error;
+                }
+
                 uint64_t imm = vm->data_relocation_function(
                     vm->data_relocation_user_data,
                     map->data,
                     map->size,
                     relo_sym_name,
-                    relo_sym.st_value,
+                    relo_sym.st_value + (uint64_t)applies_to_inst->imm,
                     relo_sym.st_size);
                 applies_to_inst->imm = (uint32_t)imm;
                 applies_to_inst2->imm = (uint32_t)(imm >> 32);

@@ -683,7 +683,10 @@ extern "C"
      * @param[in] data Pointer to start of the map section.
      * @param[in] data_size Size of the map section.
      * @param[in] symbol_name Name of the symbol that is referenced.
-     * @param[in] symbol_offset Offset of the symbol relative to the start of the map section.
+     * @param[in] symbol_offset Offset of the referenced location relative to the start of the
+     * map section. This includes any addend held in the BPF program's pre-relocation LDDW imm,
+     * so when an LDDW references an anonymous section symbol the offset points at the exact byte
+     * being referenced rather than the start of the section.
      * @param[in] symbol_size Size of the symbol.
      * @return The value to insert into the BPF program.
      */
