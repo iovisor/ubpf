@@ -34,7 +34,7 @@ regressions over style, aesthetics, or speculative design commentary.
 
 ## Inputs
 
-The user should provide:
+The user should provide, or the review context should imply:
 
 - A **baseline branch**.
 - An **active branch**. If omitted, use the current branch.
@@ -42,7 +42,10 @@ The user should provide:
 - Optionally, a focus override. Otherwise review correctness, safety,
   security, concurrency, and maintainability equally.
 
-If either branch name is unclear, stop and ask before continuing.
+When reviewing a pull request, use the pull request's base branch as the
+baseline and the pull request's head branch as the active branch by default.
+Only stop and ask for branch names if neither explicit inputs nor pull request
+context make the branch pair clear.
 
 ## Behavioral Constraints
 
@@ -66,7 +69,8 @@ If either branch name is unclear, stop and ask before continuing.
 
 ### Step 1: Establish Review Scope
 
-1. Resolve the branch names.
+1. Resolve the branch names. For pull request reviews, default to the pull
+   request's base and head branches.
 2. Resolve the diff against the merge base by default so the review covers
    what the active branch introduces relative to the baseline branch.
 3. Start with the changed-file inventory:
