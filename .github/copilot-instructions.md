@@ -114,10 +114,18 @@ The repository uses pre-commit hooks for:
 
 ## Copilot Code Review
 
-- When performing a pull request or branch code review for this repository, use the
-  `adversarial-branch-review` skill from `.github/skills/adversarial-branch-review`.
-- Treat that skill as the default review methodology for C and C++ changes unless the
-  user explicitly asks for a different style of review.
-- Apply the skill's adversarial review process to changed files under `vm/` with the
+- When performing a pull request or normal code review for this repository, use the
+  `code-review` skill from `.github/skills/code-review`.
+- Treat `code-review` as the default review methodology for C and C++ changes unless
+  the user explicitly asks for a different style of review.
+- The `code-review` skill should preserve as much of the adversarial review method as
+  the review surface allows. Prefer fewer, higher-signal comments, and include
+  severity, confidence, concrete consequence, and minimal fix direction in each
+  finding.
+- Apply the review skill's adversarial process to changed files under `vm/` with the
   highest priority, and use the same methodology for other runtime-critical changes
   when relevant.
+- When asked to perform a deep manual branch-to-branch review or produce the full
+  long-form adversarial report with coverage ledgers and a point-by-point fix list,
+  use the `adversarial-branch-review` skill from
+  `.github/skills/adversarial-branch-review`.
