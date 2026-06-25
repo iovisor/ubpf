@@ -111,3 +111,13 @@ The repository uses pre-commit hooks for:
 - C++ linting (cpplint)
 - Python linting (pylint)
 - Trailing whitespace and EOF fixes
+
+## Copilot Code Review
+
+- When performing a pull request or branch code review for this repository, use the
+  `adversarial-branch-review` skill from `.github/skills/adversarial-branch-review`.
+- Treat that skill as the default review methodology for C and C++ changes unless the
+  user explicitly asks for a different style of review.
+- Apply the skill's adversarial review process to changed files under `vm/` with the
+  highest priority, and use the same methodology for other runtime-critical changes
+  when relevant.
