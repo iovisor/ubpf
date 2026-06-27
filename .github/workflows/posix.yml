@@ -279,6 +279,11 @@ jobs:
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
       uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
+      env:
+        # On macOS the action installs its reporter via `brew install coverallsapp/coveralls/coveralls`.
+        # Homebrew's tap-trust policy refuses to load that formula, failing the step. Opt out of the
+        # trust prompt for this install. No effect on Linux, where the reporter is fetched directly.
+        HOMEBREW_NO_REQUIRE_TAP_TRUST: "1"
       with:
         github-token: ${{ secrets.github_token }}
         flag-name: run-${{inputs.build_type}}-${{inputs.platform}}-${{inputs.arch}}
