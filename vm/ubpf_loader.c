@@ -398,17 +398,25 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     goto error;
                 }
 
-                if (relo_sym.st_shndx > section_count) {
+                if (relo_sym.st_shndx >= section_count) {
                     *errmsg = ubpf_error("bad R_BPF_64_64 relocation section index");
                     goto error;
                 }
                 section* map = &sections[relo_sym.st_shndx];
-                if (map->shdr->sh_type != SHT_PROGBITS || map->shdr->sh_flags != (SHF_ALLOC | SHF_WRITE)) {
-                    *errmsg = ubpf_error("bad R_BPF_64_64 relocation section");
+                /* Accept any allocated, non-executable PROGBITS section (.data, .rodata, .rodata.str*);
+                 * mask the flags so SHF_MERGE/SHF_STRINGS don't reject it, but exclude .text.
+                 */
+                if (map->shdr->sh_type != SHT_PROGBITS || !(map->shdr->sh_flags & SHF_ALLOC) ||
+                    (map->shdr->sh_flags & SHF_EXECINSTR)) {
+                    *errmsg = ubpf_error(
+                        "R_BPF_64_64 target section is not an allocated, non-executable PROGBITS section "
+                        "(sh_type=%" PRIu32 " sh_flags=0x%" PRIx64 ")",
+                        (uint32_t)map->shdr->sh_type,
+                        (uint64_t)map->shdr->sh_flags);
                     goto error;
                 }
 
-                if (relo_sym.st_size + relo_sym.st_value > map->size) {
+                if (relo_sym.st_value > map->size || relo_sym.st_size > map->size - relo_sym.st_value) {
                     *errmsg = ubpf_error("bad R_BPF_64_64 size");
                     goto error;
                 }

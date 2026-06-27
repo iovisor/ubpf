@@ -677,13 +677,15 @@ extern "C"
 
     /**
      * @brief Data relocation function that is called by the VM when it encounters a
-     * R_BPF_64_64 relocation in the maps section of the ELF file.
+     * R_BPF_64_64 relocation against an allocated, non-executable data section of
+     * the ELF file, such as .data (maps, writable globals) or .rodata (read-only
+     * globals, string literals).
      *
      * @param[in] user_context The user context that was passed to ubpf_register_data_relocation.
-     * @param[in] data Pointer to start of the map section.
-     * @param[in] data_size Size of the map section.
+     * @param[in] data Pointer to start of the target data section.
+     * @param[in] data_size Size of the target data section.
      * @param[in] symbol_name Name of the symbol that is referenced.
-     * @param[in] symbol_offset Offset of the symbol relative to the start of the map section.
+     * @param[in] symbol_offset Offset of the symbol relative to the start of the target data section.
      * @param[in] symbol_size Size of the symbol.
      * @return The value to insert into the BPF program.
      */
