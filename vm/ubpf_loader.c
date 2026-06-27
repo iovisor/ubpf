@@ -487,6 +487,107 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
     }
 
     /*
+     * Recompute intra-section bpf-to-bpf calls that clang left without a
+     * relocation entry. Their PC-relative imm is computed against the .o
+     * instruction layout, but functions land in symbol-table order, so the
+     * imm is stale once linked. Fix it from the landed positions, as the
+     * relocation pass does for relocated calls. Call sites that already carry
+     * a relocation are skipped; they were handled above.
+     */
+    for (uint fi = 0; fi < total_functions; fi++) {
+        struct relocated_function* fn = relocated_functions[fi];
+        /* st_size must be a whole number of instructions. */
+        if (fn->size % sizeof(struct ebpf_inst) != 0) {
+            *errmsg = ubpf_error("function size is not a multiple of the instruction size");
+            goto error;
+        }
+        uint64_t fn_insn_count = fn->size / sizeof(struct ebpf_inst);
+
+        for (uint64_t k = 0; k < fn_insn_count; k++) {
+            struct ebpf_inst* inst = (struct ebpf_inst*)fn->linked_data + k;
+
+            if (inst->opcode != EBPF_OP_CALL || inst->src != 1) {
+                continue;
+            }
+
+            /* Offset of this call within its original .o section. */
+            uint64_t call_off = fn->native_section_start + k * sizeof(struct ebpf_inst);
+
+            /*
+             * Skip call sites that already carry a relocation. SHT_RELA is
+             * scanned too: the loader does not apply it, but a match means the
+             * call is not un-relocated and must be left untouched here.
+             */
+            bool has_relocation = false;
+            for (int si = 0; si < section_count && !has_relocation; si++) {
+                if (sections[si].shdr->sh_type != SHT_REL && sections[si].shdr->sh_type != SHT_RELA) {
+                    continue;
+                }
+                if (sections[si].shdr->sh_info >= (uint32_t)section_count ||
+                    sections[si].shdr->sh_info >= MAX_SECTIONS) {
+                    continue;
+                }
+                if (sections[sections[si].shdr->sh_info].shdr != fn->shdr) {
+                    continue;
+                }
+                if (sections[si].shdr->sh_type == SHT_REL) {
+                    uint64_t rel_count = sections[si].size / sizeof(Elf64_Rel);
+                    const Elf64_Rel* rels = sections[si].data;
+                    for (uint64_t ri = 0; ri < rel_count; ri++) {
+                        Elf64_Rel r;
+                        memcpy(&r, rels + ri, sizeof(Elf64_Rel));
+                        if (r.r_offset == call_off) {
+                            has_relocation = true;
+                            break;
+                        }
+                    }
+                } else {
+                    uint64_t rela_count = sections[si].size / sizeof(Elf64_Rela);
+                    const Elf64_Rela* relas = sections[si].data;
+                    for (uint64_t ri = 0; ri < rela_count; ri++) {
+                        Elf64_Rela r;
+                        memcpy(&r, relas + ri, sizeof(Elf64_Rela));
+                        if (r.r_offset == call_off) {
+                            has_relocation = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (has_relocation) {
+                continue;
+            }
+
+            /* Decode the target's section offset from the PC-relative imm. */
+            int64_t target_off =
+                (int64_t)call_off + ((int64_t)inst->imm + 1) * (int64_t)sizeof(struct ebpf_inst);
+            if (target_off < 0) {
+                *errmsg = ubpf_error("un-relocated local call target is out of section bounds");
+                goto error;
+            }
+            /* No upper bound needed: an out-of-range target_off matches no
+             * function's native_section_start below and is rejected there. */
+
+            struct relocated_function* target_function = NULL;
+            for (uint ti = 0; ti < total_functions; ti++) {
+                if (relocated_functions[ti]->shdr == fn->shdr &&
+                    relocated_functions[ti]->native_section_start == (uint64_t)target_off) {
+                    target_function = relocated_functions[ti];
+                    break;
+                }
+            }
+            if (!target_function) {
+                *errmsg = ubpf_error("un-relocated local call does not target a known function");
+                goto error;
+            }
+
+            uint64_t call_index = fn->landed + k;
+            /* Narrowed to int32 to match the call imm width, as above. */
+            inst->imm = (int32_t)((int64_t)target_function->landed - (int64_t)call_index - 1);
+        }
+    }
+
+    /*
      * We got this far -- we'll set a provisional success value.
      */
     load_success = 1;
