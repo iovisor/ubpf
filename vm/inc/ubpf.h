@@ -685,7 +685,9 @@ extern "C"
      * @param[in] data Pointer to start of the target data section.
      * @param[in] data_size Size of the target data section.
      * @param[in] symbol_name Name of the symbol that is referenced.
-     * @param[in] symbol_offset Offset of the symbol relative to the start of the target data section.
+     * @param[in] symbol_offset Offset within `data` of the referenced location
+     *   (st_value, plus the LDDW imm addend for section-symbol relocations). The
+     *   loader guarantees symbol_offset + symbol_size <= data_size.
      * @param[in] symbol_size Size of the symbol.
      * @return The value to insert into the BPF program.
      */

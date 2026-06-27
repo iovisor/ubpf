@@ -416,6 +416,7 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     goto error;
                 }
 
+                // Wrap-safe form of st_value + st_size > map->size.
                 if (relo_sym.st_value > map->size || relo_sym.st_size > map->size - relo_sym.st_value) {
                     *errmsg = ubpf_error("bad R_BPF_64_64 size");
                     goto error;
@@ -436,12 +437,27 @@ ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const cha
                     goto error;
                 }
 
+                // BPF uses REL, so a section-symbol relocation (st_value == 0)
+                // carries its addend in the LDDW imm. Fold it in as an unsigned
+                // section offset so merged-string literals resolve distinctly.
+                uint64_t symbol_offset = relo_sym.st_value;
+                if (ELF64_ST_TYPE(relo_sym.st_info) == STT_SECTION) {
+                    symbol_offset += (uint64_t)(uint32_t)applies_to_inst->imm;
+                }
+
+                // imm is attacker-controlled; bound symbol_offset + st_size against
+                // the section (wrap-safe, st_size <= map->size already checked above).
+                if (symbol_offset > map->size || symbol_offset > map->size - relo_sym.st_size) {
+                    *errmsg = ubpf_error("bad R_BPF_64_64 symbol offset");
+                    goto error;
+                }
+
                 uint64_t imm = vm->data_relocation_function(
                     vm->data_relocation_user_data,
                     map->data,
                     map->size,
                     relo_sym_name,
-                    relo_sym.st_value,
+                    symbol_offset,
                     relo_sym.st_size);
                 applies_to_inst->imm = (uint32_t)imm;
                 applies_to_inst2->imm = (uint32_t)(imm >> 32);
