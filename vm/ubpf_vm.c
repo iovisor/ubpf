@@ -1171,7 +1171,7 @@ ubpf_exec_ex(
             reg[inst.dst] >>= SHIFT_MASK_64_BIT(reg[inst.src]);
             break;
         case EBPF_OP_NEG64:
-            reg[inst.dst] = -reg[inst.dst];
+            reg[inst.dst] = 0 - reg[inst.dst];
             break;
         case EBPF_OP_MOD64_IMM:
             if (inst.offset == 0) {
