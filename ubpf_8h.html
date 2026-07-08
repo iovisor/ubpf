@@ -140,7 +140,7 @@ Typedefs</h2></td></tr>
 <tr class="memdesc:a087420d1735791ffa6c5c436f52da00e"><td class="mdescLeft">&#160;</td><td class="mdescRight">The type of a stack usage calculator callback function.  <br /></td></tr>
 <tr class="separator:a087420d1735791ffa6c5c436f52da00e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a70fb644d080e8448c1db17bb99858391" id="r_a70fb644d080e8448c1db17bb99858391"><td class="memItemLeft" align="right" valign="top">typedef uint64_t(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a70fb644d080e8448c1db17bb99858391">ubpf_data_relocation</a>) (void *user_context, const uint8_t *data, uint64_t data_size, const char *symbol_name, uint64_t symbol_offset, uint64_t symbol_size)</td></tr>
-<tr class="memdesc:a70fb644d080e8448c1db17bb99858391"><td class="mdescLeft">&#160;</td><td class="mdescRight">Data relocation function that is called by the VM when it encounters a R_BPF_64_64 relocation in the maps section of the ELF file.  <br /></td></tr>
+<tr class="memdesc:a70fb644d080e8448c1db17bb99858391"><td class="mdescLeft">&#160;</td><td class="mdescRight">Data relocation function that is called by the VM when it encounters a R_BPF_64_64 relocation against an allocated, non-executable data section of the ELF file, such as .data (maps, writable globals) or .rodata (read-only globals, string literals).  <br /></td></tr>
 <tr class="separator:a70fb644d080e8448c1db17bb99858391"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a64bd2f640f675e3eeff48ea52583d699" id="r_a64bd2f640f675e3eeff48ea52583d699"><td class="memItemLeft" align="right" valign="top">typedef bool(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ubpf_8h.html#a64bd2f640f675e3eeff48ea52583d699">ubpf_bounds_check</a>) (void *context, uint64_t addr, uint64_t size)</td></tr>
 <tr class="memdesc:a64bd2f640f675e3eeff48ea52583d699"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function that is called by the VM to check if a memory access is within bounds.  <br /></td></tr>
@@ -484,14 +484,14 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Data relocation function that is called by the VM when it encounters a R_BPF_64_64 relocation in the maps section of the ELF file. </p>
+<p>Data relocation function that is called by the VM when it encounters a R_BPF_64_64 relocation against an allocated, non-executable data section of the ELF file, such as .data (maps, writable globals) or .rodata (read-only globals, string literals). </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">user_context</td><td>The user context that was passed to ubpf_register_data_relocation. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>Pointer to start of the map section. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">data_size</td><td>Size of the map section. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>Pointer to start of the target data section. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data_size</td><td>Size of the target data section. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">symbol_name</td><td>Name of the symbol that is referenced. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">symbol_offset</td><td>Offset of the symbol relative to the start of the map section. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">symbol_offset</td><td>Offset within <code>data</code> of the referenced location (st_value, plus the LDDW imm addend for section-symbol relocations). The loader guarantees symbol_offset + symbol_size &lt;= data_size. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">symbol_size</td><td>Size of the symbol. </td></tr>
   </table>
   </dd>
