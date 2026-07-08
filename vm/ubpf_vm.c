@@ -2550,12 +2550,14 @@ static bool check_for_self_contained_sub_programs(const struct ebpf_inst* insts,
                 break;
             }
         }
-        // Last instruction of the sub-program must be EXIT or a jump to the current program.
+        // Last instruction of the sub-program must be EXIT or an unconditional jump.
+        // Note: the trailing jump's target is already bounds-checked by the loop above.
         bool ends_with_exit = insts[end_index - 1].opcode == EBPF_OP_EXIT;
-        bool ends_with_jump = false;
+        bool ends_with_jump = insts[end_index - 1].opcode == EBPF_OP_JA ||
+                              insts[end_index - 1].opcode == EBPF_OP_JA32;
 
-        // Only check for a preceding jump if the sub-program has at least two instructions.
-        if (end_index >= start_index + 2) {
+        // An unconditional jump as the penultimate instruction.
+        if (!ends_with_exit && !ends_with_jump && end_index >= start_index + 2) {
             ends_with_jump = insts[end_index - 2].opcode == EBPF_OP_JA ||
                              insts[end_index - 2].opcode == EBPF_OP_JA32;
         }
