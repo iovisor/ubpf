@@ -398,10 +398,11 @@ try {
     auto result = std::make_shared<prevail::AnalysisResult>();
     auto verification_completed = std::make_shared<bool>(false);
 
-    std::thread verification_thread([program, result, verification_completed, result_promise, info]() {
-        // Prevail caches program metadata in thread-local storage, so each worker thread must seed its own copy
-        // before running analysis.
+    std::thread verification_thread([program, result, verification_completed, result_promise, info, options]() {
+        // Prevail caches both program metadata and verifier options in thread-local storage, so each worker thread must
+        // seed its own copies before running analysis.
         prevail::thread_local_program_info.set(info);
+        prevail::thread_local_options = options;
 
         auto safe_set_value = [&result_promise](bool value) {
             try {
