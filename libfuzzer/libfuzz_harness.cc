@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <array>
 #include <cinttypes>
+#include <exception>
 #include <regex>
 #include <thread>
 #include <future>
@@ -132,7 +133,15 @@ prevail::EbpfProgramType g_ubpf_program_type = {
     .is_privileged = false,
 };
 
-std::optional<prevail::AnalysisResult> stored_invariants;
+thread_local std::optional<prevail::AnalysisResult> stored_invariants;
+thread_local std::vector<size_t> g_pc_stack;
+
+bool
+call_ubpf_interpreter(
+    const std::vector<uint8_t>& program_code,
+    std::vector<uint8_t>& memory,
+    std::vector<uint8_t>& ubpf_stack,
+    uint64_t& interpreter_result);
 
 /**
  * @brief This function is called by the verifier when parsing an ELF file to determine the type of the program being
@@ -347,9 +356,14 @@ int capture_printf(FILE* stream, const char* format, ...)
  * @retval true The program is safe to run.
  * @retval false The program might be unsafe to run. Note: The verifier is conservative and may reject safe programs.
  */
+static constexpr int verification_timeout_seconds = 5;
+
 bool
-verify_bpf_byte_code(const std::vector<uint8_t>& program_code)
+verify_bpf_byte_code_impl(const std::vector<uint8_t>& program_code, bool store_invariants)
 try {
+    stored_invariants.reset();
+    g_pc_stack.clear();
+
     std::ostringstream error;
     auto instruction_array = reinterpret_cast<const ebpf_inst*>(program_code.data());
     size_t instruction_count = program_code.size() / sizeof(ebpf_inst);
@@ -390,20 +404,32 @@ try {
     // Heap-allocated so lifetime is safe if verification thread is detached on timeout.
     auto program = std::make_shared<prevail::Program>(prevail::Program::from_sequence(prog, info, options));
 
-    // Verify the program with a timeout to prevent infinite loops (e.g., nested loops)
-    // or crashes. Use a future with a timeout to abort verification that takes too long or crashes.
-    constexpr int verification_timeout_seconds = 5;
+    auto result = std::make_shared<prevail::AnalysisResult>();
+    prevail::thread_local_program_info.set(info);
+    prevail::thread_local_options = options;
+    *result = prevail::analyze(*program);
+    if (store_invariants) {
+        stored_invariants = *result;
+    }
+
+    if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
+        std::ostringstream error_stream;
+        prevail::print_invariants(error_stream, *program, false, *result);
+        std::cout << error_stream.str() << std::endl;
+    }
+
+    return !result->failed;
+} catch (const std::exception&) {
+    return false;
+}
+
+bool
+verify_bpf_byte_code(const std::vector<uint8_t>& program_code)
+{
     auto result_promise = std::make_shared<std::promise<bool>>();
     std::future<bool> result_future = result_promise->get_future();
-    auto result = std::make_shared<prevail::AnalysisResult>();
-    auto verification_completed = std::make_shared<bool>(false);
 
-    std::thread verification_thread([program, result, verification_completed, result_promise, info, options]() {
-        // Prevail caches both program metadata and verifier options in thread-local storage, so each worker thread must
-        // seed its own copies before running analysis.
-        prevail::thread_local_program_info.set(info);
-        prevail::thread_local_options = options;
-
+    std::thread verification_thread([program_code, result_promise]() {
         auto safe_set_value = [&result_promise](bool value) {
             try {
                 result_promise->set_value(value);
@@ -413,48 +439,20 @@ try {
         };
 
         try {
-            *result = prevail::analyze(*program);
-            *verification_completed = true;
-            safe_set_value(true);
-        } catch (const std::exception& ex) {
-            // Verification threw an exception (e.g., null pointer dereference)
-            *verification_completed = false;
-            safe_set_value(false);
+            safe_set_value(verify_bpf_byte_code_impl(program_code, false));
         } catch (...) {
-            // Unknown exception during verification
-            *verification_completed = false;
             safe_set_value(false);
         }
     });
 
-    // Wait for the verification to complete or timeout
     if (result_future.wait_for(std::chrono::seconds(verification_timeout_seconds)) == std::future_status::timeout) {
-        // Verification timed out - detach the thread and return false.
-        // Shared state (program, result, promise) remains alive via shared_ptr until thread exits.
         verification_thread.detach();
         return false;
     }
 
-    // Get the result and check if verification completed successfully
     bool success = result_future.get();
     verification_thread.join();
-
-    if (!success || !*verification_completed) {
-        // Verification failed or threw an exception
-        return false;
-    }
-
-    stored_invariants = *result;
-
-    if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
-        std::ostringstream error_stream;
-        prevail::print_invariants(error_stream, *program, false, *result);
-        std::cout << error_stream.str() << std::endl;
-    }
-
-    return !result->failed;
-} catch (const std::exception& ex) {
-    return false;
+    return success;
 }
 
 /**
@@ -562,8 +560,6 @@ ubpf_classify_address(const ubpf_context_t* context, uint64_t register_value)
     }
 }
 
-std::vector<size_t> g_pc_stack;
-
 /**
  * @brief Function invoked prior to executing each instruction in the program.
  *
@@ -599,6 +595,10 @@ ubpf_debug_function(
     }
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK")) {
+        if (!stored_invariants.has_value()) {
+            throw std::runtime_error("constraint check requires verifier invariants");
+        }
+
         ubpf_context_t* ubpf_context = reinterpret_cast<ubpf_context_t*>(context);
         UNREFERENCED_PARAMETER(stack_start);
         UNREFERENCED_PARAMETER(stack_length);
@@ -676,9 +676,9 @@ ubpf_debug_function(
             std::cerr << "Missing verifier invariants for executed label: " << label << std::endl;
             throw std::runtime_error("missing verifier invariants for executed label");
         }
-        auto abstract_constraints = constraints_it->second.pre.to_set();
 
         if (!stored_invariants->is_consistent_before(label, inv)) {
+            auto abstract_constraints = constraints_it->second.pre.to_set();
             std::cerr << "Label: " << label << std::endl;
             std::cerr << "Verifier state (pre): " << std::endl;
             std::cerr << abstract_constraints << std::endl;
@@ -768,6 +768,76 @@ const std::set<std::string> g_error_message_to_ignore{
  * @retval true The program executed successfully.
  * @retval false The program failed to execute.
  */
+bool
+verify_and_call_ubpf_interpreter(
+    const std::vector<uint8_t>& program_code,
+    const std::vector<uint8_t>& input_memory,
+    uint64_t& interpreter_result)
+{
+    struct interpreter_worker_result_t
+    {
+        bool verification_passed = false;
+        bool interpreter_passed = false;
+        uint64_t interpreter_result = 0;
+        std::exception_ptr exception;
+    };
+
+    auto result_promise = std::make_shared<std::promise<interpreter_worker_result_t>>();
+    std::future<interpreter_worker_result_t> result_future = result_promise->get_future();
+
+    std::thread worker_thread([program_code, input_memory, result_promise]() mutable {
+        interpreter_worker_result_t result;
+        std::vector<uint8_t> memory = input_memory;
+        std::vector<uint8_t> ubpf_stack(3 * 4096);
+
+        auto safe_set_value = [&result_promise](interpreter_worker_result_t value) {
+            try {
+                result_promise->set_value(std::move(value));
+            } catch (...) {
+                // Suppress exceptions from set_value (e.g., promise already satisfied or no state).
+            }
+        };
+
+        try {
+            result.verification_passed = verify_bpf_byte_code_impl(program_code, true);
+            if (!result.verification_passed) {
+                safe_set_value(std::move(result));
+                return;
+            }
+
+            result.interpreter_passed =
+                call_ubpf_interpreter(program_code, memory, ubpf_stack, result.interpreter_result);
+        } catch (...) {
+            result.exception = std::current_exception();
+        }
+
+        safe_set_value(std::move(result));
+    });
+
+    if (result_future.wait_for(std::chrono::seconds(verification_timeout_seconds)) == std::future_status::timeout) {
+        worker_thread.detach();
+        return false;
+    }
+
+    interpreter_worker_result_t result = result_future.get();
+    worker_thread.join();
+
+    if (result.exception) {
+        std::rethrow_exception(result.exception);
+    }
+
+    if (!result.verification_passed) {
+        return false;
+    }
+
+    if (!result.interpreter_passed) {
+        return false;
+    }
+
+    interpreter_result = result.interpreter_result;
+    return true;
+}
+
 bool
 call_ubpf_interpreter(
     const std::vector<uint8_t>& program_code,
@@ -1035,17 +1105,24 @@ LLVMFuzzerTestOneInput(const uint8_t* data, std::size_t size) try
         return -1;
     }
 
+    uint64_t interpreter_result = 0;
+    uint64_t jit_result = 0;
+
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_VERIFY_BYTE_CODE")) {
-        if (!verify_bpf_byte_code(program)) {
+        if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK") &&
+            g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
+            if (!verify_and_call_ubpf_interpreter(program, memory, interpreter_result)) {
+                return 0;
+            }
+        } else if (!verify_bpf_byte_code(program)) {
             // The program failed verification.
             return 0;
         }
     }
 
-    uint64_t interpreter_result = 0;
-    uint64_t jit_result = 0;
-
-    if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER")) {
+    if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_INTERPRETER") &&
+        !(g_ubpf_fuzzer_options.get("UBPF_FUZZER_VERIFY_BYTE_CODE") &&
+          g_ubpf_fuzzer_options.get("UBPF_FUZZER_CONSTRAINT_CHECK"))) {
         if (!call_ubpf_interpreter(program, memory, ubpf_stack, interpreter_result)) {
             // Failed to load or execute the program in the interpreter.
             // This is not interesting, as the fuzzer input is invalid.
