@@ -444,15 +444,28 @@ try {
         return false;
     }
 
-    stored_invariants = *result;
+    // NOTE: We intentionally discard the worker thread's AnalysisResult (`*result`) rather than storing it in
+    // `stored_invariants`. Prevail keeps several pieces of state - most notably the Variable-name registry
+    // (prevail::variable_registry), but also thread_local_program_info and thread_local_options - in
+    // thread_local storage. The worker thread above only exists to bound how long analysis is allowed to run;
+    // any prevail::Variable ids it creates while analyzing (e.g. for stack cells introduced during widening)
+    // are only meaningful in that thread's own registry, which is destroyed when the thread exits. Since
+    // stored_invariants is later consumed on this (main) thread by ubpf_debug_function, reusing the worker
+    // thread's result would look up those ids in a different, incomplete registry and crash with an
+    // out-of-range access. Because the worker thread already proved that analysis finishes well within the
+    // timeout, it is safe to seed this thread's thread-local state and re-run analysis here synchronously.
+    prevail::thread_local_program_info.set(info);
+    prevail::thread_local_options = options;
+    const prevail::AnalysisResult local_result = prevail::analyze(*program);
+    stored_invariants = local_result;
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
         std::ostringstream error_stream;
-        prevail::print_invariants(error_stream, *program, false, *result);
+        prevail::print_invariants(error_stream, *program, false, local_result);
         std::cout << error_stream.str() << std::endl;
     }
 
-    return !result->failed;
+    return !local_result.failed;
 } catch (const std::exception& ex) {
     return false;
 }
