@@ -16,7 +16,7 @@ extern "C"
 #include "ubpf_custom_test_support.h"
 
 int
-stack_usage_calculator(const struct ubpf_vm* vm, uint16_t pc, void* cookie)
+stack_usage_calculator(const struct ubpf_vm* vm, uint32_t pc, void* cookie)
 {
     UNREFERENCED_PARAMETER(vm);
     UNREFERENCED_PARAMETER(pc);
