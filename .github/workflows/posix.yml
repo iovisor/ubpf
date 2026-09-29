@@ -65,17 +65,17 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: 'recursive'
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9
+      uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
       with:
         languages: 'cpp'
 
@@ -278,7 +278,7 @@ jobs:
 
     - name: Coveralls Parallel
       if: inputs.enable_coverage == true
-      uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
+      uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
       env:
         # On macOS the action installs its reporter via `brew install coverallsapp/coveralls/coveralls`.
         # Homebrew's tap-trust policy refuses to load that formula, failing the step. Opt out of the
@@ -378,4 +378,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9
+      uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
