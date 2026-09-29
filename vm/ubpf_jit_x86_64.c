@@ -189,7 +189,7 @@ emit_4byte_offset_placeholder(struct jit_state* state)
 static uint32_t
 emit_jump_address_reloc(struct jit_state* state, struct PatchableTarget target)
 {
-    if (state->num_jumps == UBPF_MAX_INSTS) {
+    if (state->num_jumps == state->max_insts) {
         state->jit_status = TooManyJumps;
         return 0;
     }
@@ -202,7 +202,7 @@ emit_jump_address_reloc(struct jit_state* state, struct PatchableTarget target)
 static uint32_t
 emit_local_call_address_reloc(struct jit_state* state, struct PatchableTarget target)
 {
-    if (state->num_local_calls == UBPF_MAX_INSTS) {
+    if (state->num_local_calls == state->max_insts) {
         state->jit_status = TooManyLocalCalls;
         return 0;
     }
@@ -708,7 +708,7 @@ emit_store_imm32_blinded(struct jit_state* state, enum operand_size size, int ds
 static uint32_t
 emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget load_tgt)
 {
-    if (state->num_loads == UBPF_MAX_INSTS) {
+    if (state->num_loads == state->max_insts) {
         state->jit_status = TooManyLoads;
         return 0;
     }
@@ -727,7 +727,7 @@ emit_rip_relative_load(struct jit_state* state, int dst, struct PatchableTarget 
 static void
 emit_rip_relative_lea(struct jit_state* state, int lea_dst_reg, struct PatchableTarget lea_tgt)
 {
-    if (state->num_leas == UBPF_MAX_INSTS) {
+    if (state->num_leas == state->max_insts) {
         state->jit_status = TooManyLeas;
         return;
     }
@@ -2630,7 +2630,7 @@ ubpf_translate_x86_64(struct ubpf_vm* vm, uint8_t* buffer, size_t* size, enum Ji
     struct jit_state state;
     struct ubpf_jit_result compile_result;
 
-    if (initialize_jit_state_result(&state, &compile_result, buffer, *size, jit_mode, &compile_result.errmsg) < 0) {
+    if (initialize_jit_state_result(vm, &state, &compile_result, buffer, *size, jit_mode, &compile_result.errmsg) < 0) {
         goto out;
     }
 
