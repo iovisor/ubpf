@@ -727,18 +727,8 @@ ubpf_debug_function(
                 type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_SHARED});
                 break;
             case address_type_t::Unknown:
-                // Boundary values are ambiguous: they may be verifier pointers such as data_end or stack_end,
-                // or numeric values produced by arithmetic. Do not constrain either interpretation.
-                if (reg == ubpf_context->original_data_end || reg == ubpf_context->stack_end ||
-                    reg == reinterpret_cast<uint64_t>(ubpf_context) + sizeof(ubpf_context_t)) {
-                    break;
-                }
-                value_constraints.emplace_back(
-                    prevail::LinearExpression(reg_pack.svalue) ==
-                    static_cast<int64_t>(reg));
-                value_constraints.emplace_back(
-                    prevail::LinearExpression(reg_pack.uvalue) ==
-                    static_cast<uint64_t>(reg));
+                // A value outside the concrete regions may still be a verifier-tracked pointer
+                // after pointer arithmetic. Without the abstract type, no runtime constraint is sound.
                 break;
             }
         }
