@@ -692,6 +692,9 @@ ubpf_debug_function(
         std::vector<std::pair<prevail::Variable, prevail::TypeSet>> type_restrictions;
         std::vector<prevail::LinearConstraint> value_constraints;
         using namespace prevail::dsl_syntax;
+        value_constraints.emplace_back(
+            prevail::LinearExpression(variable_registry.packet_size()) ==
+            static_cast<int64_t>(ubpf_context->data_end - ubpf_context->data));
         for (int i = 0; i < 10; i++) {
             if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
                 continue;
@@ -707,9 +710,6 @@ ubpf_debug_function(
                 value_constraints.emplace_back(
                     prevail::LinearExpression(reg_pack.packet_offset) ==
                     static_cast<int64_t>(reg - ubpf_context->data));
-                value_constraints.emplace_back(
-                    prevail::LinearExpression(variable_registry.packet_size()) ==
-                    static_cast<int64_t>(ubpf_context->data_end - ubpf_context->data));
                 break;
             case address_type_t::Context:
                 type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_CTX});
@@ -727,10 +727,12 @@ ubpf_debug_function(
                 type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_SHARED});
                 break;
             case address_type_t::Unknown:
-                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_NUM});
                 value_constraints.emplace_back(
                     prevail::LinearExpression(reg_pack.svalue) ==
                     static_cast<int64_t>(reg));
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(reg_pack.uvalue) ==
+                    static_cast<uint64_t>(reg));
                 break;
             }
         }
