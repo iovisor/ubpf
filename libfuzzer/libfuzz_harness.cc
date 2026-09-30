@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <cstdarg>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <iomanip>
@@ -18,16 +20,20 @@
 #include <thread>
 #include <future>
 #include <chrono>
+#include <map>
+#include <optional>
 
 #include "libfuzzer_config.h"
 
+#include "arith/dsl_syntax.hpp"
+#include "crab/ebpf_domain.hpp"
+#include "crab/var_registry.hpp"
 #include "ir/unmarshal.hpp"
 #include "ebpf_verifier.hpp"
 #include "platform.hpp"
 
 extern "C"
 {
-#include "ebpf.h"
 #include "ubpf.h"
 }
 
@@ -113,7 +119,7 @@ typedef struct _ubpf_context
  * @brief Descriptor for the context structure. This is used by the verifier to determine the layout of the context
  * structure in memory.
  */
-ebpf_context_descriptor_t g_ebpf_context_descriptor_ubpf = {
+ebpf_ctx_descriptor_t g_ebpf_context_descriptor_ubpf = {
     .size = offsetof(ubpf_context_t, original_data),
     .data = offsetof(ubpf_context_t, data),
     .end = offsetof(ubpf_context_t, data_end),
@@ -126,7 +132,7 @@ ebpf_context_descriptor_t g_ebpf_context_descriptor_ubpf = {
  */
 prevail::EbpfProgramType g_ubpf_program_type = {
     .name = "ubpf",
-    .context_descriptor = &g_ebpf_context_descriptor_ubpf,
+    .ctx_descriptor = &g_ebpf_context_descriptor_ubpf,
     .platform_specific_data = 0,
     .section_prefixes = {},
     .is_privileged = false,
@@ -173,11 +179,12 @@ ubpf_get_map_type(uint32_t platform_specific_type)
  * @return The prototype of the helper function.
  */
 prevail::EbpfHelperPrototype
-ubpf_get_helper_prototype(int32_t n)
+ubpf_get_helper_prototype(int32_t n, const prevail::EbpfProgramType& program_type)
 {
     // Not implemented — throw to match the sibling stubs in this file.
     // Returning a default EbpfHelperPrototype{} would expose a null .name
     // to the verifier.
+    UNREFERENCED_PARAMETER(program_type);
     throw std::runtime_error("get_helper_prototype not implemented (helper_id=" + std::to_string(n) + ")");
 }
 
@@ -190,11 +197,12 @@ ubpf_get_helper_prototype(int32_t n)
  * @retval false The helper function is not usable.
  */
 bool
-ubpf_is_helper_usable(int32_t n)
+ubpf_is_helper_usable(int32_t n, const prevail::EbpfProgramType& program_type)
 {
     // Once the fuzzer supports helper functions, this function should be implemented to return whether the helper
     // function is usable.
     UNREFERENCED_PARAMETER(n);
+    UNREFERENCED_PARAMETER(program_type);
     return false;
 }
 
@@ -215,7 +223,7 @@ ubpf_parse_maps_section(
     size_t map_record_size,
     int map_count,
     const struct prevail::ebpf_platform_t* platform,
-    prevail::ebpf_verifier_options_t options)
+    const prevail::VerifierOptions& options)
 {
     // Once the fuzzer supports maps, this function should be implemented to parse the maps section of the ELF file (if
     // any).
@@ -247,12 +255,13 @@ ubpf_resolve_inner_map_references(std::vector<prevail::EbpfMapDescriptor>& map_d
  * @param[in] map_fd The map file descriptor.
  * @return The map descriptor.
  */
-prevail::EbpfMapDescriptor&
-ubpf_get_map_descriptor(int map_fd)
+const prevail::EbpfMapDescriptor&
+ubpf_get_map_descriptor(int map_fd, const std::vector<prevail::EbpfMapDescriptor>& descriptors)
 {
     // Once the fuzzer supports maps, this function should be implemented to return the map descriptor for the given map
     // file descriptor.
     UNREFERENCED_PARAMETER(map_fd);
+    UNREFERENCED_PARAMETER(descriptors);
     throw std::runtime_error("get_map_descriptor not implemented");
 }
 
@@ -351,13 +360,13 @@ bool
 verify_bpf_byte_code(const std::vector<uint8_t>& program_code)
 try {
     std::ostringstream error;
-    auto instruction_array = reinterpret_cast<const ebpf_inst*>(program_code.data());
-    size_t instruction_count = program_code.size() / sizeof(ebpf_inst);
+    auto instruction_array = reinterpret_cast<const ebpf_inst_t*>(program_code.data());
+    size_t instruction_count = program_code.size() / sizeof(ebpf_inst_t);
     const prevail::ebpf_platform_t* platform = &g_ebpf_platform_ubpf_fuzzer;
     std::vector<prevail::EbpfInst> instructions;
     instructions.reserve(instruction_count);
     for (size_t i = 0; i < instruction_count; i++) {
-        const ebpf_inst& inst = instruction_array[i];
+        const ebpf_inst_t& inst = instruction_array[i];
         instructions.push_back(prevail::EbpfInst{inst.opcode, inst.dst, inst.src, inst.offset, inst.imm});
     }
     prevail::ProgramInfo info{
@@ -369,10 +378,10 @@ try {
     prevail::RawProgram raw_prog{file, section, 0, {}, instructions, info};
 
     // Start with the default verifier options.
-    prevail::ebpf_verifier_options_t options{};
+    prevail::VerifierOptions options{};
 
     // Enable termination checking and pre-invariant storage.
-    options.cfg_opts.check_for_termination = true;
+    options.runtime.check_for_termination = true;
     options.verbosity_opts.simplify = false;
     options.verbosity_opts.print_invariants = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
     options.verbosity_opts.print_failures = g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT");
@@ -388,7 +397,8 @@ try {
 
     // Convert the instruction sequence to a control-flow graph.
     // Heap-allocated so lifetime is safe if verification thread is detached on timeout.
-    auto program = std::make_shared<prevail::Program>(prevail::Program::from_sequence(prog, info, options));
+    auto context = std::make_shared<prevail::AnalysisContext>(
+        prevail::Program::from_sequence(prog, info, options), options);
 
     // Verify the program with a timeout to prevent infinite loops (e.g., nested loops)
     // or crashes. Use a future with a timeout to abort verification that takes too long or crashes.
@@ -398,11 +408,8 @@ try {
     auto result = std::make_shared<prevail::AnalysisResult>();
     auto verification_completed = std::make_shared<bool>(false);
 
-    std::thread verification_thread([program, result, verification_completed, result_promise, info, options]() {
-        // Prevail caches both program metadata and verifier options in thread-local storage, so each worker thread must
-        // seed its own copies before running analysis.
-        prevail::thread_local_program_info.set(info);
-        prevail::thread_local_options = options;
+    std::thread verification_thread([context, result, verification_completed, result_promise]() {
+        prevail::ThreadLocalGuard thread_local_state_guard;
 
         auto safe_set_value = [&result_promise](bool value) {
             try {
@@ -413,7 +420,7 @@ try {
         };
 
         try {
-            *result = prevail::analyze(*program);
+            *result = prevail::analyze(*context);
             *verification_completed = true;
             safe_set_value(true);
         } catch (const std::exception& ex) {
@@ -445,23 +452,16 @@ try {
     }
 
     // NOTE: We intentionally discard the worker thread's AnalysisResult (`*result`) rather than storing it in
-    // `stored_invariants`. Prevail keeps several pieces of state - most notably the Variable-name registry
-    // (prevail::variable_registry), but also thread_local_program_info and thread_local_options - in
-    // thread_local storage. The worker thread above only exists to bound how long analysis is allowed to run;
-    // any prevail::Variable ids it creates while analyzing (e.g. for stack cells introduced during widening)
-    // are only meaningful in that thread's own registry, which is destroyed when the thread exits. Since
-    // stored_invariants is later consumed on this (main) thread by ubpf_debug_function, reusing the worker
-    // thread's result would look up those ids in a different, incomplete registry and crash with an
-    // out-of-range access. Because the worker thread already proved that analysis finishes well within the
-    // timeout, it is safe to seed this thread's thread-local state and re-run analysis here synchronously.
-    prevail::thread_local_program_info.set(info);
-    prevail::thread_local_options = options;
-    const prevail::AnalysisResult local_result = prevail::analyze(*program);
+    // `stored_invariants`. Prevail's variable registry is thread-local, so variable ids created by the worker are
+    // only meaningful in that thread. Since `stored_invariants` is later consumed on this thread by
+    // `ubpf_debug_function`, rerun the analysis here so its result uses this thread's registry.
+    prevail::ThreadLocalGuard thread_local_state_guard;
+    const prevail::AnalysisResult local_result = prevail::analyze(*context);
     stored_invariants = local_result;
 
     if (g_ubpf_fuzzer_options.get("UBPF_FUZZER_PRINT_VERIFIER_REPORT")) {
         std::ostringstream error_stream;
-        prevail::print_invariants(error_stream, *program, false, local_result);
+        prevail::print_invariants(error_stream, context->program, local_result, options.verbosity_opts);
         std::cout << error_stream.str() << std::endl;
     }
 
@@ -628,7 +628,7 @@ ubpf_debug_function(
         const prevail::Label label{program_counter, -1, stack_frame_prefix};
 
         // Track call/exit for stack frame prefix.
-        const ebpf_inst* inst = reinterpret_cast<const ebpf_inst*>(ubpf_context->program_start);
+        const ebpf_inst_t* inst = reinterpret_cast<const ebpf_inst_t*>(ubpf_context->program_start);
         inst += program_counter;
         if (inst->opcode == EBPF_OP_CALL && inst->src == 1) {
             g_pc_stack.push_back(program_counter);
@@ -683,22 +683,68 @@ ubpf_debug_function(
             }
         }
 
-        prevail::StringInvariant inv{constraints};
         const auto constraints_it = stored_invariants->invariants.find(label);
         if (constraints_it == stored_invariants->invariants.end()) {
             std::cerr << "Missing verifier invariants for executed label: " << label << std::endl;
             throw std::runtime_error("missing verifier invariants for executed label");
         }
         auto abstract_constraints = constraints_it->second.pre.to_set();
+        std::vector<std::pair<prevail::Variable, prevail::TypeSet>> type_restrictions;
+        std::vector<prevail::LinearConstraint> value_constraints;
+        using namespace prevail::dsl_syntax;
+        for (int i = 0; i < 10; i++) {
+            if ((register_mask & (static_cast<decltype(register_mask)>(1) << i)) == 0) {
+                continue;
+            }
 
-        if (!stored_invariants->is_consistent_before(label, inv)) {
+            const uint64_t reg = registers[i];
+            const prevail::RegPack reg_pack = variable_registry.reg_pack(i);
+            const prevail::Variable type_variable = variable_registry.type_reg(i);
+            const address_type_t type = ubpf_classify_address(ubpf_context, reg);
+            switch (type) {
+            case address_type_t::Packet:
+                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_PACKET});
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(reg_pack.packet_offset) ==
+                    static_cast<int64_t>(reg - ubpf_context->data));
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(variable_registry.packet_size()) ==
+                    static_cast<int64_t>(ubpf_context->data_end - ubpf_context->data));
+                break;
+            case address_type_t::Context:
+                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_CTX});
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(reg_pack.ctx_offset) ==
+                    static_cast<int64_t>(reg - reinterpret_cast<uint64_t>(ubpf_context)));
+                break;
+            case address_type_t::Stack:
+                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_STACK});
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(reg_pack.stack_offset) ==
+                    static_cast<int64_t>(reg - ubpf_context->stack_start));
+                break;
+            case address_type_t::Map:
+                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_SHARED});
+                break;
+            case address_type_t::Unknown:
+                type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_NUM});
+                value_constraints.emplace_back(
+                    prevail::LinearExpression(reg_pack.svalue) ==
+                    static_cast<int64_t>(reg));
+                break;
+            }
+        }
+
+        const prevail::EbpfDomain observation =
+            prevail::EbpfDomain::from_constraints(type_restrictions, value_constraints);
+        if (!stored_invariants->is_consistent_before(label, observation)) {
             std::cerr << "Label: " << label << std::endl;
             std::cerr << "Verifier state (pre): " << std::endl;
             std::cerr << abstract_constraints << std::endl;
             std::cerr << std::endl;
 
             std::cerr << "Actual state: " << std::endl;
-            std::cerr << inv << std::endl;
+            std::cerr << observation << std::endl;
 
             throw std::runtime_error("ebpf_check_constraints_at_label failed");
         }
@@ -1004,7 +1050,7 @@ split_input(const uint8_t* data, std::size_t size, std::vector<uint8_t>& program
         return false;
     }
 
-    if ((program_length % sizeof(ebpf_inst)) != 0) {
+    if ((program_length % sizeof(ebpf_inst_t)) != 0) {
         // The program length needs to be a multiple of sizeof(ebpf_inst_t).
         // This is not interesting, as the fuzzer input is invalid.
         return false;
