@@ -703,6 +703,7 @@ ubpf_debug_function(
             const uint64_t reg = registers[i];
             const prevail::RegPack reg_pack = variable_registry.reg_pack(i);
             const prevail::Variable type_variable = variable_registry.type_reg(i);
+            const std::string register_name = "r" + std::to_string(i);
             const address_type_t type = ubpf_classify_address(ubpf_context, reg);
             switch (type) {
             case address_type_t::Packet:
@@ -727,18 +728,16 @@ ubpf_debug_function(
                 type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_SHARED});
                 break;
             case address_type_t::Unknown:
-                // Boundary values are ambiguous: they may be verifier pointers such as data_end or stack_end,
-                // or numeric values produced by arithmetic. Do not constrain either interpretation.
-                if (reg == ubpf_context->original_data_end || reg == ubpf_context->stack_end ||
-                    reg == reinterpret_cast<uint64_t>(ubpf_context) + sizeof(ubpf_context_t)) {
-                    break;
+                // Keep scalar observations precise, but do not constrain pointer-derived values whose
+                // concrete address is outside the backing region.
+                if (abstract_constraints.contains(register_name + ".type=number")) {
+                    value_constraints.emplace_back(
+                        prevail::LinearExpression(reg_pack.svalue) ==
+                        static_cast<int64_t>(reg));
+                    value_constraints.emplace_back(
+                        prevail::LinearExpression(reg_pack.uvalue) ==
+                        static_cast<uint64_t>(reg));
                 }
-                value_constraints.emplace_back(
-                    prevail::LinearExpression(reg_pack.svalue) ==
-                    static_cast<int64_t>(reg));
-                value_constraints.emplace_back(
-                    prevail::LinearExpression(reg_pack.uvalue) ==
-                    static_cast<uint64_t>(reg));
                 break;
             }
         }
