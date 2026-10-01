@@ -703,6 +703,7 @@ ubpf_debug_function(
             const uint64_t reg = registers[i];
             const prevail::RegPack reg_pack = variable_registry.reg_pack(i);
             const prevail::Variable type_variable = variable_registry.type_reg(i);
+            const std::string register_name = "r" + std::to_string(i);
             const address_type_t type = ubpf_classify_address(ubpf_context, reg);
             switch (type) {
             case address_type_t::Packet:
@@ -727,8 +728,16 @@ ubpf_debug_function(
                 type_restrictions.emplace_back(type_variable, prevail::TypeSet{prevail::T_SHARED});
                 break;
             case address_type_t::Unknown:
-                // A value outside the concrete regions may still be a verifier-tracked pointer
-                // after pointer arithmetic. Without the abstract type, no runtime constraint is sound.
+                // Keep scalar observations precise, but do not constrain pointer-derived values whose
+                // concrete address is outside the backing region.
+                if (abstract_constraints.contains(register_name + ".type=number")) {
+                    value_constraints.emplace_back(
+                        prevail::LinearExpression(reg_pack.svalue) ==
+                        static_cast<int64_t>(reg));
+                    value_constraints.emplace_back(
+                        prevail::LinearExpression(reg_pack.uvalue) ==
+                        static_cast<uint64_t>(reg));
+                }
                 break;
             }
         }
