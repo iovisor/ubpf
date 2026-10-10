@@ -65,7 +65,7 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+      uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
       with:
         egress-policy: audit
 
@@ -75,7 +75,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3
+      uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
       with:
         languages: 'cpp'
 
@@ -207,7 +207,7 @@ jobs:
 
     - name: Upload scan-build report
       if: inputs.scan_build == true
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: scan-build_report
         path: ${{github.workspace}}/scan_build_report
@@ -346,7 +346,7 @@ jobs:
 
     - name: Upload the DEB package
       if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: linux_deb_package
         path: ${{ steps.package_locations.outputs.REL_DEB_PACKAGE_PATH }}
@@ -354,7 +354,7 @@ jobs:
 
     - name: Upload the RPM package
       if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: linux_rpm_package
         path: ${{ steps.package_locations.outputs.REL_RPM_PACKAGE_PATH }}
@@ -362,7 +362,7 @@ jobs:
 
     - name: Upload the Linux TGZ package
       if: inputs.upload_packages == true && (inputs.platform == 'ubuntu-latest' || inputs.platform == 'ubuntu-24.04-arm')
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: linux_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -370,7 +370,7 @@ jobs:
 
     - name: Upload the macOS TGZ package
       if: inputs.upload_packages == true && inputs.platform == 'macos-latest'
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: macos_tgz_package
         path: ${{ steps.package_locations.outputs.REL_TGZ_PACKAGE_PATH }}
@@ -378,4 +378,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3
+      uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
