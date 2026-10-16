@@ -3,7 +3,7 @@
 	url = https://github.com/takamin/win-c
 [submodule "external/bpf_conformance"]
 	path = external/bpf_conformance
-	url = https://github.com/Alan-Jowett/bpf_conformance.git
+	url = https://github.com/microsoft/bpf-conformance.git
 [submodule "external/ebpf-verifier"]
 	path = external/ebpf-verifier
 	url = https://github.com/vbpf/prevail.git
