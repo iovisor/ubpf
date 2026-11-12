@@ -154,12 +154,14 @@ struct jit_state
     int num_loads;
     int num_leas;
     int num_local_calls;
+    int max_insts;  // Maximum number of instructions (size of allocated arrays)
     uint32_t stack_size;
     size_t bpf_function_prolog_size; // Count of bytes emitted at the start of the function.
 };
 
 int
 initialize_jit_state_result(
+    struct ubpf_vm* vm,
     struct jit_state* state,
     struct ubpf_jit_result* compile_result,
     uint8_t* buffer,
