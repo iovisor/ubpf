@@ -95,17 +95,6 @@ const int MAIN_SECTION_INDEX = 0;
 const int TEXT_SECTION_INDEX = 1;
 
 int
-section_idx_from_name(const char** section_names, int length, const char* needle)
-{
-    for (int i = 0; i < length; i++) {
-        if (!strcmp(section_names[i], needle)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-int
 ubpf_load_elf_ex(struct ubpf_vm* vm, const void* elf, size_t elf_size, const char* main_function_name, char** errmsg)
 {
     bounds b = {.base = elf, .size = elf_size};
