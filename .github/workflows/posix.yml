@@ -75,7 +75,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: inputs.build_codeql == true
-      uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066
+      uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934
       with:
         languages: 'cpp'
 
@@ -378,4 +378,4 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: inputs.build_codeql == true
-      uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066
+      uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934
